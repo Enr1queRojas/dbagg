@@ -1,0 +1,7 @@
+fastapi==0.115.12
+uvicorn==0.34.2
+httpx==0.28.1
+openai==1.78.1
+pyodbc==5.3.0
+python-dotenv==1.2.4
+sqlglot==26.16.4
