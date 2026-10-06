@@ -1,0 +1,355 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Explorador de riesgo de cartera</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&family=Bitter:wght@600&display=swap">
+<style>
+/* Layout: ledger-style tool — controls bar, semáforo summary, risk map + client detail side by side, full client ledger below */
+:root{
+  --bg:#f3f5f4; --surface:#ffffff; --ink:#18211e; --muted:#5b6762; --line:#d9dfdc; --soft:#e9eeec;
+  --accent:#1f5f8b; --accent-soft:#dbe8f1;
+  --ok:#3d7a4a; --ok-soft:#e1efe4; --warn:#a66a10; --warn-soft:#f6ead3; --bad:#b03a2e; --bad-soft:#f6dfdc;
+  --none:#8a948f;
+  --f-display:"Bitter",Georgia,serif; --f-body:"IBM Plex Sans",system-ui,sans-serif; --f-mono:"IBM Plex Mono",ui-monospace,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#121816; --surface:#1a2220; --ink:#e4ebe8; --muted:#97a39e; --line:#2d3834; --soft:#222c29;
+  --accent:#6fa8d6; --accent-soft:#1d2f3d;
+  --ok:#74b783; --ok-soft:#1d3024; --warn:#e0a24a; --warn-soft:#3a2d17; --bad:#e2766a; --bad-soft:#3d2220; --none:#6f7a75;
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#121816; --surface:#1a2220; --ink:#e4ebe8; --muted:#97a39e; --line:#2d3834; --soft:#222c29;
+  --accent:#6fa8d6; --accent-soft:#1d2f3d;
+  --ok:#74b783; --ok-soft:#1d3024; --warn:#e0a24a; --warn-soft:#3a2d17; --bad:#e2766a; --bad-soft:#3d2220; --none:#6f7a75;
+  color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:14px;line-height:1.5}
+.wrap{max-width:1240px;margin:0 auto;padding-inline:20px;padding-block:24px 48px;display:grid;gap:20px}
+header{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:end;gap:12px}
+h1{font-family:var(--f-display);font-weight:600;font-size:1.75rem;margin:0;text-wrap:balance;letter-spacing:-.01em}
+.sub{color:var(--muted);margin:4px 0 0;max-width:62ch}
+.asof{font-family:var(--f-mono);font-size:.78rem;color:var(--muted);border:1px solid var(--line);padding:4px 10px;border-radius:999px;background:var(--surface)}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px}
+.label{font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:500}
+.num{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+
+.controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px 24px;align-items:end}
+.ctl{display:grid;gap:6px;min-width:0}
+.ctl input[type=range]{width:100%;accent-color:var(--accent)}
+.ctl .val{font-family:var(--f-mono);font-size:.85rem}
+input[type=search],select{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:7px 10px;width:100%}
+input:focus-visible,select:focus-visible,button:focus-visible,tr:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.summary{display:grid;gap:12px}
+.bar{display:flex;height:14px;border-radius:4px;overflow:hidden;background:var(--soft)}
+.bar span{height:100%;transition:width .3s}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}
+.tile{border:1px solid var(--line);border-radius:8px;padding:10px 12px;display:grid;gap:2px;cursor:pointer;background:var(--surface);text-align:left;font:inherit;color:inherit}
+.tile[aria-pressed="true"]{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
+.tile .big{font-family:var(--f-mono);font-size:1.35rem;font-weight:500}
+.tile .small{color:var(--muted);font-size:.8rem}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:1px}
+
+.main{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:20px}
+@media (max-width:880px){.main{grid-template-columns:1fr}}
+.chartwrap{position:relative;overflow-x:auto}
+svg text{font-family:var(--f-mono);font-size:11px}
+.pt{cursor:pointer;transition:opacity .15s}
+.pt:hover{stroke:var(--ink);stroke-width:1.5}
+.tip{position:absolute;pointer-events:none;background:var(--ink);color:var(--bg);font-size:.78rem;padding:6px 9px;border-radius:6px;white-space:nowrap;transform:translate(-50%,-110%)}
+.legend{display:flex;flex-wrap:wrap;gap:14px;font-size:.78rem;color:var(--muted);margin-top:6px}
+
+.detail h2{font-family:var(--f-display);font-weight:600;font-size:1.3rem;margin:4px 0 2px}
+.chip{display:inline-block;font-size:.72rem;font-weight:500;padding:2px 9px;border-radius:999px;text-transform:uppercase;letter-spacing:.06em}
+.chip.rojo{background:var(--bad-soft);color:var(--bad)}.chip.amarillo{background:var(--warn-soft);color:var(--warn)}.chip.verde{background:var(--ok-soft);color:var(--ok)}.chip.sin{background:var(--soft);color:var(--muted)}
+.story{margin:10px 0;color:var(--ink);max-width:60ch}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:12px 0}
+.kv dt{color:var(--muted)}.kv dd{margin:0;text-align:right}
+.steps{display:grid;gap:8px;margin-top:12px}
+.step{display:grid;grid-template-columns:1fr auto;gap:2px 10px;padding:8px 10px;background:var(--soft);border-radius:6px}
+.step small{grid-column:1/-1;color:var(--muted);font-size:.76rem}
+.warnbox{margin-top:12px;padding:8px 10px;border-left:3px solid var(--warn);background:var(--warn-soft);border-radius:0;font-size:.82rem}
+.empty{color:var(--muted)}
+
+.tablewrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:.85rem}
+th{position:sticky;top:0;background:var(--surface);text-align:right;font-weight:500;color:var(--muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;padding:8px 10px;border-bottom:1px solid var(--line);cursor:pointer;white-space:nowrap;user-select:none}
+th:first-child,td:first-child{text-align:left}
+th[aria-sort] .arr{color:var(--ink)}
+td{padding:7px 10px;border-bottom:1px solid var(--soft);text-align:right;font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+td:first-child{font-family:var(--f-body);font-weight:500}
+tbody tr{cursor:pointer}
+tbody tr:hover{background:var(--soft)}
+tbody tr.sel{background:var(--accent-soft)}
+.stripe{display:inline-block;width:4px;height:14px;border-radius:2px;margin-right:8px;vertical-align:-2px}
+.tbar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px}
+.tbar .ctl{width:min(280px,100%)}
+.note{color:var(--muted);font-size:.8rem;max-width:80ch}
+.seg{color:var(--warn);font-family:var(--f-body)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Explorador de riesgo de cartera</h1>
+      <p class="sub">Días que tardaría cada cliente en liquidar su saldo al ritmo con el que suele pagar, ajustado por cuánto se ha retrasado respecto a su costumbre.</p>
+    </div>
+    <span class="asof">__REPORT_DATE__ · resultados preliminares</span>
+  </header>
+
+  <p class="note">Semáforo visual por días estimados de liquidación. Ajustar los umbrales no modifica el score calculado en Python. Los casos sin datos suficientes se muestran en la tabla, fuera del mapa.</p>
+  <section class="panel controls" aria-label="Ajustes">
+    <div class="ctl">
+      <label class="label" for="uAm">Amarillo a partir de</label>
+      <input type="range" id="uAm" min="15" max="180" step="5" value="45">
+      <span class="val" id="uAmV"></span>
+    </div>
+    <div class="ctl">
+      <label class="label" for="uRo">Rojo a partir de</label>
+      <input type="range" id="uRo" min="30" max="365" step="5" value="90">
+      <span class="val" id="uRoV"></span>
+    </div>
+    <div class="ctl">
+      <label class="label" for="fFuente">Origen de los valores típicos</label>
+      <select id="fFuente">
+        <option value="todos">Todos los clientes</option>
+        <option value="propio">Con historial propio</option>
+        <option value="segmento">Con valores de referencia</option>
+      </select>
+    </div>
+    <div class="ctl">
+      <label class="label" for="fMin">Saldo mínimo</label>
+      <select id="fMin">
+        <option value="0">Cualquier saldo</option>
+        <option value="1000" selected>Más de $1,000</option>
+        <option value="50000">Más de $50,000</option>
+        <option value="250000">Más de $250,000</option>
+      </select>
+    </div>
+  </section>
+
+  <section class="panel summary" aria-label="Resumen por semáforo">
+    <div class="bar" id="bar" role="img" aria-label="Proporción del saldo por semáforo"></div>
+    <div class="tiles" id="tiles"></div>
+  </section>
+
+  <section class="main">
+    <div class="panel">
+      <div class="label">Mapa de riesgo</div>
+      <p class="note">Más a la derecha, más tiempo tardaría en pagar lo que debe. Más arriba, más atrasado está respecto a su costumbre. La franja de abajo agrupa a quienes van al corriente. El color de fondo es la zona del semáforo; arriba a la derecha está el mayor riesgo. Haz clic en un punto para ver su detalle.</p>
+      <div class="chartwrap" id="chartwrap"><svg id="chart" role="img" aria-label="Mapa de riesgo por cliente"></svg><div class="tip" id="tip" hidden></div></div>
+      <div class="legend" id="legend"></div>
+    </div>
+    <aside class="panel detail" id="detail" aria-live="polite"></aside>
+  </section>
+
+  <section class="panel">
+    <div class="tbar">
+      <div><div class="label">Cartera completa</div><div class="note" id="count"></div></div>
+      <div class="ctl"><label class="label" for="q">Buscar cliente</label><input type="search" id="q" placeholder="Clave del cliente"></div>
+    </div>
+    <div class="tablewrap">
+      <table id="tbl">
+        <thead><tr>
+          <th data-k="c">Cliente <span class="arr"></span></th>
+          <th data-k="D">Saldo <span class="arr"></span></th>
+          <th data-k="P">Pago típico <span class="arr"></span></th>
+          <th data-k="d">Cada (días) <span class="arr"></span></th>
+          <th data-k="t">Sin pagar (días) <span class="arr"></span></th>
+          <th data-k="R">Retraso <span class="arr"></span></th>
+          <th data-k="dias">Días p/ liquidar <span class="arr"></span></th>
+          <th data-k="n">Pagos __WINDOW_DAYS__ d <span class="arr"></span></th>
+        </tr></thead>
+        <tbody id="tb"></tbody>
+      </table>
+    </div>
+    <p class="note">Los clientes marcados con * no tienen historial suficiente; su pago típico y su ritmo son la mediana de clientes con saldo similar. Clientes sin saldo o con saldo a favor aparecen al final, fuera del semáforo.</p>
+  </section>
+</div>
+
+<script>
+const REPORT = __REPORT_JSON__;
+const RAW = REPORT.rows;
+const $ = id => document.getElementById(id);
+const mx = n => Number.isFinite(n) ? '$' + Math.round(n).toLocaleString('es-MX') : '—';
+const esc = value => String(value).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+const fmt = (n, d=0) => Number.isFinite(n) ? n.toLocaleString('es-MX',{maximumFractionDigits:d,minimumFractionDigits:d}) : '—';
+const COL = {rojo:'var(--bad)',amarillo:'var(--warn)',verde:'var(--ok)',sin:'var(--none)', pendiente:'var(--none)'};
+const NAME = {rojo:'Rojo',amarillo:'Amarillo',verde:'Verde',sin:'Sin saldo', pendiente:'Sin datos suficientes'};
+
+const data = RAW.map(r => ({...r, base: r.D <= 0 ? 0 : (Number.isFinite(r.C) && Number.isFinite(r.d) ? r.C * Math.max(r.d, 1) : null)}));
+
+const st = {am:45, ro:90, fuente:'todos', min:1000, sem:null, q:'', sel:null, sk:'dias', sd:-1};
+try { const s = JSON.parse(localStorage.getItem('riesgo-umbrales')||'null'); if (s) { st.am=s.am; st.ro=s.ro; $('uAm').value=s.am; $('uRo').value=s.ro; } } catch(e) {}
+
+const semOf = r => r.D <= 0 ? 'sin' : !Number.isFinite(r.dias) ? 'pendiente' : r.dias > st.ro ? 'rojo' : r.dias > st.am ? 'amarillo' : 'verde';
+const inScope = r => (st.fuente==='todos' || r.f===st.fuente) && (r.D <= 0 ? st.min===0 : r.D > st.min);
+
+function render(){
+  $('uAmV').textContent = st.am + ' días para liquidar';
+  $('uRoV').textContent = st.ro + ' días para liquidar';
+  try { localStorage.setItem('riesgo-umbrales', JSON.stringify({am:st.am, ro:st.ro})); } catch(e) {}
+  data.forEach(r => r.sem = semOf(r));
+  const scope = data.filter(inScope);
+  renderSummary(scope); renderChart(scope); renderTable(scope); renderDetail();
+}
+
+function renderSummary(scope){
+  const pos = scope.filter(r => r.D > 0), total = pos.reduce((s,r)=>s+r.D,0);
+  const groups = ['rojo','amarillo','verde','pendiente','sin'].map(k => {
+    const rs = scope.filter(r => r.sem===k);
+    return {k, n:rs.length, D:rs.reduce((s,r)=>s+Math.max(r.D,0),0)};
+  });
+  $('bar').innerHTML = groups.filter(g=>g.k!=='sin' && total>0).map(g =>
+    `<span style="width:${g.D/total*100}%;background:${COL[g.k]}" title="${NAME[g.k]}: ${mx(g.D)}"></span>`).join('');
+  $('tiles').innerHTML = groups.filter(g => !['sin','pendiente'].includes(g.k) || g.n).map(g => `
+    <button class="tile" data-sem="${g.k}" aria-pressed="${st.sem===g.k}">
+      <span class="label"><span class="dot" style="background:${COL[g.k]}"></span>${NAME[g.k]}</span>
+      <span class="big">${g.n} <span class="small">clientes</span></span>
+      <span class="small num">${g.k==='sin' ? 'sin deuda pendiente' : mx(g.D) + ' · ' + (total ? fmt(g.D/total*100) : 0) + '% del saldo'}</span>
+    </button>`).join('');
+  document.querySelectorAll('.tile').forEach(b => b.onclick = () => { st.sem = st.sem===b.dataset.sem ? null : b.dataset.sem; render(); });
+}
+
+function renderChart(scope){
+  const svg = $('chart'), W = 760, H = 470, L = 64, Rm = 20, T = 22, STRIP = 46, AX = 58;
+  const yBase = H - AX - STRIP;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`); svg.setAttribute('width','100%'); svg.style.minWidth = '560px';
+  const pts = scope.filter(r => r.D > 0 && Number.isFinite(r.base) && Number.isFinite(r.R) && (!st.sem || r.sem===st.sem));
+  const xmin = 3, xmax = 20000, ymin = 1, ymax = 40;
+  const cx = v => Math.min(Math.max(v, xmin), xmax);
+  const lx = v => L + (Math.log10(cx(v)) - Math.log10(xmin)) / (Math.log10(xmax)-Math.log10(xmin)) * (W-L-Rm);
+  const ly = v => yBase - (Math.log10(Math.min(Math.max(v,ymin),ymax)) - Math.log10(ymin)) / (Math.log10(ymax)-Math.log10(ymin)) * (yBase-T);
+  const hash = s => { let h = 0; for (const ch of s) h = (h*31 + ch.charCodeAt(0)) >>> 0; return h; };
+  const py = r => r.R > 1.001 ? ly(r.R) : yBase + 10 + (hash(r.c) % 1000) / 1000 * (STRIP - 20);
+  const maxD = data.reduce((max,r) => Math.max(max,r.D || 0), 1);
+  const rad = D => 3 + Math.sqrt(D/maxD) * 16;
+  const xR = W - Rm, yB = yBase + STRIP;
+  let g = '';
+  g += `<rect x="${L}" y="${T}" width="${xR-L}" height="${yB-T}" fill="var(--ok-soft)"/>`;
+  const zone = (u, fill) => {
+    const p = [];
+    for (let y = ymin; y <= ymax*1.0001; y *= 1.02) p.push(`${lx(u/y)},${ly(y)}`);
+    return `<polygon points="${p.join(' ')} ${xR},${T} ${xR},${yBase}" fill="${fill}"/>` +
+           `<rect x="${lx(u)}" y="${yBase}" width="${Math.max(0, xR-lx(u))}" height="${STRIP}" fill="${fill}"/>`;
+  };
+  g += zone(st.am, 'var(--warn-soft)') + zone(st.ro, 'var(--bad-soft)');
+  g += `<line x1="${L}" x2="${xR}" y1="${yBase}" y2="${yBase}" stroke="var(--muted)" stroke-dasharray="3 3"/>`;
+  g += `<text x="${L+8}" y="${yBase+STRIP/2+4}" fill="var(--muted)" font-family="var(--f-body)">Al corriente</text>`;
+  const xt = [[7,'1 semana'],[30,'1 mes'],[90,'3 meses'],[365,'1 año'],[1825,'5 años'],[7300,'20 años']];
+  xt.forEach(([v,lab]) => { g += `<line x1="${lx(v)}" x2="${lx(v)}" y1="${T}" y2="${yB}" stroke="var(--line)" stroke-opacity=".7"/><text x="${lx(v)}" y="${yB+16}" text-anchor="middle" fill="var(--muted)">${lab}</text>`; });
+  [2,5,10,30].forEach(v => { g += `<line x1="${L}" x2="${xR}" y1="${ly(v)}" y2="${ly(v)}" stroke="var(--line)" stroke-opacity=".7"/><text x="${L-8}" y="${ly(v)+4}" text-anchor="end" fill="var(--muted)">${v}×</text>`; });
+  g += `<text x="${L-8}" y="${yBase+4}" text-anchor="end" fill="var(--muted)">1×</text>`;
+  g += `<text x="${(L+xR)/2}" y="${H-10}" text-anchor="middle" fill="var(--ink)" font-family="var(--f-body)">Tiempo para liquidar al ritmo con el que suele pagar →</text>`;
+  g += `<text x="${L}" y="${T-8}" fill="var(--ink)" font-family="var(--f-body)">↑ Atraso: veces su intervalo normal sin pagar</text>`;
+  g += `<rect x="${L}" y="${T}" width="${xR-L}" height="${yB-T}" fill="none" stroke="var(--line)"/>`;
+  const sorted = [...pts].sort((a,b)=>b.D-a.D);
+  g += sorted.map(r => `<circle class="pt" data-c="${encodeURIComponent(r.c)}" cx="${lx(r.base)}" cy="${py(r)}" r="${rad(r.D)}" fill="${COL[r.sem]}" fill-opacity="${st.sel && st.sel!==r.c ? .45 : .8}" stroke="${st.sel===r.c ? 'var(--ink)' : 'var(--surface)'}" stroke-width="${st.sel===r.c ? 2.5 : 1}"${r.f==='segmento' ? ' stroke-dasharray="2 2"' : ''}/>`).join('');
+  const placed = [], boxes = [];
+  const cand = [...pts.filter(r => r.c===st.sel), ...pts.filter(r => r.sem==='rojo' && r.c!==st.sel).sort((a,b)=>b.D*b.R-a.D*a.R)];
+  for (const r of cand) {
+    if (placed.length >= 10) break;
+    const x0 = lx(r.base), y0 = py(r), rr = rad(r.D), w = r.c.length*6.8 + 6, h = 14;
+    const opts = [[x0+rr+3, y0-h/2], [x0-rr-3-w, y0-h/2], [x0-w/2, y0-rr-h-2], [x0-w/2, y0+rr+2]];
+    const ok = opts.find(([bx,by]) => bx >= L+2 && bx+w <= xR-2 && by >= T+2 && by+h <= yB-2 &&
+      !boxes.some(b => bx < b[0]+b[2] && bx+w > b[0] && by < b[1]+b[3] && by+h > b[1]));
+    if (!ok) continue;
+    boxes.push([ok[0], ok[1], w, h]);
+    placed.push(`<text x="${ok[0]+3}" y="${ok[1]+11}" fill="var(--ink)" font-weight="${r.c===st.sel?600:400}" style="paint-order:stroke" stroke="var(--surface)" stroke-width="3">${esc(r.c)}</text>`);
+  }
+  g += placed.join('');
+  svg.innerHTML = g;
+  const tip = $('tip'), wrap = $('chartwrap');
+  svg.querySelectorAll('.pt').forEach(c => {
+    const r = data.find(x => x.c===decodeURIComponent(c.dataset.c));
+    c.onmouseenter = () => { tip.hidden=false; tip.textContent = `${r.c} · ${mx(r.D)} · ${fmt(r.dias)} días · ${r.R>1.001 ? fmt(r.R,1)+'× atraso' : 'al corriente'}`; };
+    c.onmousemove = e => { const b = wrap.getBoundingClientRect(); tip.style.left=(e.clientX-b.left+wrap.scrollLeft)+'px'; tip.style.top=(e.clientY-b.top)+'px'; };
+    c.onmouseleave = () => tip.hidden = true;
+    c.onclick = () => select(r.c);
+  });
+  $('legend').innerHTML = [['rojo',`más de ${st.ro} días`],['amarillo',`${st.am} a ${st.ro} días`],['verde',`hasta ${st.am} días`]].map(([k,l])=>`<span><span class="dot" style="background:${COL[k]}"></span>${NAME[k]}: ${l}</span>`).join('') +
+    `<span>Tamaño = saldo · contorno punteado = sin historial suficiente · ${pts.length} clientes</span>`;
+}
+
+function renderTable(scope){
+  const q = st.q.trim().toLowerCase();
+  let rows = scope.filter(r => (!st.sem || r.sem===st.sem) && (!q || r.c.toLowerCase().includes(q)));
+  const k = st.sk;
+  rows.sort((a,b) => {
+    if ((a.D>0) !== (b.D>0)) return a.D>0 ? -1 : 1;
+    const va=a[k], vb=b[k]; if (va == null || vb == null) return va == null ? (vb == null ? 0 : 1) : -1; return (typeof va==='string' ? va.localeCompare(vb) : va-vb) * st.sd;
+  });
+  $('tb').innerHTML = rows.map(r => `<tr tabindex="0" data-c="${encodeURIComponent(r.c)}" class="${st.sel===r.c?'sel':''}">
+    <td><span class="stripe" style="background:${COL[r.sem]}"></span>${esc(r.c)}${r.f==='segmento'?'<span class="seg"> *</span>':''}</td>
+    <td>${mx(r.D)}</td><td>${mx(r.P)}</td><td>${fmt(r.d)}</td><td>${fmt(r.t)}</td>
+    <td>${r.R>1.001 ? fmt(r.R,1)+'×' : '—'}</td><td>${r.D>0 ? fmt(r.dias) : '—'}</td><td>${r.n}</td></tr>`).join('');
+  $('tb').querySelectorAll('tr').forEach(tr => {
+    const go = () => select(decodeURIComponent(tr.dataset.c));
+    tr.onclick = go; tr.onkeydown = e => { if (e.key==='Enter' || e.key===' ') { e.preventDefault(); go(); } };
+  });
+  document.querySelectorAll('th').forEach(th => {
+    const on = th.dataset.k===st.sk;
+    th.toggleAttribute('aria-sort', on); if (on) th.setAttribute('aria-sort', st.sd>0?'ascending':'descending');
+    th.querySelector('.arr').textContent = on ? (st.sd>0?'↑':'↓') : '';
+  });
+  $('count').textContent = `${rows.length} clientes${st.sem ? ' en ' + NAME[st.sem].toLowerCase() : ''}`;
+}
+
+function renderDetail(){
+  const box = $('detail'), r = data.find(x => x.c===st.sel);
+  if (!r) {
+    const top = data.filter(x=>x.D>0).sort((a,b)=>b.dias-a.dias)[0];
+    box.innerHTML = `<div class="label">Detalle del cliente</div><p class="empty">Selecciona un cliente en el mapa o en la tabla para ver cómo se construye su score.</p>`;
+    if (top) select(top.c, true);
+    return;
+  }
+  const base = r.base, dias = r.dias;
+  const story = r.D <= 0
+    ? `No tiene saldo pendiente${r.D<0 ? ' (saldo a favor de ' + mx(-r.D) + ')' : ''}. Queda fuera del semáforo.`
+    : r.sem === 'pendiente' ? 'No hay datos suficientes para estimar el plazo de liquidación. Revisa el historial de pagos y las referencias del segmento.'
+    : `Debe ${mx(r.D)}. Suele pagar ${mx(r.P)} cada ${fmt(r.d)} días, así que a ese ritmo tardaría ${fmt(base)} días en liquidar. ` +
+      (r.R > 1.001 ? `Lleva ${fmt(r.t)} días sin pagar, ${fmt(r.R,1)} veces su intervalo normal, por eso el plazo se ajusta a ${fmt(dias)} días.`
+                   : `Su último pago fue hace ${fmt(r.t)} días, dentro de su ritmo normal, así que no hay ajuste por retraso.`);
+  let warn = '';
+  if (r.f==='segmento') warn = `<div class="warnbox">Tiene ${r.n} ${r.n===1?'pago':'pagos'} en __WINDOW_DAYS__ días. El pago típico y el ritmo son de referencia (clientes con saldo similar); conviene revisar este caso a mano.</div>`;
+  else if (r.D > 0 && r.P * r.n < r.D * 0.1 && r.n >= 8) warn = `<div class="warnbox">Muchos pagos con un pago típico bajo. Revisa si tiene abonos grandes que el filtro de atípicos pudo dejar fuera.</div>`;
+  box.innerHTML = `
+    <div class="label">Detalle del cliente</div>
+    <h2>${esc(r.c)}</h2>
+    <span class="chip ${r.sem}">${NAME[r.sem]}</span>
+    <p class="story">${story}</p>
+    ${r.D>0 ? `<div class="steps">
+      <div class="step"><span>Pagos pendientes</span><span class="num">${fmt(r.C,1)}</span><small>saldo ÷ pago típico</small></div>
+      <div class="step"><span>Días al ritmo habitual</span><span class="num">${fmt(base)}</span><small>pagos pendientes × días entre pagos</small></div>
+      <div class="step"><span>Factor de retraso</span><span class="num">${fmt(r.R,2)}×</span><small>días sin pagar ÷ días entre pagos, mínimo 1</small></div>
+      <div class="step"><span><b>Días para liquidar</b></span><span class="num"><b>${fmt(dias)}</b></span><small>umbrales: amarillo ${st.am}, rojo ${st.ro}</small></div>
+    </div>` : ''}
+    <dl class="kv num">
+      <dt>Saldo</dt><dd>${mx(r.D)}</dd>
+      <dt>Pago típico</dt><dd>${mx(r.P)}</dd>
+      <dt>Días entre pagos</dt><dd>${fmt(r.d)}</dd>
+      <dt>Días sin pagar</dt><dd>${fmt(r.t)}</dd>
+      <dt>Pagos en __WINDOW_DAYS__ días</dt><dd>${r.n}</dd>
+    </dl>${warn}`;
+}
+
+function select(c, quiet){
+  st.sel = c;
+  if (!quiet) render(); else { renderDetail(); }
+}
+
+$('uAm').oninput = e => { st.am = +e.target.value; if (st.am >= st.ro) { st.ro = st.am + 5; $('uRo').value = st.ro; } render(); };
+$('uRo').oninput = e => { st.ro = +e.target.value; if (st.ro <= st.am) { st.am = Math.max(15, st.ro - 5); $('uAm').value = st.am; } render(); };
+$('fFuente').onchange = e => { st.fuente = e.target.value; render(); };
+$('fMin').onchange = e => { st.min = +e.target.value; render(); };
+$('q').oninput = e => { st.q = e.target.value; data.forEach(r=>r.sem=semOf(r)); renderTable(data.filter(inScope)); };
+document.querySelectorAll('th').forEach(th => th.onclick = () => {
+  const k = th.dataset.k; if (st.sk===k) st.sd *= -1; else { st.sk = k; st.sd = k==='c' ? 1 : -1; } render();
+});
+
+const first = data.filter(x=>x.D>0).sort((a,b)=>b.dias-a.dias)[0];
+st.sel = first ? first.c : null;
+render();
+</script>
+
+</body></html>

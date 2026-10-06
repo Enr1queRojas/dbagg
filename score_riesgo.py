@@ -20,7 +20,6 @@ from datetime import date, timedelta
 
 import numpy as np
 import pandas as pd
-import pyodbc
 
 # ============ PARÁMETROS ============
 VENTANA_DIAS = 365
@@ -131,6 +130,8 @@ def valor_tipico(valores):
 
 
 def semaforo(score):
+    if pd.isna(score):
+        return "sin_datos"
     if score > UMBRAL_ROJO:
         return "rojo"
     if score > UMBRAL_AMARILLO:
@@ -144,6 +145,8 @@ def calcular_score_riesgo(conn_str, hoy=None):
     inicio = hoy - timedelta(days=VENTANA_DIAS)
 
     # --- 1. Extracción (solo lectura) ---
+    import pyodbc
+
     conn = pyodbc.connect(conn_str, readonly=True)
     try:
         pagos = _leer(conn, SQL_PAGOS, (inicio,))
@@ -181,9 +184,10 @@ def calcular_score_riesgo(conn_str, hoy=None):
     # --- 3. Segmentos por monto de deuda ---
     con_deuda = base["D"] > 0
     base["segmento"] = np.nan
-    base.loc[con_deuda, "segmento"] = pd.qcut(
-        base.loc[con_deuda, "D"], q=N_SEGMENTOS, labels=False, duplicates="drop"
-    )
+    if con_deuda.any():
+        base.loc[con_deuda, "segmento"] = pd.qcut(
+            base.loc[con_deuda, "D"], q=N_SEGMENTOS, labels=False, duplicates="drop"
+        )
     ref = base[base["historial"] & con_deuda]
     seg = ref.groupby("segmento").agg(
         P_seg=("P_propio", "median"), d_seg=("d_propio", "median")
@@ -224,25 +228,75 @@ def calcular_score_riesgo(conn_str, hoy=None):
 
 
 
-if __name__ == "__main__":
+def generar_html(resultado, salida=None, hoy=None):
+    """Render the report directly from calculated rows; no intermediate files."""
+    import json
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parent
+    destino = Path(salida) if salida else root / "score_riesgo.html"
+    hoy = hoy or date.today()
+    campos = {
+        "cliente": "c", "D": "D", "n_pagos": "n", "fuente": "f",
+        "segmento": "segmento", "P_tipico": "P", "d_tipico": "d",
+        "t": "t", "C": "C", "R": "R", "score": "score",
+        "dias_liquidar": "dias", "semaforo": "semaforo_score",
+    }
+    # pandas converts missing/non-finite numbers to JSON null, preserving precision.
+    rows = json.loads(resultado[list(campos)].rename(columns=campos).to_json(
+        orient="records", force_ascii=False, double_precision=15
+    ))
+    payload = json.dumps({"fecha_corte": hoy.isoformat(), "rows": rows},
+                         ensure_ascii=False, allow_nan=False)
+    # Prevent data from closing a script element or introducing HTML.
+    payload = (payload.replace("&", "\\u0026").replace("<", "\\u003c")
+               .replace(">", "\\u003e").replace("\u2028", "\\u2028")
+               .replace("\u2029", "\\u2029"))
+    template = (root / "templates" / "riesgo.html").read_text(encoding="utf-8")
+    html = (template.replace("__REPORT_DATE__", f"Corte al {hoy:%d/%m/%Y}")
+            .replace("__WINDOW_DAYS__", str(VENTANA_DIAS))
+            .replace("__REPORT_JSON__", payload))
+    destino.parent.mkdir(parents=True, exist_ok=True)
+    destino.write_text(html, encoding="utf-8")
+    return destino.resolve()
+
+
+def main():
+    import argparse
     import os
+    import webbrowser
+    from pathlib import Path
     from dotenv import load_dotenv
 
-    load_dotenv()
+    parser = argparse.ArgumentParser(description="Calcula el riesgo y genera un reporte HTML.")
+    parser.add_argument("--salida", type=Path, help="Ruta del HTML de salida")
+    parser.add_argument("--abrir", action="store_true", help="Abre el reporte en el navegador")
+    args = parser.parse_args()
+    load_dotenv(Path(__file__).resolve().parent / ".env")
+    # A full string also supports Windows authentication/custom ODBC drivers.
+    conn_str = os.getenv("DB_CONNECTION_STRING")
+    if not conn_str:
+        required = ("DB_SERVER", "DB_NAME", "DB_USER", "DB_PASSWORD")
+        missing = [key for key in required if not os.getenv(key)]
+        if missing:
+            parser.error("Faltan variables en .env: " + ", ".join(missing))
+        def odbc_value(value):
+            return "{" + value.replace("}", "}}") + "}"
+        conn_str = (
+            "DRIVER={ODBC Driver 18 for SQL Server};"
+            f"SERVER={odbc_value(os.environ['DB_SERVER'])};"
+            f"DATABASE={odbc_value(os.environ['DB_NAME'])};"
+            f"UID={odbc_value(os.environ['DB_USER'])};"
+            f"PWD={odbc_value(os.environ['DB_PASSWORD'])};"
+            "Encrypt=yes;TrustServerCertificate=yes;ApplicationIntent=ReadOnly;"
+        )
+    hoy = date.today()
+    resultado = calcular_score_riesgo(conn_str, hoy=hoy)
+    salida = generar_html(resultado, args.salida, hoy=hoy)
+    print(f"Reporte generado: {salida} ({len(resultado)} clientes)")
+    if args.abrir:
+        webbrowser.open(salida.as_uri())
 
-    server = os.getenv('DB_SERVER')
-    database = os.getenv('DB_NAME')
-    username = os.getenv('DB_USER')
-    password = os.getenv('DB_PASSWORD')
 
-    CONN_STR = (
-        "DRIVER={ODBC Driver 18 for SQL Server};"
-        f"SERVER={server};DATABASE={database};"
-        f"UID={username};PWD={password};"
-        "Encrypt=yes;TrustServerCertificate=yes;ApplicationIntent=ReadOnly;"
-    )
-
-    resultado = calcular_score_riesgo(CONN_STR)
-    pd.set_option("display.width", 200)
-    print(resultado.head(30).round(2))
-    resultado.to_csv("score_riesgo.csv", index=False, encoding="utf-8-sig")
+if __name__ == "__main__":
+    main()
