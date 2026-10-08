@@ -1,0 +1,10 @@
+{
+  "instructions": "Copia a business_context.json y reemplaza este ejemplo con definiciones verificadas por el responsable de la base. No pongas credenciales ni datos personales.",
+  "definitions": {},
+  "tables": {},
+  "relationships": [],
+  "examples": [
+    {"question": "¿Cuánto debe Esparza?", "intent": "Buscar candidatos por nombre, resolver ambigüedad y consultar el saldo vigente del cliente identificado."},
+    {"question": "¿Quiénes son los cinco clientes que más deben?", "intent": "Consultar y ordenar saldos actuales; no pedir una clave de cliente."}
+  ]
+}

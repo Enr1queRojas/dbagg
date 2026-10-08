@@ -2,8 +2,9 @@
 
 Este servicio se ejecuta en la PC Windows que ya tiene acceso a SQL Server.
 Solo responde a números autorizados. Recibe texto, consulta el catálogo de los
-objetos permitidos, pide SQL a OpenAI, valida la consulta, ejecuta un SELECT y
-pide a OpenAI una respuesta. El modelo predeterminado es `gpt-4.1-mini`, configurable
+objetos permitidos y ofrece a OpenAI herramientas para inspeccionar columnas,
+resolver clientes por nombre, ejecutar SELECT validados y responder con los resultados.
+El modelo predeterminado es `gpt-4.1-mini`, configurable
 en `OPENAI_MODEL`; confirma su disponibilidad y tarifa en tu cuenta antes de usarlo.
 No confundir una suscripción de ChatGPT con acceso y facturación de la API.
 
@@ -132,9 +133,31 @@ El agente no debe inventar ese score cuando no esté en las vistas.
 
 ## Límites del piloto
 
+### Preguntas naturales y contexto de negocio
+
+El usuario no necesita nombrar tablas ni claves técnicas: puede preguntar “¿Cuánto
+debe Esparza?” o “¿Quiénes son los cinco clientes que más deben?”. El agente inspecciona
+hasta cinco objetos por llamada, usa descripciones MS_Description si están disponibles,
+y puede buscar candidatos antes de consultar el detalle. Los nombres de tablas no
+garantizan el significado de un saldo, relación o estado. Si hay ambigüedad real debe
+preguntar por el cliente/período o criterio de negocio, sin pedir SQL.
+
+Para mejorar la semántica, copia `business_context.example.json` a `business_context.json`
+y agrega definiciones verificadas, columna de identificación/nombre/saldo de cada vista,
+relaciones con cardinalidad y reglas de estados/fechas. Este archivo es opcional; nunca
+incluyas claves ni filas de clientes. El agente lo carga al consultar. No conserva memoria
+entre mensajes: si pregunta por una coincidencia, incluye el nombre completo o clave en
+tu respuesta. La exactitud con tu esquema real debe validarse comparando consultas conocidas.
+
+`LOGIN_ACCESS_DATA` y `__EFMigrationsHistory` se excluyen del catálogo aunque se añadan
+a SQL_ALLOWED_TABLES. Restringe la lista a objetos de negocio aprobados; los objetos
+temporales y de importación no deberían mezclarse con reportes vigentes.
+
 - Una pregunta de hasta 1.000 caracteres; consultas TOP 50, timeout SQL 15 segundos,
   timeout de conexión 10 segundos y resultados acotados. Los valores largos se recortan.
-- Dos llamadas al modelo por pregunta contestada con datos. Los mensajes no autorizados
+- Hasta nueve llamadas al modelo, cuatro descripciones de catálogo y cuatro SELECT por
+  pregunta. Este flujo puede costar más que el piloto anterior de dos llamadas; revisa
+  consumo y latencia. Los mensajes no autorizados
   no consultan SQL ni OpenAI.
 - Subconjunto conservador de SELECT; rechaza escrituras, múltiples sentencias, destinos
   remotos, funciones no aprobadas, hints y CTE. No soporta todo el lenguaje SQL.

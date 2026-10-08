@@ -135,30 +135,64 @@ class AssistantTests(unittest.TestCase):
         self.assistant.db.query.return_value = {'columns': ['saldo'], 'rows': [['100']]}
         self.assistant.client = Mock()
 
-    def completion(self, content):
-        return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=content))])
+    def completion(self, content=None, name=None, arguments=None):
+        calls = [] if name is None else [SimpleNamespace(id='call1', function=SimpleNamespace(
+            name=name, arguments=json.dumps(arguments)))]
+        return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=content, tool_calls=calls))])
+
+    def describe(self):
+        return self.completion(name='describir_tablas', arguments={'tables': ['proadel.vw_alertascobranza']})
+
+    def query(self, sql):
+        return self.completion(name='consultar_sql', arguments={'sql': sql})
 
     def test_validated_query_then_answer(self):
-        self.assistant.client.chat.completions.create.side_effect = [
-            self.completion(json.dumps({'sql': 'SELECT SUM(SALDO_PENDIENTE) AS saldo '
-                                        'FROM proadel.vw_AlertasCobranza', 'clarification': None})),
+        self.assistant.client.chat.completions.create.side_effect = [self.describe(),
+            self.query('SELECT SUM(SALDO_PENDIENTE) AS saldo FROM proadel.vw_AlertasCobranza'),
             self.completion('Saldo: 100')]
         self.assertEqual(self.assistant.answer('saldo total'), 'Saldo: 100')
         self.assertIn('TOP 50', self.assistant.db.query.call_args.args[0])
-        self.assertEqual(self.assistant.client.chat.completions.create.call_count, 2)
+        self.assertEqual(self.assistant.client.chat.completions.create.call_count, 3)
 
     def test_model_generated_write_never_reaches_database(self):
-        self.assistant.client.chat.completions.create.return_value = self.completion(
-            json.dumps({'sql': 'DELETE FROM proadel.vw_AlertasCobranza', 'clarification': None}))
-        with self.assertRaises(ValueError):
-            self.assistant.answer('elimina todos los clientes')
+        self.assistant.client.chat.completions.create.side_effect = [
+            self.query('DELETE FROM proadel.vw_AlertasCobranza'), self.completion('No puedo modificar datos.')]
+        self.assistant.answer('elimina todos los clientes')
         self.assistant.db.query.assert_not_called()
 
     def test_clarification_does_not_query_database(self):
-        self.assistant.client.chat.completions.create.return_value = self.completion(
-            json.dumps({'sql': None, 'clarification': '¿Qué cliente?'}))
+        self.assistant.client.chat.completions.create.return_value = self.completion('¿Qué cliente?')
         self.assertEqual(self.assistant.answer('su saldo'), '¿Qué cliente?')
         self.assistant.db.query.assert_not_called()
+
+    def test_natural_name_can_be_resolved_before_balance(self):
+        self.assistant.client.chat.completions.create.side_effect = [self.describe(),
+            self.query("SELECT CLIENTE FROM proadel.vw_AlertasCobranza WHERE NOMBRE LIKE '%Esparza%'"),
+            self.query("SELECT SALDO_PENDIENTE FROM proadel.vw_AlertasCobranza WHERE CLIENTE='A.ESPARZA3'"),
+            self.completion('El saldo consultado es 100.')]
+        self.assertEqual(self.assistant.answer('¿Cuánto debe Esparza?'), 'El saldo consultado es 100.')
+        self.assertEqual(self.assistant.db.query.call_count, 2)
+        last_messages = self.assistant.client.chat.completions.create.call_args.kwargs['messages']
+        self.assertTrue(any(m['role'] == 'tool' for m in last_messages))
+
+    def test_query_requires_inspecting_real_columns(self):
+        self.assistant.client.chat.completions.create.side_effect = [
+            self.query('SELECT CLIENTE FROM proadel.vw_AlertasCobranza'), self.completion('Necesito inspeccionar.')]
+        self.assistant.answer('clientes')
+        self.assistant.db.query.assert_not_called()
+
+    def test_unknown_table_cannot_be_described(self):
+        self.assistant.client.chat.completions.create.side_effect = [
+            self.completion(name='describir_tablas', arguments={'tables': ['otra.secreta']}),
+            self.completion('Objeto no autorizado.')]
+        self.assistant.answer('consulta otra tabla')
+        self.assistant.db.schema.assert_not_called()
+
+    def test_tool_loop_is_bounded(self):
+        self.assistant.client.chat.completions.create.return_value = self.describe()
+        self.assistant.answer('consulta sin terminar')
+        self.assertEqual(self.assistant.db.schema.call_count, 4)
+        self.assertEqual(self.assistant.client.chat.completions.create.call_count, 9)
 
 
 if __name__ == '__main__':
