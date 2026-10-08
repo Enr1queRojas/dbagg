@@ -48,6 +48,17 @@ reales. No se guardan conversaciones, SQL ni resultados en logs de la aplicació
 
 ## 3. Preparar el número de prueba de Meta
 
+### Excepción temporal para la demo local
+
+Si el proveedor aún no ha corregido su certificado y el responsable acepta el riesgo,
+se puede usar `Encrypt=yes;TrustServerCertificate=yes` en `DB_CONNECTION_STRING`
+y agregar `DB_ALLOW_UNVERIFIED_TLS=true` al `.env`. Reinicia el servicio. La conexión
+sigue cifrada, pero no verifica la identidad del servidor, lo que permite ataques de
+suplantación. La consola muestra una advertencia. No desactives `Encrypt`.
+Esta excepción es solo para la demo local: cuando el proveedor corrija el certificado,
+restaura `TrustServerCertificate=no` y `DB_ALLOW_UNVERIFIED_TLS=false`, y reinicia.
+Conserva los permisos SQL de solo lectura y la lista de números/objetos autorizados.
+
 En https://developers.facebook.com/ crea/configura una aplicación compatible con
 WhatsApp y sigue su asistente de inicio para obtener el número de prueba:
 

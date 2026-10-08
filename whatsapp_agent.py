@@ -61,12 +61,18 @@ class Settings:
         if not os.environ['META_PHONE_NUMBER_ID'].isdigit():
             raise ValueError('META_PHONE_NUMBER_ID debe ser numérico.')
         connection = os.environ['DB_CONNECTION_STRING']
-        # Enforce explicit verified TLS; do not rely on the report CLI's fallback.
+        # Verified TLS by default; explicit temporary exception for the local demo.
         options = _odbc_options(connection)
         if options.get('encrypt', '').lower() not in ('yes', 'mandatory', 'strict'):
             raise ValueError('DB_CONNECTION_STRING requiere Encrypt=yes.')
-        if options.get('trustservercertificate', '').lower() not in ('no', 'false'):
-            raise ValueError('DB_CONNECTION_STRING requiere TrustServerCertificate=no.')
+        trust = options.get('trustservercertificate', '').lower()
+        if trust not in ('no', 'false'):
+            if (trust not in ('yes', 'true')
+                    or os.getenv('DB_ALLOW_UNVERIFIED_TLS', '').lower() != 'true'):
+                raise ValueError('DB_CONNECTION_STRING requiere TrustServerCertificate=no. '
+                                 'La demo temporal requiere DB_ALLOW_UNVERIFIED_TLS=true explícito.')
+            logger.warning('dbagg: modo demo TLS sin verificación de identidad del servidor; '
+                           'el cifrado sigue siendo obligatorio.')
         return cls(os.environ['OPENAI_API_KEY'], os.getenv('OPENAI_MODEL', 'gpt-4.1-mini'),
                    os.environ['META_ACCESS_TOKEN'], os.environ['META_APP_SECRET'],
                    os.environ['META_VERIFY_TOKEN'], os.environ['META_PHONE_NUMBER_ID'],
