@@ -5,13 +5,41 @@ import os
 import sys
 import unittest
 from pathlib import Path
+from datetime import date
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from fastapi.testclient import TestClient
 from sqlglot.errors import ParseError
-from whatsapp_agent import Assistant, Settings, create_app, validate_sql, _odbc_options
+from whatsapp_agent import (Assistant, Settings, create_app, validate_sql, _odbc_options,
+                            ConversationMemory, reporting_calendar)
+
+
+class MemoryTests(unittest.TestCase):
+    def test_sender_isolation_and_four_turn_limit(self):
+        memory = ConversationMemory()
+        for i in range(6):
+            memory.remember('one', str(i), 'answer')
+        self.assertEqual(len(memory.history('one')), 8)
+        self.assertEqual(memory.history('two'), [])
+        copy = memory.history('one')
+        copy[0]['content'] = 'changed'
+        self.assertNotEqual(memory.history('one')[0]['content'], 'changed')
+        memory.clear('one')
+        self.assertEqual(memory.history('one'), [])
+
+    def test_memory_expires(self):
+        memory = ConversationMemory()
+        with patch('whatsapp_agent.time.monotonic', return_value=0):
+            memory.remember('one', 'question', 'answer')
+        with patch('whatsapp_agent.time.monotonic', return_value=1801):
+            self.assertEqual(memory.history('one'), [])
+
+    def test_week_boundary_including_all_of_today(self):
+        self.assertEqual(reporting_calendar(date(2026, 10, 7)), {
+            'today': '2026-10-07', 'week_start': '2026-10-05', 'week_end_exclusive': '2026-10-08'})
+        self.assertEqual(reporting_calendar(date(2026, 10, 5))['week_start'], '2026-10-05')
 
 
 class SQLTests(unittest.TestCase):
@@ -125,6 +153,20 @@ class WebhookTests(unittest.TestCase):
         self.assistant.answer.assert_not_called()
         self.assertIn('dbagg:', self.send.call_args.args[1])
 
+    def test_followup_receives_previous_question_and_answer(self):
+        self.assistant.answer.return_value = '¿Quieres consultar las ventas de esta semana?'
+        with patch('whatsapp_agent.time.monotonic', return_value=100):
+            self.post(self.payload())
+        payload = self.payload()
+        message = payload['entry'][0]['changes'][0]['value']['messages'][0]
+        message.update(id='msg2', text={'body': 'sí'})
+        with patch('whatsapp_agent.time.monotonic', return_value=111):
+            self.post(payload)
+        self.assertEqual(self.assistant.answer.call_args.args, ('sí',))
+        history = self.assistant.answer.call_args.kwargs['history']
+        self.assertEqual(history[-1]['content'], '¿Quieres consultar las ventas de esta semana?')
+        self.assertEqual(history[0]['content'], 'saldo del cliente A')
+
 
 class AssistantTests(unittest.TestCase):
     def setUp(self):
@@ -164,6 +206,16 @@ class AssistantTests(unittest.TestCase):
         self.assistant.client.chat.completions.create.return_value = self.completion('¿Qué cliente?')
         self.assertEqual(self.assistant.answer('su saldo'), '¿Qué cliente?')
         self.assistant.db.query.assert_not_called()
+
+    def test_followup_history_is_sent_to_model_without_mutation(self):
+        self.assistant.client.chat.completions.create.return_value = self.completion('Voy a consultar ventas.')
+        history = [{'role': 'user', 'content': '¿Cuánto vendimos?'},
+                   {'role': 'assistant', 'content': '¿De esta semana?'}]
+        self.assistant.answer('sí', history=history)
+        messages = self.assistant.client.chat.completions.create.call_args.kwargs['messages']
+        self.assertEqual(messages[1:3], history)
+        self.assertEqual(messages[-1]['content'], 'sí')
+        self.assertEqual(len(history), 2)
 
     def test_natural_name_can_be_resolved_before_balance(self):
         self.assistant.client.chat.completions.create.side_effect = [self.describe(),

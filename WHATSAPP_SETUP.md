@@ -145,9 +145,14 @@ preguntar por el cliente/período o criterio de negocio, sin pedir SQL.
 Para mejorar la semántica, copia `business_context.example.json` a `business_context.json`
 y agrega definiciones verificadas, columna de identificación/nombre/saldo de cada vista,
 relaciones con cardinalidad y reglas de estados/fechas. Este archivo es opcional; nunca
-incluyas claves ni filas de clientes. El agente lo carga al consultar. No conserva memoria
-entre mensajes: si pregunta por una coincidencia, incluye el nombre completo o clave en
-tu respuesta. La exactitud con tu esquema real debe validarse comparando consultas conocidas.
+incluyas claves ni filas de clientes. El agente lo carga al consultar. Conserva en memoria
+los últimos cuatro turnos por número autorizado durante 30 minutos de inactividad;
+se pierde al reiniciar y no se comparte entre números. Guarda preguntas y respuestas
+entregadas (pueden incluir información de clientes), pero no SQL ni resultados completos.
+Envía `/reiniciar` para borrar tu contexto. Las cifras deben volver a consultarse en SQL,
+no copiarse del historial. “Esta semana” significa lunes hasta hoy inclusive según la
+fecha local de la PC; la respuesta debe indicar el rango. La exactitud con tu esquema
+real debe validarse comparando consultas conocidas.
 
 `LOGIN_ACCESS_DATA` y `__EFMigrationsHistory` se excluyen del catálogo aunque se añadan
 a SQL_ALLOWED_TABLES. Restringe la lista a objetos de negocio aprobados; los objetos
