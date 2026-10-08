@@ -3,6 +3,7 @@
 import hashlib
 import hmac
 import json
+import logging
 import os
 import re
 import threading
@@ -23,6 +24,7 @@ MAX_ROWS = 50
 MAX_CELL_CHARS = 300
 MAX_RESULT_CHARS = 16000
 MAX_QUESTION_CHARS = 1000
+logger = logging.getLogger('uvicorn.error')
 
 
 @dataclass(frozen=True)
@@ -204,12 +206,20 @@ class Assistant:
         self.client = OpenAI(api_key=settings.api_key, timeout=30, max_retries=1)
 
     def answer(self, question):
+        logger.info('dbagg stage=schema_start')
         schema = self.db.schema()
+        logger.info('dbagg stage=schema_ok')
         response = self.client.chat.completions.create(
             model=self.settings.model, temperature=0, max_tokens=900,
             response_format={'type': 'json_object'},
             messages=[{'role': 'system', 'content':
-                'Eres un analista SQL Server para consultas internas. Devuelve SOLO JSON '
+                'Eres un analista SQL Server para un equipo interno autorizado. '
+                'El servicio ya ha leído el catálogo de la base conectada y ejecutará '
+                'tu SELECT validado. No eres un chatbot bancario genérico: las consultas '
+                'de saldos del catálogo están dentro de tu función. Si no identificas una '
+                'columna de saldo o la clave del cliente, pregunta específicamente por ella; '
+                'no inventes falta de acceso ni ofrezcas transferir a un representante. '
+                'Devuelve SOLO JSON '
                 'con exactamente sql (string o null) y clarification (string o null). '
                 'Si faltan datos o no se puede responder con el catálogo, sql=null y pide '
                 'aclaración en español. No inventes columnas ni significado de códigos. '
@@ -224,9 +234,12 @@ class Assistant:
         if not isinstance(plan, dict) or set(plan) != {'sql', 'clarification'}:
             raise ValueError('Respuesta estructurada inválida.')
         if plan['sql'] is None:
+            logger.info('dbagg stage=clarification_no_query')
             return str(plan['clarification'] or '¿Qué cliente o período quieres consultar?')[:3500]
         sql = validate_sql(plan['sql'], self.settings.tables)
+        logger.info('dbagg stage=sql_validated')
         result = self.db.query(sql)
+        logger.info('dbagg stage=query_ok')
         reply = self.client.chat.completions.create(
             model=self.settings.model, temperature=0, max_tokens=600,
             messages=[{'role': 'system', 'content':
@@ -285,17 +298,25 @@ def create_app(settings=None, assistant=None, send_message=None):
     def process(sender, question):
         # Bound active DB/LLM work. Dropping overload is acceptable for this local pilot.
         if not processing_lock.acquire(blocking=False):
+            logger.info('dbagg stage=ignored_busy')
             return
         try:
             try:
-                answer = assistant.answer(question)
-            except Exception:
+                if question.strip().lower() == '/diagnostico':
+                    # Deterministic identification, no LLM, queries or customer data.
+                    answer = 'dbagg: este mensaje llegó al agente local. Diagnóstico del webhook correcto.'
+                    logger.info('dbagg stage=diagnostic_ok')
+                else:
+                    answer = assistant.answer(question)
+            except Exception as exc:
+                logger.warning('dbagg stage=answer_failed error_type=%s', type(exc).__name__)
                 answer = 'No pude completar la consulta. Revisa la conexión y la configuración del servicio.'
             try:
                 deliver(sender, answer)
-            except Exception:
+                logger.info('dbagg stage=send_ok')
+            except Exception as exc:
                 # Do not log HTTP headers, connection strings, prompts, or SQL results.
-                pass
+                logger.warning('dbagg stage=send_failed error_type=%s', type(exc).__name__)
         finally:
             processing_lock.release()
 
@@ -322,6 +343,7 @@ def create_app(settings=None, assistant=None, send_message=None):
         body = b''.join(chunks)
         signature = 'sha256=' + hmac.new(settings.app_secret.encode(), body, hashlib.sha256).hexdigest()
         if not hmac.compare_digest(request.headers.get('x-hub-signature-256', ''), signature):
+            logger.info('dbagg stage=signature_rejected')
             raise HTTPException(403, 'Firma inválida')
         try:
             payload = json.loads(body)
@@ -331,16 +353,21 @@ def create_app(settings=None, assistant=None, send_message=None):
                 for change in entry.get('changes', []):
                     value = change.get('value', {})
                     if value.get('metadata', {}).get('phone_number_id') != settings.phone_id:
+                        logger.info('dbagg stage=ignored_phone_id')
                         continue
                     for message in value.get('messages', []):
                         sender = message.get('from', '')
                         if sender not in settings.numbers or message.get('type') != 'text':
+                            logger.info('dbagg stage=ignored_sender_or_type')
                             continue
                         text = message.get('text', {}).get('body', '').strip()
                         message_id = message.get('id', '')
                         if (message_id and 0 < len(text) <= MAX_QUESTION_CHARS
                                 and gate.claim(message_id, sender)):
+                            logger.info('dbagg stage=message_accepted')
                             background.add_task(process, sender, text)
+                        else:
+                            logger.info('dbagg stage=ignored_duplicate_rate_or_length')
         except (ValueError, TypeError, AttributeError):
             raise HTTPException(400, 'Evento inválido') from None
         return {'status': 'accepted'}

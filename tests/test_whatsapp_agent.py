@@ -86,8 +86,17 @@ class WebhookTests(unittest.TestCase):
 
     def test_errors_do_not_expose_credentials(self):
         self.assistant.answer.side_effect = RuntimeError('PWD=secret')
-        self.post(self.payload())
+        with self.assertLogs('uvicorn.error', level='INFO') as logs:
+            self.post(self.payload())
+        self.assertNotIn('PWD=secret', '\n'.join(logs.output))
         self.assertNotIn('secret', self.send.call_args.args[1])
+
+    def test_diagnostic_identifies_local_agent_without_llm(self):
+        payload = self.payload()
+        payload['entry'][0]['changes'][0]['value']['messages'][0]['text']['body'] = '/diagnostico'
+        self.post(payload)
+        self.assistant.answer.assert_not_called()
+        self.assertIn('dbagg:', self.send.call_args.args[1])
 
 
 class AssistantTests(unittest.TestCase):

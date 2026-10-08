@@ -100,6 +100,14 @@ y conectada. No introduzcas claves en comandos públicos, URLs o capturas.
 
 ## 5. Validar extremo a extremo
 
+Primero envía `/diagnostico` desde el número autorizado: debe responder
+`dbagg: este mensaje llegó al agente local. Diagnóstico del webhook correcto.`
+Esta comprobación no usa OpenAI ni consulta SQL. Si llega otra respuesta o no llega
+ninguna, revisa las suscripciones, el número de destino y los filtros del webhook.
+La consola muestra etapas `dbagg stage=...` sin teléfonos, preguntas, credenciales,
+consultas ni resultados. `clarification_no_query` indica que el modelo pidió aclaración
+sin ejecutar SQL; `query_ok` indica que SQL se ejecutó, no que la respuesta sea correcta.
+
 Desde un número autorizado y agregado a los destinatarios de prueba de Meta,
 envía una pregunta sobre una vista aprobada, por ejemplo:
 “¿Cuál es el saldo del cliente CLAVE_REAL según la vista de alertas?”.
