@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dbagg"
+version = "0.2.0"
+description = "Asistente interno de WhatsApp y reportes sobre SQL Server"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi==0.115.12",
+  "uvicorn==0.34.2",
+  "httpx==0.28.1",
+  "openai==1.78.1",
+  "pyodbc==5.3.0",
+  "python-dotenv==1.2.4",
+  "sqlglot==26.16.4",
+  "numpy==2.4.6",
+  "pandas==3.0.6",
+]
+
+[project.optional-dependencies]
+dev = ["ruff==0.16.10", "build==1.6.1"]
+
+[project.scripts]
+dbagg-report = "dbagg.reporting.cli:main"
+dbagg-context = "dbagg.context.loader:main"
+dbagg-eval = "dbagg.evaluation.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["dbagg*"]
+
+[tool.setuptools.package-data]
+"dbagg.context" = ["default.json"]
+"dbagg.reporting" = ["templates/*.html"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F"]

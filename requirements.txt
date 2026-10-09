@@ -1,3 +1,5 @@
+# Locked environment dependencies; install the local package as well.
+-e .
 annotated-types==0.8.0
 anyio==4.15.1
 certifi==2026.7.22

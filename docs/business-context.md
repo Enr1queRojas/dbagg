@@ -1,6 +1,6 @@
 # Contexto de negocio para el agente
 
-El agente carga `business_context.default.json` en cada pregunta. El archivo incluye
+El agente carga `dbagg/context/default.json` en cada pregunta. El archivo incluye
 rutas de consulta y reglas para evitar confundir saldos, ventas, cobros y existencias.
 Son indicaciones para el modelo, no una garantía de exactitud contable.
 
@@ -43,16 +43,19 @@ El contexto distingue estas evidencias:
 
 ## Ajustes locales
 
-`business_context.json` es opcional. Sus diccionarios se combinan con los valores del
+`config/business_context.json` es la ubicación recomendada para ajustes locales;
+el archivo anterior `business_context.json` en la raíz sigue siendo compatible.
+Se carga primero la base del paquete, después el archivo de la raíz y al final el de
+`config/`, que tiene prioridad si existen ambos. Sus diccionarios se combinan con los valores del
 archivo base y sus valores tienen prioridad. Las listas se reemplazan completas;
 `null` expresa desconocido. No es necesario copiar el archivo base ni editar Python.
 Los archivos existentes se conservan. Un JSON inválido o demasiado grande produce un
 error explícito y no se ignora silenciosamente.
 Se conserva el límite previo de 16.000 caracteres para cada archivo y se permiten
 32.000 para la mezcla, de modo que añadir el contexto base no invalide archivos
-locales que ya funcionaban. Ambos cuentan como entrada al modelo y afectan el consumo.
+locales que ya funcionaban. El contexto combinado cuenta como entrada al modelo y afecta el consumo.
 
-`business_context.example.json` es una plantilla vacía de ajustes opcionales, para no
+`config/business_context.example.json` es una plantilla vacía de ajustes opcionales, para no
 sobrescribir definiciones confirmadas con marcadores null. No copiar sobre un contexto
 local existente. Si copiaste una versión anterior, revisa los null de
 `topics.customer_balance.columns`: tienen prioridad sobre los nombres ya confirmados

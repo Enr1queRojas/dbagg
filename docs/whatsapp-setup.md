@@ -11,19 +11,20 @@ No confundir una suscripción de ChatGPT con acceso y facturación de la API.
 ## 1. Instalar en la PC
 
 Obtén estos archivos del repositorio en tu PC. Desde la carpeta `dbagg`, con Python
-3.12 y Microsoft ODBC Driver 18 instalados:
+3.11 o 3.12 y Microsoft ODBC Driver 18 instalados:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pip install -r requirements-whatsapp.txt
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
 ```
 
-Las dependencias del generador de reportes (numpy/pandas) deben seguir instaladas
-en el entorno que preparaste anteriormente. El manifiesto de WhatsApp es adicional.
+`requirements.txt` instala las dependencias del agente y del generador de reportes,
+además del paquete local. Para actualizar una instalación existente consulta
+[migration.md](migration.md).
 
 ## 2. Configurar SQL y OpenAI
 
-Conserva tu `.env` existente; agrega los nombres de `.env.whatsapp.example` sin
+Conserva tu `.env` existente; agrega los nombres de `config/env.example` sin
 sobrescribir las credenciales. No compartas el archivo, no lo subas a Git y no
 sincronices las credenciales con otras personas mediante OneDrive.
 
@@ -142,10 +143,10 @@ y puede buscar candidatos antes de consultar el detalle. Los nombres de tablas n
 garantizan el significado de un saldo, relación o estado. Si hay ambigüedad real debe
 preguntar por el cliente/período o criterio de negocio, sin pedir SQL.
 
-El agente carga automáticamente `business_context.default.json` con rutas de negocio y
+El agente carga automáticamente `dbagg/context/default.json` con rutas de negocio y
 definiciones pendientes. Puedes complementar con `business_context.json` usando campos de
-`business_context.example.json`, sin sobrescribir ajustes existentes. Consulta
-[BUSINESS_CONTEXT.md](BUSINESS_CONTEXT.md) para registrar columnas verificadas, relaciones
+`config/business_context.example.json`, sin sobrescribir ajustes existentes. Consulta
+[business-context.md](business-context.md) para registrar columnas verificadas, relaciones
 y criterios contables. Nunca incluyas credenciales ni filas de clientes.
 El agente lo carga al consultar. Conserva en memoria
 los últimos cuatro turnos por número autorizado durante 30 minutos de inactividad;
@@ -163,7 +164,7 @@ temporales y de importación no deberían mezclarse con reportes vigentes.
 - Una pregunta de hasta 1.000 caracteres; consultas TOP 50, timeout SQL 15 segundos,
   timeout de conexión 10 segundos y resultados acotados. Los valores largos se recortan.
 - Hasta nueve llamadas al modelo, cuatro descripciones de catálogo y cuatro SELECT por
-  pregunta. Este flujo puede costar más que el piloto anterior de dos llamadas; revisa
+pregunta. Este flujo puede costar más que el piloto anterior de dos llamadas; revisa
   consumo y latencia. Los mensajes no autorizados
   no consultan SQL ni OpenAI.
 - Subconjunto conservador de SELECT; rechaza escrituras, múltiples sentencias, destinos
@@ -178,6 +179,10 @@ temporales y de importación no deberían mezclarse con reportes vigentes.
 
 Las pruebas automatizadas simulan OpenAI, Meta y SQL. Una ejecución local de esas pruebas
 no demuestra conectividad real ni la exactitud de las respuestas generadas por el modelo.
+
+Para habilitar `/buena` y `/mala motivo`, consulta [evaluation.md](evaluation.md).
+La captura es opcional y guarda contenido de conversaciones en un archivo local privado.
+Los comandos de control pueden enviarse inmediatamente después de una respuesta.
 
 ## Si llega el mensaje pero no se envía la respuesta
 

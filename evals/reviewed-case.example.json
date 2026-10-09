@@ -1,0 +1,8 @@
+{
+  "anonymized": true,
+  "verified": true,
+  "messages": [
+    {"role": "user", "content": "¿Cuánto debe CLIENTE_DEMO?"},
+    {"role": "assistant", "content": "El saldo actual de CLIENTE_DEMO es 100 unidades monetarias, según los datos sintéticos de esta prueba."}
+  ]
+}
