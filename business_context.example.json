@@ -1,13 +1,4 @@
 {
-  "instructions": "Ejemplo de ajustes locales. business_context.default.json ya se carga automáticamente. Copia este archivo a business_context.json SOLO si no tienes ajustes locales. Completa valores confirmados, elimina campos sin cambios y no incluyas credenciales ni filas de clientes.",
-  "topics": {
-    "customer_balance": {
-      "columns": {"customer_key": null, "customer_name": null, "current_balance": null},
-      "balance_definition": null
-    },
-    "sales": {
-      "definition": {"confirmed": false, "include_cash": null, "include_credit": null, "subtract_returns": null, "exclude_cancelled": null, "tax_basis": null, "currency": null},
-      "columns": {"sale_date": null, "amount": null, "quantity": null, "product_key": null, "status": null}
-    }
-  }
+  "instructions": "Ajustes locales opcionales: las definiciones confirmadas ya se cargan de business_context.default.json. Copia este archivo a business_context.json SOLO si no tienes ajustes locales. Agrega a topics solo campos que quieras modificar con información verificada. No agregues null como marcador: reemplazaría un valor confirmado. No incluyas credenciales ni filas de clientes. Consulta BUSINESS_CONTEXT.md.",
+  "topics": {}
 }
