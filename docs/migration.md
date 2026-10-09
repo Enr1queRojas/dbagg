@@ -53,6 +53,7 @@ repositorio; el paquete Python vive solo dentro de `src/`. Reinstala después de
 ```cmd
 git switch refactor
 git pull --ff-only origin refactor
+.\.venv\Scripts\python.exe -c "import shutil; shutil.rmtree('dbagg.egg-info', ignore_errors=True)"
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
 ```
@@ -61,6 +62,11 @@ Si la rama aún no existe localmente, usa `git fetch origin` y
 `git switch --track origin/refactor`. `.env` continúa en la raíz y los comandos de
 Uvicorn y del reporte se conservan. Node.js 24 es necesario para ejecutar la prueba
 de presentación JavaScript; no se necesita para ejecutar el servicio Python.
+
+El comando de limpieza retira solo los metadatos generados por la instalación antigua
+en la raíz (`dbagg.egg-info`); no toca `.env` ni datos. Dejarlos después de mover a
+`src/` puede hacer que herramientas de Python informen la versión anterior. La nueva
+instalación genera sus metadatos dentro de `src/` y el entorno virtual.
 
 `core` no forma parte del repositorio. Si quedó vacía en tu PC, `rmdir core` la retira;
 si contiene archivos, ese comando no los elimina. Los directorios generados o archivos
