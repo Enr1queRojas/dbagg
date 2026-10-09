@@ -29,6 +29,19 @@ MAX_QUESTION_CHARS = 1000
 logger = logging.getLogger('uvicorn.error')
 
 
+def meta_error_codes(response):
+    """Extract numeric API codes only; response messages can contain private data."""
+    try:
+        body = response.json()
+    except ValueError:
+        return None, None
+    error = body.get('error') if isinstance(body, dict) else None
+    if not isinstance(error, dict):
+        return None, None
+    return tuple(value if type(value) is int and 0 <= value <= 999999999 else None
+                 for value in (error.get('code'), error.get('error_subcode')))
+
+
 @dataclass(frozen=True)
 class Settings:
     api_key: str
@@ -439,6 +452,11 @@ def create_app(settings=None, assistant=None, send_message=None):
                 if save_turn:
                     memory.remember(sender, question, answer)
                 logger.info('dbagg stage=send_ok')
+            except httpx.HTTPStatusError as exc:
+                code, subcode = meta_error_codes(exc.response)
+                logger.warning('dbagg stage=send_failed error_type=HTTPStatusError '
+                               'http_status=%s meta_code=%s meta_subcode=%s',
+                               exc.response.status_code, code, subcode)
             except Exception as exc:
                 # Do not log HTTP headers, connection strings, prompts, or SQL results.
                 logger.warning('dbagg stage=send_failed error_type=%s', type(exc).__name__)

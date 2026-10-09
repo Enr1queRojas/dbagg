@@ -4,6 +4,7 @@ import json
 import os
 import sys
 import unittest
+import httpx
 from pathlib import Path
 from datetime import date
 from types import SimpleNamespace
@@ -13,7 +14,18 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from fastapi.testclient import TestClient
 from sqlglot.errors import ParseError
 from whatsapp_agent import (Assistant, Settings, create_app, validate_sql, _odbc_options,
-                            ConversationMemory, reporting_calendar)
+                            ConversationMemory, reporting_calendar, meta_error_codes)
+
+
+class MetaDiagnosticsTests(unittest.TestCase):
+    def test_invalid_error_payloads_never_expose_arbitrary_text(self):
+        for payload in ([], None, 'secret', {'error': 'secret'}, {'error': None},
+                        {'error': {'code': 'secret', 'error_subcode': {'secret': 'value'}}},
+                        {'error': {'code': True, 'error_subcode': -1}}):
+            with self.subTest(payload_type=type(payload).__name__):
+                response = httpx.Response(400, content=json.dumps(payload))
+                self.assertEqual(meta_error_codes(response), (None, None))
+        self.assertEqual(meta_error_codes(httpx.Response(502, text='<html>secret</html>')), (None, None))
 
 
 class MemoryTests(unittest.TestCase):
@@ -164,6 +176,21 @@ class WebhookTests(unittest.TestCase):
             self.post(self.payload())
         self.assertNotIn('PWD=secret', '\n'.join(logs.output))
         self.assertNotIn('secret', self.send.call_args.args[1])
+
+    def test_send_failure_logs_only_http_status_and_numeric_meta_codes(self):
+        request = httpx.Request('POST', 'https://graph.facebook.com/v25.0/123/messages',
+                               headers={'Authorization': 'Bearer secret-key'})
+        response = httpx.Response(400, request=request, json={'error': {
+            'code': 190, 'error_subcode': 463, 'message': 'private token secret-key',
+            'error_data': {'details': 'private recipient'}, 'fbtrace_id': 'private-id'}})
+        self.send.side_effect = httpx.HTTPStatusError('secret-key', request=request, response=response)
+        with self.assertLogs('uvicorn.error', level='WARNING') as logs:
+            self.post(self.payload())
+        output = '\n'.join(logs.output)
+        self.assertIn('http_status=400 meta_code=190 meta_subcode=463', output)
+        self.assertNotIn('secret-key', output)
+        self.assertNotIn('private', output)
+        self.assertNotIn('graph.facebook.com', output)
 
     def test_diagnostic_identifies_local_agent_without_llm(self):
         payload = self.payload()

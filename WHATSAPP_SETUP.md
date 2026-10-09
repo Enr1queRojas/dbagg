@@ -178,3 +178,17 @@ temporales y de importación no deberían mezclarse con reportes vigentes.
 
 Las pruebas automatizadas simulan OpenAI, Meta y SQL. Una ejecución local de esas pruebas
 no demuestra conectividad real ni la exactitud de las respuestas generadas por el modelo.
+
+## Si llega el mensaje pero no se envía la respuesta
+
+`message_accepted` y `diagnostic_ok`, seguidos de `send_failed`, indican que el
+webhook funciona y la respuesta falló al enviarse a Meta. Las versiones nuevas
+registran solo `http_status`, `meta_code` y `meta_subcode`, sin cuerpo de respuesta,
+tokens, destinatarios o cabeceras. Comparte únicamente esa línea para diagnosticarlo.
+
+El código Meta `190` señala un problema con el token de acceso (por ejemplo, caducidad).
+En ese caso genera un token válido desde **dbagg → WhatsApp → Paso 1. Pruébalo**, actualiza
+`META_ACCESS_TOKEN` en el `.env` local y reinicia Uvicorn. No cambies `META_VERIFY_TOKEN`
+ni `META_APP_SECRET` por el token de acceso. Mantén abierto Cloudflare para conservar
+la URL. Otros códigos requieren revisar permisos, destinatario o estado de la cuenta;
+un error HTTP por sí solo no confirma que el token haya caducado.
