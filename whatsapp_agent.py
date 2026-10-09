@@ -144,8 +144,9 @@ def validate_sql(sql, allowed_tables):
             raise ValueError('Tabla, destino remoto o hint no autorizado.')
     for node in tree.walk():
         if isinstance(node, exp.Func) and node.sql_name() not in {
+            'AND', 'OR',
             'COUNT', 'SUM', 'AVG', 'MIN', 'MAX', 'ABS', 'ROUND', 'COALESCE', 'NULLIF',
-            'CAST', 'TRY_CAST', 'YEAR', 'MONTH', 'DAY', 'DATE_DIFF', 'DATE_ADD',
+            'CAST', 'TRY_CAST', 'CONVERT', 'YEAR', 'MONTH', 'DAY', 'DATE_DIFF', 'DATE_ADD',
             'CURRENT_DATE', 'CURRENT_TIMESTAMP', 'LOWER', 'UPPER', 'TRIM',
         }:
             raise ValueError('Función no autorizada.')

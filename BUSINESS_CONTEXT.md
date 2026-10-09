@@ -8,7 +8,7 @@ Son indicaciones para el modelo, no una garantía de exactitud contable.
 | --- | --- | --- |
 | ¿Cuánto debe un cliente? ¿Quién debe más? | `proadel.CATALOGO_CLIENTES_DATA_V` | Confirmados por el responsable: `CODIGO`, `NOMBRE`, `[SALDO ACTUAL]`. Leer el saldo directamente. Unicidad, moneda y corte pendientes. |
 | Reporte/estado de cuenta de un cliente | Catálogo para resumen; cobranza, crédito, contado y devoluciones como detalle candidato | Flujo prioritario confirmado: movimientos por cliente. Correspondencias de claves y reglas de detalle pendientes. |
-| ¿Cuándo pagó? ¿Qué pagos tuvo? | `proadel.COBRANZA_DATA` | El reporte usa CLIENTE, IMPORTE, NOTE_DATE, ESTADO; pagos positivos activos. Alcance: historial usado por el reporte de riesgo. |
+| ¿Cuándo pagó? ¿Qué pagos tuvo? | `proadel.COBRANZA_DATA` | Confirmados: `CLIENTE=CODIGO`, fecha `FECHA` y solo `ESTADO='ACTIVA'`. `NOTE_DATE` siempre es NULL; no sirve para filtrar ni ordenar pagos. |
 | Total general de ventas, solo si se pide expresamente | `proadel.VENTAS_DIARIAS_V` | Candidata por nombre, secundaria al reporte del cliente. Definición contable pendiente. |
 | ¿Qué existencias hay? | `proadel.ALMACENES_DISPONIBLES_V` | Candidata por nombre; podría listar almacenes, no cantidades. Inspeccionar y confirmar unidad. |
 | ¿Cuánto debemos a productores? | `proadel.CONTROL_PRODUCTORES_DATA_V` | Candidata por nombre; faltan fórmula, temporada y relaciones. |
@@ -87,8 +87,26 @@ Los totales no sustituyen el saldo ni prueban movimientos de una semana/mes.
 No se ha confirmado una fórmula para reconciliarlos. Dirección y teléfono no se
 seleccionan por defecto en consultas financieras.
 
-La siguiente definición pendiente es si `COBRANZA_DATA.CLIENTE` corresponde a
-`CATALOGO_CLIENTES_DATA_V.CODIGO`, junto con la regla de pagos válidos. El reporte
-Python usa `NOTE_DATE`, `IMPORTE`, `ESTADO='ACTIVA'` e importes positivos; el último
-día con pagos no necesariamente corresponde a un único recibo. Esta regla sigue
-etiquetada como implementada en el reporte hasta confirmación del responsable.
+## Cobranza confirmada por el responsable
+
+`COBRANZA_DATA.CLIENTE` corresponde a `CATALOGO_CLIENTES_DATA_V.CODIGO` y solo se
+consideran filas con `ESTADO='ACTIVA'`. La fecha real es `FECHA`:
+`NOTE_DATE` siempre es NULL y no debe usarse para último pago ni períodos.
+La captura confirma `IMPORTE`, `ID`, `FOLIO`, `FORMA DE PAGO` y `BANCO`.
+`INSERTION_DATE` es fecha de captura, no reemplaza la fecha del pago.
+
+Para último pago consulta la mayor `FECHA`, sin limitar el historial a un
+año. Si varias filas comparten la fecha/hora, no elijas un recibo arbitrariamente.
+El total del último día es otra pregunta y debe sumar los pagos activos de ese día.
+ID y FOLIO permiten distinguir filas pero no prueban el orden real entre pagos
+de igual fecha. Inspecciona el tipo SQL de FECHA: si es texto dd/MM/yyyy, usa
+`TRY_CONVERT(date,[FECHA],103)` para comparar fechas, no orden lexicográfico.
+Informa fechas no convertibles si vuelven incompleto un total; no las interpretes
+como prueba de ausencia de pagos.
+No añadas `IMPORTE>0` como regla general: el responsable confirmó el estado válido,
+no el tratamiento de importes negativos o reversos. Verifica unicidad del código
+del catálogo antes de unir; normalmente basta filtrar los pagos por código resuelto.
+
+El reporte `score_riesgo.py` todavía usa `NOTE_DATE` en cobranza; queda pendiente
+corregir ese mapeo del reporte por separado. Su salida no valida fechas de pago ni
+riesgo en estos datos. El contexto del agente ya usa la fecha confirmada.
