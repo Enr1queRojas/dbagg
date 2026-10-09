@@ -142,10 +142,12 @@ y puede buscar candidatos antes de consultar el detalle. Los nombres de tablas n
 garantizan el significado de un saldo, relación o estado. Si hay ambigüedad real debe
 preguntar por el cliente/período o criterio de negocio, sin pedir SQL.
 
-Para mejorar la semántica, copia `business_context.example.json` a `business_context.json`
-y agrega definiciones verificadas, columna de identificación/nombre/saldo de cada vista,
-relaciones con cardinalidad y reglas de estados/fechas. Este archivo es opcional; nunca
-incluyas claves ni filas de clientes. El agente lo carga al consultar. Conserva en memoria
+El agente carga automáticamente `business_context.default.json` con rutas de negocio y
+definiciones pendientes. Puedes complementar con `business_context.json` usando campos de
+`business_context.example.json`, sin sobrescribir ajustes existentes. Consulta
+[BUSINESS_CONTEXT.md](BUSINESS_CONTEXT.md) para registrar columnas verificadas, relaciones
+y criterios contables. Nunca incluyas credenciales ni filas de clientes.
+El agente lo carga al consultar. Conserva en memoria
 los últimos cuatro turnos por número autorizado durante 30 minutos de inactividad;
 se pierde al reiniciar y no se comparte entre números. Guarda preguntas y respuestas
 entregadas (pueden incluir información de clientes), pero no SQL ni resultados completos.

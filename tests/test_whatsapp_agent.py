@@ -207,6 +207,16 @@ class AssistantTests(unittest.TestCase):
         self.assertEqual(self.assistant.answer('su saldo'), '¿Qué cliente?')
         self.assistant.db.query.assert_not_called()
 
+    def test_business_definitions_reach_model_without_changing_permissions(self):
+        self.assistant.client.chat.completions.create.return_value = self.completion('¿Ventas netas?')
+        context = '{"topics":{"sales":{"status":"pending","definition":"criterio_pendiente"}}}'
+        with patch('whatsapp_agent.load_business_context', return_value=context):
+            self.assistant.answer('¿Cuánto vendimos?')
+        prompt = self.assistant.client.chat.completions.create.call_args.kwargs['messages'][0]['content']
+        self.assertIn(context, prompt)
+        self.assertEqual(self.assistant.settings.tables, {'proadel.vw_alertascobranza'})
+        self.assistant.db.query.assert_not_called()
+
     def test_followup_history_is_sent_to_model_without_mutation(self):
         self.assistant.client.chat.completions.create.return_value = self.completion('Voy a consultar ventas.')
         history = [{'role': 'user', 'content': '¿Cuánto vendimos?'},

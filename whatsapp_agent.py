@@ -20,6 +20,7 @@ from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
 from fastapi.responses import PlainTextResponse
 from openai import OpenAI
 from sqlglot import exp
+from business_context import load_business_context
 
 MAX_ROWS = 50
 MAX_CELL_CHARS = 300
@@ -255,12 +256,7 @@ class Assistant:
     def answer(self, question, history=None):
         schema = json.dumps(sorted(self.settings.tables), ensure_ascii=False)
         logger.info('dbagg stage=catalogue_ready')
-        context_path = Path(__file__).resolve().parent / 'business_context.json'
-        context = ''
-        if context_path.exists():
-            context = json.dumps(json.loads(context_path.read_text(encoding='utf-8')), ensure_ascii=False)
-            if len(context) > 16000:
-                raise ValueError('Contexto de negocio demasiado grande.')
+        context = load_business_context()
         messages = [{'role': 'system', 'content':
             'Eres el analista de datos de un equipo interno autorizado. Responde en español '
             'a preguntas naturales, sin exigir nombres de tablas, columnas ni claves técnicas. '
@@ -270,6 +266,9 @@ class Assistant:
             'Prioriza vistas de negocio DATA_V, RESUMEN y reportes frente a HISTORY, TEMPORARY '
             'e importaciones. No sumes totales preagregados de varias vistas como si fueran movimientos. '
             'Interpreta saldo, deuda, pagos, ventas y existencias según columnas y contexto de negocio. '
+            'El contexto clasifica fuentes confirmadas y candidatas: candidate_by_name y pending no '
+            'son definiciones verificadas. Prioriza las fuentes recomendadas autorizadas e inspecciona '
+            'sus columnas. Nunca deduzcas una fórmula de negocio solo por el nombre del objeto. '
             'Elige tú las tablas pertinentes. Si el usuario proporciona un nombre, busca primero '
             'candidatos por columnas de nombre/razón social usando LIKE, recupera sus claves y luego '
             'consulta el detalle. Si hay varios candidatos, pregunta cuál, mostrando solo lo necesario. '

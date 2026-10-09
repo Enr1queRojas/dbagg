@@ -1,10 +1,13 @@
 {
-  "instructions": "Copia a business_context.json y reemplaza este ejemplo con definiciones verificadas por el responsable de la base. No pongas credenciales ni datos personales.",
-  "definitions": {},
-  "tables": {},
-  "relationships": [],
-  "examples": [
-    {"question": "¿Cuánto debe Esparza?", "intent": "Buscar candidatos por nombre, resolver ambigüedad y consultar el saldo vigente del cliente identificado."},
-    {"question": "¿Quiénes son los cinco clientes que más deben?", "intent": "Consultar y ordenar saldos actuales; no pedir una clave de cliente."}
-  ]
+  "instructions": "Ejemplo de ajustes locales. business_context.default.json ya se carga automáticamente. Copia este archivo a business_context.json SOLO si no tienes ajustes locales. Completa valores confirmados, elimina campos sin cambios y no incluyas credenciales ni filas de clientes.",
+  "topics": {
+    "customer_balance": {
+      "columns": {"customer_key": null, "customer_name": null, "current_balance": null},
+      "balance_definition": null
+    },
+    "sales": {
+      "definition": {"confirmed": false, "include_cash": null, "include_credit": null, "subtract_returns": null, "exclude_cancelled": null, "tax_basis": null, "currency": null},
+      "columns": {"sale_date": null, "amount": null, "quantity": null, "product_key": null, "status": null}
+    }
+  }
 }
