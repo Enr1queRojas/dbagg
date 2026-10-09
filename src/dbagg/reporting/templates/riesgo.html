@@ -97,7 +97,7 @@ tbody tr.sel{background:var(--accent-soft)}
     <span class="asof">__REPORT_DATE__ · resultados preliminares</span>
   </header>
 
-  <p class="note">Semáforo visual por días estimados de liquidación. Ajustar los umbrales no modifica el score calculado en Python. Los casos sin datos suficientes se muestran en la tabla, fuera del mapa.</p>
+  <p class="note">Semáforo visual por días estimados de liquidación. Ajustar los umbrales no modifica el score calculado en Python. Los casos sin datos suficientes se muestran en la tabla, fuera del mapa. Los saldos desconocidos permanecen visibles con cualquier saldo mínimo; los totales incluyen únicamente saldos conocidos.</p>
   <section class="panel controls" aria-label="Ajustes">
     <div class="ctl">
       <label class="label" for="uAm">Amarillo a partir de</label>
@@ -169,6 +169,7 @@ tbody tr.sel{background:var(--accent-soft)}
 
 <script>
 const REPORT = __REPORT_JSON__;
+__REPORT_HELPERS__
 const RAW = REPORT.rows;
 const $ = id => document.getElementById(id);
 const mx = n => Number.isFinite(n) ? '$' + Math.round(n).toLocaleString('es-MX') : '—';
@@ -177,13 +178,13 @@ const fmt = (n, d=0) => Number.isFinite(n) ? n.toLocaleString('es-MX',{maximumFr
 const COL = {rojo:'var(--bad)',amarillo:'var(--warn)',verde:'var(--ok)',sin:'var(--none)', pendiente:'var(--none)'};
 const NAME = {rojo:'Rojo',amarillo:'Amarillo',verde:'Verde',sin:'Sin saldo', pendiente:'Sin datos suficientes'};
 
-const data = RAW.map(r => ({...r, base: r.D <= 0 ? 0 : (Number.isFinite(r.C) && Number.isFinite(r.d) ? r.C * Math.max(r.d, 1) : null)}));
+const data = RAW.map(r => ({...r, base: liquidationBase(r)}));
 
 const st = {am:45, ro:90, fuente:'todos', min:1000, sem:null, q:'', sel:null, sk:'dias', sd:-1};
 try { const s = JSON.parse(localStorage.getItem('riesgo-umbrales')||'null'); if (s) { st.am=s.am; st.ro=s.ro; $('uAm').value=s.am; $('uRo').value=s.ro; } } catch(e) {}
 
-const semOf = r => r.D <= 0 ? 'sin' : !Number.isFinite(r.dias) ? 'pendiente' : r.dias > st.ro ? 'rojo' : r.dias > st.am ? 'amarillo' : 'verde';
-const inScope = r => (st.fuente==='todos' || r.f===st.fuente) && (r.D <= 0 ? st.min===0 : r.D > st.min);
+const semOf = r => riskState(r, st.am, st.ro);
+const inScope = r => rowInScope(r, st.fuente, st.min);
 
 function render(){
   $('uAmV').textContent = st.am + ' días para liquidar';
@@ -198,7 +199,7 @@ function renderSummary(scope){
   const pos = scope.filter(r => r.D > 0), total = pos.reduce((s,r)=>s+r.D,0);
   const groups = ['rojo','amarillo','verde','pendiente','sin'].map(k => {
     const rs = scope.filter(r => r.sem===k);
-    return {k, n:rs.length, D:rs.reduce((s,r)=>s+Math.max(r.D,0),0)};
+    return {k, n:rs.length, unknown:rs.filter(r=>!knownBalance(r)).length, D:rs.reduce((s,r)=>s+(knownBalance(r)?Math.max(r.D,0):0),0)};
   });
   $('bar').innerHTML = groups.filter(g=>g.k!=='sin' && total>0).map(g =>
     `<span style="width:${g.D/total*100}%;background:${COL[g.k]}" title="${NAME[g.k]}: ${mx(g.D)}"></span>`).join('');
@@ -207,6 +208,7 @@ function renderSummary(scope){
       <span class="label"><span class="dot" style="background:${COL[g.k]}"></span>${NAME[g.k]}</span>
       <span class="big">${g.n} <span class="small">clientes</span></span>
       <span class="small num">${g.k==='sin' ? 'sin deuda pendiente' : mx(g.D) + ' · ' + (total ? fmt(g.D/total*100) : 0) + '% del saldo'}</span>
+      ${g.unknown ? `<span class="small">${g.unknown} con saldo desconocido, excluidos del importe</span>` : ''}
     </button>`).join('');
   document.querySelectorAll('.tile').forEach(b => b.onclick = () => { st.sem = st.sem===b.dataset.sem ? null : b.dataset.sem; render(); });
 }
@@ -304,9 +306,10 @@ function renderDetail(){
     return;
   }
   const base = r.base, dias = r.dias;
-  const story = r.D <= 0
+  const story = !knownBalance(r) ? 'El saldo no está disponible o es inválido. No se puede determinar la deuda ni clasificar su riesgo.'
+    : r.D <= 0
     ? `No tiene saldo pendiente${r.D<0 ? ' (saldo a favor de ' + mx(-r.D) + ')' : ''}. Queda fuera del semáforo.`
-    : r.sem === 'pendiente' ? 'No hay datos suficientes para estimar el plazo de liquidación. Revisa el historial de pagos y las referencias del segmento.'
+    : r.sem === 'pendiente' ? esc(r.motivo || 'No hay datos suficientes para estimar el plazo de liquidación. Revisa el historial de pagos y las referencias del segmento.')
     : `Debe ${mx(r.D)}. Suele pagar ${mx(r.P)} cada ${fmt(r.d)} días, así que a ese ritmo tardaría ${fmt(base)} días en liquidar. ` +
       (r.R > 1.001 ? `Lleva ${fmt(r.t)} días sin pagar, ${fmt(r.R,1)} veces su intervalo normal, por eso el plazo se ajusta a ${fmt(dias)} días.`
                    : `Su último pago fue hace ${fmt(r.t)} días, dentro de su ritmo normal, así que no hay ajuste por retraso.`);

@@ -34,6 +34,38 @@ class SQLTests(unittest.TestCase):
         self.assertIn("TOP 50", sql)
         self.assertNotIn("1000", sql)
 
+    def test_small_top_keeps_the_requested_number_of_rows(self):
+        for limit in (1, 5, 50):
+            with self.subTest(limit=limit):
+                sql = validate_sql(
+                    f"SELECT TOP {limit} FECHA FROM proadel.COBRANZA_DATA ORDER BY FECHA DESC",
+                    {"proadel.cobranza_data"},
+                )
+                self.assertIn(f"TOP {limit} ", sql)
+
+    def test_unsupported_pagination_and_query_options_are_rejected(self):
+        queries = [
+            "SELECT TOP 5 PERCENT IMPORTE FROM proadel.COBRANZA_DATA",
+            "SELECT TOP 1 WITH TIES IMPORTE FROM proadel.COBRANZA_DATA ORDER BY FECHA",
+            "SELECT TOP (@n) IMPORTE FROM proadel.COBRANZA_DATA",
+            "SELECT TOP 0 IMPORTE FROM proadel.COBRANZA_DATA",
+            "SELECT TOP 1.5 IMPORTE FROM proadel.COBRANZA_DATA",
+            "SELECT IMPORTE FROM proadel.COBRANZA_DATA ORDER BY FECHA OFFSET 50 ROWS FETCH NEXT 5 ROWS ONLY",
+            "SELECT SUM(IMPORTE) FROM proadel.COBRANZA_DATA OPTION(MAXDOP 0)",
+            "SELECT SUM(IMPORTE) FROM (SELECT TOP 5 PERCENT IMPORTE FROM proadel.COBRANZA_DATA) AS p",
+        ]
+        for query in queries:
+            with self.subTest(query=query), self.assertRaises((ValueError, ParseError)):
+                validate_sql(query, {"proadel.cobranza_data"})
+
+    def test_nested_top_is_not_silently_rewritten(self):
+        sql = validate_sql(
+            "SELECT SUM(IMPORTE) FROM (SELECT TOP 100 IMPORTE FROM proadel.COBRANZA_DATA ORDER BY FECHA DESC) AS p",
+            {"proadel.cobranza_data"},
+        )
+        self.assertIn("SELECT TOP 50 SUM", sql)
+        self.assertIn("SELECT TOP 100 IMPORTE", sql)
+
     def test_rejects_writes_remote_and_unlisted_objects(self):
         for sql in [
             "DELETE FROM proadel.vw_AlertasCobranza",

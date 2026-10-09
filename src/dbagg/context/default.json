@@ -110,7 +110,7 @@
     "risk": {
       "questions": ["¿Qué clientes tienen mayor riesgo?", "¿Qué significa el semáforo?"],
       "status": "implemented_in_report",
-      "known_limitation": "score_riesgo.py aún usa NOTE_DATE, siempre NULL en cobranza. La fecha correcta es FECHA. El reporte está pendiente de corregir y no valida fechas/riesgo en estos datos.",
+      "known_limitation": "El reporte usa FECHA en cobranza; créditos conserva NOTE_DATE pendiente de confirmar. Sus umbrales y el filtro de importes positivos requieren validación contable; no reconstruye saldos históricos.",
       "sources": ["proadel.vw_AlertasCobranza", "proadel.COBRANZA_DATA", "proadel.CREDITO_DATA"],
       "rule": "El reporte Python calcula score=C×R con C=deuda/pago típico y R=max(1,días desde pago/intervalo típico); usa ventana de 365 días y referencias por segmento para poco historial. No está integrado como herramienta del chatbot y no se obtiene ordenando solo saldos. Explica la limitación si se solicita ese score y ninguna fuente autorizada lo contiene.",
       "do_not": ["No inventar un score ni llamar riesgo al ranking de deuda.", "No extrapolar reglas de días liquidados a un compromiso de pago del cliente."]

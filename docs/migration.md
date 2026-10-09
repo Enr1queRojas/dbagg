@@ -44,3 +44,29 @@ la URL `/webhook` en Meta. Prueba `/diagnostico`, una consulta conocida y despu�
 Esta reorganización conserva las reglas contables existentes; no convierte los
 resultados anteriores en respuestas verificadas. La evaluación requiere contrastarlos
 con el sistema de referencia, siguiendo [evaluation.md](evaluation.md).
+
+## Rama refactor: código dentro de src/
+
+La primera entrega mueve el paquete a `src/dbagg/`. El directorio exterior es el
+repositorio; el paquete Python vive solo dentro de `src/`. Reinstala después del pull:
+
+```cmd
+git switch refactor
+git pull --ff-only origin refactor
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m unittest discover -s tests -v
+```
+
+Si la rama aún no existe localmente, usa `git fetch origin` y
+`git switch --track origin/refactor`. `.env` continúa en la raíz y los comandos de
+Uvicorn y del reporte se conservan. Node.js 24 es necesario para ejecutar la prueba
+de presentación JavaScript; no se necesita para ejecutar el servicio Python.
+
+`core` no forma parte del repositorio. Si quedó vacía en tu PC, `rmdir core` la retira;
+si contiene archivos, ese comando no los elimina. Los directorios generados o archivos
+ignorados de instalaciones anteriores pueden permanecer localmente tras un pull.
+Un despliegue desde el wheel evita depender de esos residuos del checkout.
+
+Esta entrega también corrige saldos desconocidos, fechas de cobranza, límites TOP y
+valoración tras errores. Lee [refactor-roadmap.md](refactor-roadmap.md) para sus límites
+y validaciones pendientes contra la base real.

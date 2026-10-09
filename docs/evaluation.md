@@ -29,6 +29,11 @@ referencia en memoria. Un diagnóstico o confirmación de valoración no sustitu
 última respuesta del agente. Los comandos de control no esperan el límite de diez
 segundos aplicado a preguntas, pero sí pasan autorización, firma y deduplicación.
 
+Si una consulta falla y se entrega el mensaje de error, se invalida la referencia de
+valoración anterior. `/mala` después de ese error no puede etiquetar por accidente
+la consulta que sí había funcionado. El historial de conversación se conserva.
+La evaluación separada de fallos de disponibilidad queda para la entrega de observabilidad.
+
 El registro se crea solo al valorar y solo cuando está habilitado. Guarda ID aleatorio,
 fecha, pregunta, respuesta, historial reciente, motivo, modelo y versiones de prompt/contexto.
 No guarda el teléfono del remitente, tokens, SQL ni filas completas de resultados.

@@ -53,6 +53,7 @@ class ConversationService:
             return
         try:
             save_turn = False
+            answer_failed = False
             history = []
             try:
                 command = command_name(question)
@@ -78,10 +79,13 @@ class ConversationService:
                     )
                     save_turn = True
             except Exception as exc:
+                answer_failed = True
                 logger.warning("dbagg stage=answer_failed error_type=%s", type(exc).__name__)
                 answer = "No pude completar la consulta. Revisa la conexión y la configuración del servicio."
             try:
                 self.deliver(sender, answer)
+                if answer_failed:
+                    self.memory.invalidate_rating(sender)
                 if save_turn:
                     trace = getattr(self.assistant, "last_trace", None)
                     trace = trace if isinstance(trace, dict) else {}

@@ -1,7 +1,7 @@
 # Arquitectura
 
 ```text
-dbagg/
+src/dbagg/
   api/app.py                Webhook HTTP, firma y números autorizados
   integrations/meta.py       Envío a Meta y códigos de error seguros
   services/conversation.py   Conversación, comandos y registro opcional de valoraciones
@@ -36,7 +36,7 @@ La raíz del checkout contiene `.env`. `DBAGG_HOME` permite seleccionar otra ra�
 una instalación empaquetada; sin ese valor, una instalación fuera del checkout usa
 el directorio de trabajo. No se cambia el directorio de trabajo del proceso.
 
-`dbagg/context/default.json` y la plantilla HTML se distribuyen dentro del paquete.
+`src/dbagg/context/default.json` y la plantilla HTML se distribuyen dentro del paquete.
 El contexto base se combina primero con el archivo local antiguo `business_context.json`
 y después con `config/business_context.json`. Los ajustes locales no se modifican ni
 se versionan. Las listas reemplazan listas; los diccionarios se combinan recursivamente.
@@ -56,6 +56,9 @@ El contexto se recarga por pregunta. Su huella identifica la configuración usad
 no se conserva una copia del prompt completo ni de los resultados SQL en la evaluación.
 Las etiquetas humanas no se aplican automáticamente como instrucciones al agente.
 
-El cálculo del reporte de riesgo conserva su comportamiento previo. Su referencia
-a `NOTE_DATE` en cobranza sigue siendo una limitación conocida frente al campo `FECHA`
-confirmado para el agente; esta reorganización no valida ni modifica esa fórmula.
+El reporte usa `FECHA` en cobranza, con conversión SQL estilo 103 y corte al día
+siguiente exclusivo. Un saldo desconocido o historial de fechas inválidas deja el
+caso sin clasificar y muestra el motivo. El cálculo puro está separado de la lectura SQL.
+La fecha de créditos conserva `NOTE_DATE` hasta confirmar su mapeo. El reporte mantiene
+el filtro histórico de importes positivos; esa regla y sus umbrales necesitan validación
+contable. Consulta [refactor-roadmap.md](refactor-roadmap.md) y [production.md](production.md).

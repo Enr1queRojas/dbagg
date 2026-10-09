@@ -143,7 +143,7 @@ y puede buscar candidatos antes de consultar el detalle. Los nombres de tablas n
 garantizan el significado de un saldo, relación o estado. Si hay ambigüedad real debe
 preguntar por el cliente/período o criterio de negocio, sin pedir SQL.
 
-El agente carga automáticamente `dbagg/context/default.json` con rutas de negocio y
+El agente carga automáticamente `src/dbagg/context/default.json` con rutas de negocio y
 definiciones pendientes. Puedes complementar con `business_context.json` usando campos de
 `config/business_context.example.json`, sin sobrescribir ajustes existentes. Consulta
 [business-context.md](business-context.md) para registrar columnas verificadas, relaciones
@@ -161,7 +161,8 @@ real debe validarse comparando consultas conocidas.
 a SQL_ALLOWED_TABLES. Restringe la lista a objetos de negocio aprobados; los objetos
 temporales y de importación no deberían mezclarse con reportes vigentes.
 
-- Una pregunta de hasta 1.000 caracteres; consultas TOP 50, timeout SQL 15 segundos,
+- Una pregunta de hasta 1.000 caracteres; consultas con un máximo de 50 filas y
+  TOP menores conservados, timeout SQL 15 segundos,
   timeout de conexión 10 segundos y resultados acotados. Los valores largos se recortan.
 - Hasta nueve llamadas al modelo, cuatro descripciones de catálogo y cuatro SELECT por
 pregunta. Este flujo puede costar más que el piloto anterior de dos llamadas; revisa

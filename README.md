@@ -3,6 +3,10 @@
 Generador de reportes de riesgo de crédito y piloto interno para consultar SQL Server
 por WhatsApp con OpenAI.
 
+Estado: piloto en estabilización para producción. El avance por entregas está en
+[refactor-roadmap.md](docs/refactor-roadmap.md); los requisitos de despliegue están
+en [production.md](docs/production.md).
+
 ## Inicio rápido
 
 Requiere Python 3.11 o 3.12 y Microsoft ODBC Driver 18 para conectar con SQL Server.
@@ -28,12 +32,12 @@ en Meta la URL del túnel terminada en `/webhook`. La guía de
 
 | Carpeta | Responsabilidad |
 | --- | --- |
-| `dbagg/api/`, `dbagg/integrations/` | Webhook HTTP y cliente de Meta |
-| `dbagg/agent/`, `dbagg/services/` | Modelo, herramientas, memoria y conversación |
-| `dbagg/database/` | Conexión, catálogo y validación de SQL de lectura |
-| `dbagg/context/` | Reglas de negocio versionadas y carga de ajustes locales |
-| `dbagg/reporting/` | Cálculo y plantilla del reporte HTML |
-| `dbagg/evaluation/`, `evals/` | Valoraciones, revisión humana y casos sintéticos |
+| `src/dbagg/api/`, `src/dbagg/integrations/` | Webhook HTTP y cliente de Meta |
+| `src/dbagg/agent/`, `src/dbagg/services/` | Modelo, herramientas, memoria y conversación |
+| `src/dbagg/database/` | Conexión, catálogo y validación de SQL de lectura |
+| `src/dbagg/context/` | Reglas de negocio versionadas y carga de ajustes locales |
+| `src/dbagg/reporting/` | Cálculo y plantilla del reporte HTML |
+| `src/dbagg/evaluation/`, `evals/` | Valoraciones, revisión humana y casos sintéticos |
 | `config/`, `docs/`, `tests/` | Ejemplos, documentación y pruebas unitarias/de integración |
 
 Los archivos Python de la raíz mantienen los comandos existentes. Los reportes nuevos
@@ -60,9 +64,11 @@ Las reglas de negocio se documentan en [contexto de negocio](docs/business-conte
 .\.venv\Scripts\python.exe -m ruff format --check .
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
 .\.venv\Scripts\python.exe -m build
+.\.venv\Scripts\python.exe scripts\smoke_wheel.py
 ```
 
-En Linux usa `.venv/bin/python`. CI ejecuta estas verificaciones con Python 3.11 y
-3.12. Las pruebas simulan SQL, OpenAI y Meta; la conectividad y exactitud con datos
+En Linux usa `.venv/bin/python`. CI configura estas verificaciones con Python 3.11 y
+3.12 en Linux y Windows. Node.js 24 ejecuta las reglas de presentación del reporte;
+el servicio Python no lo requiere. Las pruebas simulan SQL, OpenAI y Meta; la conectividad y exactitud con datos
 reales se validan por separado desde la PC autorizada. El piloto conserva memoria en
 un solo proceso y requiere `--workers 1`.

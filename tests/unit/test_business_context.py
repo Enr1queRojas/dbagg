@@ -1,6 +1,7 @@
 import json
 import tempfile
 import unittest
+from importlib.resources import files
 from pathlib import Path
 
 from dbagg.context.loader import load_business_context
@@ -10,7 +11,7 @@ class BusinessContextTests(unittest.TestCase):
     def test_defaults_are_active_without_local_file(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
-            source = Path(__file__).resolve().parents[2] / "dbagg" / "context" / "default.json"
+            source = files("dbagg.context").joinpath("default.json")
             (root / "business_context.default.json").write_bytes(source.read_bytes())
             data = json.loads(load_business_context(root))
         self.assertIn("topics", data)
@@ -76,7 +77,7 @@ class BusinessContextTests(unittest.TestCase):
     def test_previously_valid_local_context_remains_valid_with_shipped_defaults(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
-            source = Path(__file__).resolve().parents[2] / "dbagg" / "context" / "default.json"
+            source = files("dbagg.context").joinpath("default.json")
             (root / "business_context.default.json").write_bytes(source.read_bytes())
             local = {"definitions": {"notes": "x" * 15000}}
             (root / "business_context.json").write_text(json.dumps(local), encoding="utf-8")

@@ -28,6 +28,8 @@ def generar_html(resultado, salida=None, hoy=None):
         "dias_liquidar": "dias",
         "semaforo": "semaforo_score",
     }
+    if "motivo" in resultado.columns:
+        campos["motivo"] = "motivo"
     # pandas converts missing/non-finite numbers to JSON null, preserving precision.
     rows = json.loads(
         resultado[list(campos)]
@@ -46,9 +48,11 @@ def generar_html(resultado, salida=None, hoy=None):
         .replace("\u2029", "\\u2029")
     )
     template = (root / "templates" / "riesgo.html").read_text(encoding="utf-8")
+    helpers = (root / "static" / "risk-data.js").read_text(encoding="utf-8")
     html = (
         template.replace("__REPORT_DATE__", f"Corte al {hoy:%d/%m/%Y}")
         .replace("__WINDOW_DAYS__", str(VENTANA_DIAS))
+        .replace("__REPORT_HELPERS__", helpers)
         .replace("__REPORT_JSON__", payload)
     )
     destino.parent.mkdir(parents=True, exist_ok=True)

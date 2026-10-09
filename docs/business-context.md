@@ -1,6 +1,6 @@
 # Contexto de negocio para el agente
 
-El agente carga `dbagg/context/default.json` en cada pregunta. El archivo incluye
+El agente carga `src/dbagg/context/default.json` en cada pregunta. El archivo incluye
 rutas de consulta y reglas para evitar confundir saldos, ventas, cobros y existencias.
 Son indicaciones para el modelo, no una garantía de exactitud contable.
 
@@ -110,6 +110,10 @@ No añadas `IMPORTE>0` como regla general: el responsable confirmó el estado v�
 no el tratamiento de importes negativos o reversos. Verifica unicidad del código
 del catálogo antes de unir; normalmente basta filtrar los pagos por código resuelto.
 
-El reporte `score_riesgo.py` todavía usa `NOTE_DATE` en cobranza; queda pendiente
-corregir ese mapeo del reporte por separado. Su salida no valida fechas de pago ni
-riesgo en estos datos. El contexto del agente ya usa la fecha confirmada.
+El reporte `score_riesgo.py` ahora usa `FECHA` en cobranza, convierte fechas con estilo
+103 y detecta fechas vacías/no convertibles. Los clientes afectados con deuda quedan
+sin clasificar. El mapeo de fecha de `CREDITO_DATA` sigue pendiente: conserva `NOTE_DATE`.
+El cálculo mantiene su filtro histórico de importes positivos y umbrales provisionales;
+se deben validar con el responsable antes de usar el riesgo como criterio operativo.
+El parámetro `hoy` limita el historial consultado, pero el saldo sigue siendo vigente;
+no es una reconstrucción de saldo a una fecha histórica.

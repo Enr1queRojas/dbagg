@@ -80,6 +80,17 @@ class FeedbackWebhookTests(unittest.TestCase):
         self.assertEqual(self.store.list_pending(), [])
         self.assertIn("No hay una respuesta reciente", self.webhook.send.call_args.args[1])
 
+    def test_vote_after_delivered_error_does_not_rate_previous_success(self):
+        with patch("dbagg.services.memory.time.monotonic", return_value=100):
+            self.webhook.post(self.message("Consulta A", "query-a"))
+        self.webhook.assistant.answer.side_effect = RuntimeError("synthetic failure")
+        with patch("dbagg.services.memory.time.monotonic", return_value=111):
+            with self.assertLogs("uvicorn.error", level="WARNING"):
+                self.webhook.post(self.message("Consulta B", "query-b"))
+            self.webhook.post(self.message("/mala Falló B", "rating"))
+        self.assertEqual(self.store.list_pending(), [])
+        self.assertIn("No hay una respuesta reciente", self.webhook.send.call_args.args[1])
+
 
 if __name__ == "__main__":
     unittest.main()
