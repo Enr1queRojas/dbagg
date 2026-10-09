@@ -218,3 +218,12 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Local runtime configuration and private evaluation/report artifacts
+.env.*
+business_context.json
+config/business_context.json
+data/
+reportes/
+score_riesgo.html
+*.sqlite3

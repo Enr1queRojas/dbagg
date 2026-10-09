@@ -1,0 +1,127 @@
+{
+  "version": 3,
+  "scope": "Asistente interno orientado a reportes por cliente: saldo, cargos/ventas, pagos y devoluciones. Prioridad actual: cobranza y últimos pagos. El responsable aclaró que las ventas se consultan dentro de los movimientos del cliente; los totales generales de ventas no son el flujo principal. Este archivo orienta fuentes, no concede permisos SQL.",
+  "priority_topics": ["customer_balance", "customer_statement", "collections"],
+  "evidence_rules": [
+    "confirmed_by_owner significa definición confirmada por el responsable del negocio. implemented_in_report describe el comportamiento de score_riesgo.py, no una validación contable general.",
+    "user_reported_source significa que el usuario identificó el objeto y probó consultas, sin verificar todavía sus columnas, fórmula ni granularidad. candidate_by_name es solo un candidato por su nombre: inspecciona columnas antes de decidir.",
+    "pending significa desconocido. No conviertas supuestos o ejemplos en fórmulas confirmadas. Un resultado SQL válido no prueba que mida el concepto correcto.",
+    "Consulta solo objetos presentes en SQL_ALLOWED_TABLES. Si una fuente recomendada no está autorizada, busca otra fuente equivalente verificable o explica la limitación en términos de negocio.",
+    "Si necesitas una aclaración, pide el criterio de negocio concreto (neto/bruto, producto, cliente, unidad), no nombres técnicos ni SQL. No preguntes por información ya confirmada en este contexto o en la conversación."
+  ],
+  "common_rules": {
+    "identity": "Resuelve nombres por las columnas reales de clave y nombre/razón social. Si un apellido corresponde a varios clientes, presenta candidatos y pide elegir; no sumes todos salvo que se solicite.",
+    "current_vs_movements": "Un saldo vigente es una existencia al corte; cobros, créditos, ventas y devoluciones son movimientos. No uses total histórico vendido o total de créditos como sinónimo de deuda actual.",
+    "granularity": "Antes de sumar, determina si una fila representa cliente, documento, partida, producto, día, banco o temporada. Los prefijos TOTAL/RESUMEN no garantizan la granularidad.",
+    "no_double_counting": "Una vista y sus tablas de origen pueden representar lo mismo. No sumes las dos. No sumes saldos repetidos tras un JOIN de uno a muchos; agrega movimientos por clave antes de unir y verifica la cardinalidad.",
+    "joins": "Igual nombre de columna no demuestra relación. Usa relaciones documentadas o comprobadas con claves únicas, nulos y duplicados. No asumas que CLIENTE es la razón social ni que ID se comparte entre objetos.",
+    "status": "No generalices ESTADO='ACTIVA' a todas las tablas; confirma el campo y los valores por proceso. No incluyas cancelados, borradores o duplicados sin conocer la regla de esa métrica.",
+    "time": "Esta semana significa lunes hasta hoy inclusive, según el calendario del servicio. Usa la fecha del evento pertinente y límites [inicio, día posterior al fin). Di las fechas de la respuesta y el criterio usado; no pidas confirmar el rango por defecto.",
+    "money_and_units": "No asumas moneda, impuestos ni unidad. No mezcles pesos, kilos, toneladas, bultos o piezas; verifica columnas y conversiones antes de sumar.",
+    "empty": "Sin registros no demuestra saldo cero ni ausencia total de operaciones. Comprueba alcance y filtros antes de afirmar cero.",
+    "technical_objects": "HISTORY, TEMPORARY y CARGA_MASIVA se consideran candidatos técnicos de importación, no fuente preferida de totales vigentes. LOGIN_ACCESS_DATA y __EFMigrationsHistory están excluidos por el servicio."
+  },
+  "topics": {
+    "customer_balance": {
+      "questions": ["¿Cuánto debe un cliente?", "¿Quiénes son los cinco clientes que más deben?", "¿Cuál es la cartera pendiente?"],
+      "status": "confirmed_by_owner",
+      "preferred_sources": ["proadel.CATALOGO_CLIENTES_DATA_V"],
+      "candidates": ["proadel.vw_AlertasCobranza", "proadel.CATALOGO_CLIENTES_DATA", "proadel.LISTA_CLIENTES_V", "proadel.RESUMEN_COBRANZA_V"],
+      "source_evidence": "El responsable confirmó la vista para cuánto debe un cliente y proporcionó los nombres exactos de sus columnas. La fórmula interna y unicidad por cliente no se han confirmado.",
+      "columns": {
+        "customer_key": "CODIGO", "customer_name": "NOMBRE", "current_balance": "SALDO ACTUAL",
+        "credit_limit": "LIMITE_DE_CREDITO", "total_credit": "TOTAL_CREDITO",
+        "total_collections": "TOTAL_COBRANZA", "total_sales_returns": "TOTAL_DEV_VENTA",
+        "opening_balance": "SALDO_INICIAL", "status": "ESTADO",
+        "address": "DIRECCION", "phone": "TELEFONO"
+      },
+      "balance_definition": "La respuesta a cuánto debe usa directamente [SALDO ACTUAL]. [CODIGO] identifica al cliente y [NOMBRE] permite buscarlo en lenguaje natural. Escapa [SALDO ACTUAL] con corchetes porque contiene un espacio.",
+      "rule": "Describe la vista para comprobar disponibilidad. Resuelve un código exacto o busca por NOMBRE; ante varias coincidencias pide elegir usando CODIGO y NOMBRE. Consulta [SALDO ACTUAL] para deuda vigente, sin recalcularlo. Para quién debe más, ordena por [SALDO ACTUAL] descendente, con CODIGO como desempate, y presenta solo la cantidad solicitada; los valores positivos representan los que deben. Si se repite un CODIGO, investiga la granularidad antes de sumar o elegir un saldo.",
+      "do_not": ["No usar TOTAL_CREDITO, TOTAL_COBRANZA, SALDO_INICIAL o LIMITE_DE_CREDITO como deuda actual.", "No inventar que [SALDO ACTUAL]=SALDO_INICIAL+TOTAL_CREDITO-TOTAL_COBRANZA-TOTAL_DEV_VENTA; la fórmula interna no está confirmada.", "No presentar TOTAL_* como movimientos de la semana o del mes: su período y alcance no están confirmados.", "No seleccionar DIRECCION y TELEFONO por defecto para informes financieros; no son necesarios para saldo o ranking."],
+      "pending": ["Unicidad de CODIGO en la vista, moneda y fecha de corte.", "Interpretación de saldos negativos y estados del catálogo; no copiar filtros de cobranza."]
+    },
+    "customer_statement": {
+      "questions": ["Dame el reporte del cliente", "Muéstrame su estado de cuenta", "¿Qué movimientos tiene?", "¿Qué cargos y pagos tuvo este mes?"],
+      "status": "confirmed_by_owner",
+      "confirmation_scope": "El flujo del negocio es revisar un cliente y sus movimientos (ventas/cargos, pagos, etc.). Solo la fuente de resumen del catálogo está confirmada; las fuentes de detalle y sus relaciones están pendientes.",
+      "preferred_sources": ["proadel.CATALOGO_CLIENTES_DATA_V"],
+      "movement_candidates": {
+        "collections": ["proadel.COBRANZA_DATA"],
+        "credit_charges": ["proadel.CREDITO_DATA"],
+        "cash_sales": ["proadel.CONTADO_DATA"],
+        "returns": ["proadel.DEV_VENTA_DATA"]
+      },
+      "summary_rule": "Resuelve CODIGO/NOMBRE primero. Un resumen puede mostrar [SALDO ACTUAL], LIMITE_DE_CREDITO y los acumulados TOTAL_CREDITO, TOTAL_COBRANZA, TOTAL_DEV_VENTA, SALDO_INICIAL cuando se pidan, identificándolos como valores de la vista y sin atribuirles un período no confirmado.",
+      "detail_rule": "Si pide movimientos, usa fuentes de detalle autorizadas y confirma clave de cliente, fecha, importe, estado y folio. Sin período, pregunta solo por el período o si quiere los últimos movimientos; el saldo actual no requiere un período. Consulta cargos, pagos y devoluciones por separado; no unas sus filas directamente por cliente porque multiplicarías importes. Si no cabe todo en los límites, ofrece acotar el período o tipo y declara el resultado parcial.",
+      "conversation_rule": "Después de identificar a un cliente, su saldo, sus movimientos y su último pago se refieren a ese cliente, salvo cambio explícito. Una pregunta de ranking global no debe heredarlo como filtro. La mención de ventas en el reporte del cliente no debe disparar una pregunta sobre ventas globales o IVA que no sea necesaria para el reporte solicitado.",
+      "do_not": ["No presentar los TOTAL_* del catálogo como lista de transacciones.", "No recalcular un saldo histórico con el saldo vigente ni fabricar una conciliación; hacen falta saldo inicial al período y reglas verificadas.", "La relación confirmada de COBRANZA_DATA.CLIENTE con CODIGO no confirma relaciones de crédito, contado o devoluciones.", "No confundir contado con deuda pendiente del cliente."],
+      "pending": ["Correspondencia entre CODIGO y clave cliente de cargos, contado y devoluciones.", "Columnas de fecha, importe, folio y estados válidos de cargos, contado y devoluciones."]
+    },
+    "sales": {
+      "questions": ["¿Cuánto vendimos esta semana?", "¿Qué producto se vendió más?", "¿Cuánto compró este cliente?"],
+      "status": "candidate_by_name",
+      "priority": "secondary_explicit_request_only",
+      "preferred_sources": ["proadel.VENTAS_DIARIAS_V"],
+      "candidates": ["proadel.CONTADO_DATA", "proadel.CREDITO_DATA", "proadel.DEV_VENTA_DATA", "proadel.TOTAL_CONTADO_PRODUCTOS_V", "proadel.TOTAL_CREDITO_PRODUCTOS_V", "proadel.TOTAL_DEV_VENTA_PRODUCTOS_V"],
+      "definition": {"confirmed": false, "include_cash": null, "include_credit": null, "subtract_returns": null, "exclude_cancelled": null, "tax_basis": null, "currency": null},
+      "columns": {"sale_date": null, "amount": null, "quantity": null, "product_key": null, "status": null},
+      "rule": "Solo aplica si pregunta explícitamente un total general de ventas. Para ventas/movimientos de un cliente usa customer_statement y no redirijas la conversación al total global. VENTAS_DIARIAS_V es un candidato sin definición oficial; no mezcles contado, crédito, devoluciones e impuestos sin confirmar sus componentes ni sumes componentes ya incluidos.",
+      "do_not": ["No usar COBRANZA_DATA como ventas: cobrar una deuda no implica vender en esa fecha.", "No usar el saldo pendiente como ingreso del período.", "No sumar importes de detalle junto al total de su documento."],
+      "pending": ["Definición oficial de ventas y fuente de referencia.", "Fecha de venta frente a captura/pago, importes, estados válidos y tratamiento de devoluciones."]
+    },
+    "collections": {
+      "questions": ["¿Cuándo pagó por última vez?", "¿Cuánto cobramos esta semana?", "¿Qué pagos hizo un cliente?"],
+      "status": "confirmed_by_owner",
+      "priority": "high",
+      "preferred_sources": ["proadel.COBRANZA_DATA"],
+      "candidates": ["proadel.RESUMEN_COBRANZA_V", "proadel.TOTAL_COBRANZA_CLIENTES_V", "proadel.TOTAL_COBRANZA_BANCOS_V"],
+      "columns": {"customer_key": "CLIENTE", "amount": "IMPORTE", "date": "FECHA", "status": "ESTADO", "record_id": "ID", "receipt": "FOLIO", "payment_method": "FORMA DE PAGO", "bank": "BANCO"},
+      "confirmed_filters": {"ESTADO": "ACTIVA"},
+      "source_evidence": "Responsable y captura confirman columnas. CLIENTE=CODIGO; fecha de pago=FECHA; solo ESTADO='ACTIVA'. NOTE_DATE siempre es NULL. INSERTION_DATE es captura, no fecha del pago.",
+      "rule": "Filtra CLIENTE por CODIGO resuelto y ESTADO='ACTIVA'. Usa FECHA para ordenar y filtrar períodos [inicio, día posterior al fin). No limites último pago a 365 días. Recupera fecha e importe de las mismas filas; si empatan, muestra FOLIO/ID sin inventar orden intradía. Si pide total del último día, suma pagos activos de ese día y nómbralo total diario. Calcula totales en SQL, no sumando TOP 50.",
+      "date_type": "Inspecciona tipo de FECHA. Si es date/datetime, úsala directamente. Si es texto dd/MM/yyyy, convierte con TRY_CONVERT(date,[FECHA],103) antes de comparar u ordenar; no ordenes fechas como texto. Fechas no convertibles son datos faltantes, no ausencia de pagos; advierte si afectan un total.",
+      "do_not": ["No usar NOTE_DATE ni INSERTION_DATE para último pago o períodos.", "No usar TOTAL_COBRANZA ni MAX(IMPORTE) como importe del último pago.", "No sumar TOTAL_COBRANZA con filas de COBRANZA_DATA ni multiplicarlas con cargos en un JOIN por cliente.", "No añadir IMPORTE>0 como regla heredada: el filtro confirmado es ESTADO='ACTIVA'."],
+      "pending": ["Orden real entre pagos con igual FECHA; ID/FOLIO no prueban cronología.", "Significado de importes negativos/reversos y moneda."]
+    },
+    "inventory": {
+      "questions": ["¿Cuánto maíz tenemos?", "¿Qué existencias hay?", "¿Cuándo se agotará el producto?"],
+      "status": "candidate_by_name",
+      "preferred_sources": ["proadel.ALMACENES_DISPONIBLES_V"],
+      "candidates": ["proadel.CATALOGO_PRODUCTOS_DATA_V", "proadel.TOTAL_PROCESOS_PRODUCTOS_V", "proadel.PROYECCION_AGOTAMIENTO_PRODUCTO_V", "proadel.RESUMEN_CONSUMO_MAIZ", "proadel.CONSUMO_DIARIO_MAIZ_V"],
+      "rule": "Distingue existencia física, disponible, reservada y proyectada. Verifica que la vista candidata realmente tenga cantidad; podría describir almacenes y no stock. Para proyecciones usa datos de la vista si están definidos, no inventes una fecha de agotamiento.",
+      "pending": ["Fuente y columna de stock vigente por almacén/producto.", "Unidades, conversiones, disponibilidad, reservas y fecha de corte."]
+    },
+    "producers": {
+      "questions": ["¿Cuánto le debemos a un productor?", "¿Cuánto entregó por temporada?", "¿Qué anticipos tiene?"],
+      "status": "candidate_by_name",
+      "preferred_sources": ["proadel.CONTROL_PRODUCTORES_DATA_V", "proadel.CATALOGO_PRODUCTORES_DATA_V"],
+      "candidates": ["proadel.PRODUCTOR_TEMPORADA_DATA_V", "proadel.BOLETA_ENTRADA_DATA", "proadel.ABONO_DINERO_DATA", "proadel.PAGO_PRODUCTO_PROD_DATA", "proadel.PRESTAMO_DINERO_DATA"],
+      "rule": "No confundir productor con cliente ni sumar anticipos, préstamos y liquidaciones como si fueran el mismo concepto. La persona puede tener varios roles; resuelve identidad en el catálogo correspondiente y separa temporadas.",
+      "pending": ["Definición de saldo a favor/en contra del productor, fuentes, claves y relaciones.", "Temporada aplicable y tratamiento de insumos, préstamos, comisiones y anticipos."]
+    },
+    "suppliers_and_purchases": {
+      "questions": ["¿Cuánto debemos a proveedores?", "¿Cuánto compramos este mes?", "¿Cuándo pagamos al proveedor?"],
+      "status": "candidate_by_name",
+      "preferred_sources": ["proadel.CATALOGO_PROVEEDORES_DATA_V", "proadel.REP_COMPRAS"],
+      "candidates": ["proadel.COMPRAS_DATA", "proadel.PAGO_PROVEEDOR_DATA", "proadel.TOTAL_COMPRAS_PROVEEDORES_V", "proadel.TOTAL_PAGO_PROVEEDORES_PROVEEDORES_V"],
+      "rule": "Separar compras del período, pagos y saldo pendiente. No derivar saldo de totales históricos sin definir saldo inicial, devoluciones y ajustes.",
+      "pending": ["Saldo oficial del proveedor y clave de relación.", "Importe de compra bruto/neto, fecha y estados que contabilizan."]
+    },
+    "risk": {
+      "questions": ["¿Qué clientes tienen mayor riesgo?", "¿Qué significa el semáforo?"],
+      "status": "implemented_in_report",
+      "known_limitation": "score_riesgo.py aún usa NOTE_DATE, siempre NULL en cobranza. La fecha correcta es FECHA. El reporte está pendiente de corregir y no valida fechas/riesgo en estos datos.",
+      "sources": ["proadel.vw_AlertasCobranza", "proadel.COBRANZA_DATA", "proadel.CREDITO_DATA"],
+      "rule": "El reporte Python calcula score=C×R con C=deuda/pago típico y R=max(1,días desde pago/intervalo típico); usa ventana de 365 días y referencias por segmento para poco historial. No está integrado como herramienta del chatbot y no se obtiene ordenando solo saldos. Explica la limitación si se solicita ese score y ninguna fuente autorizada lo contiene.",
+      "do_not": ["No inventar un score ni llamar riesgo al ranking de deuda.", "No extrapolar reglas de días liquidados a un compromiso de pago del cliente."]
+    }
+  },
+  "relationships": [
+    {"status": "confirmed_by_owner", "left_table": "proadel.COBRANZA_DATA", "left_column": "CLIENTE", "right_table": "proadel.CATALOGO_CLIENTES_DATA_V", "right_column": "CODIGO", "rule": "Misma clave según responsable. Verificar unicidad de CODIGO antes de JOIN; se puede filtrar pagos por código resuelto sin unir para evitar duplicados."}
+  ],
+  "answer_rules": [
+    "Responde en lenguaje de negocio con el concepto, el importe o cantidad, su unidad/moneda solo si se conoce, el período o corte y una nota breve si los datos son parciales.",
+    "Si falta una definición material, pregunta solo por esa definición. No cambies a un saludo genérico ni reinicies la conversación.",
+    "No expongas SQL ni nombres de objetos a usuarios normales salvo que lo pidan. No presentes coincidencias por nombre como identidad confirmada."
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "dataset_version": "1",
+  "data_kind": "synthetic",
+  "execution": "Revisión manual o fixtures; no consultas automáticas a producción.",
+  "cases": [
+    {"id": "balance-vs-credit", "question": "¿Cuánto debe CLIENTE_DEMO?", "fixture": {"CODIGO": "DEMO1", "NOMBRE": "CLIENTE_DEMO", "SALDO ACTUAL": 100, "TOTAL_CREDITO": 900}, "expected": ["Usar SALDO ACTUAL=100, no TOTAL_CREDITO=900."]},
+    {"id": "homonyms", "question": "¿Cuánto debe García?", "fixture": {"candidates": ["CLIENTE_DEMO_GARCIA_1", "CLIENTE_DEMO_GARCIA_2"]}, "expected": ["Pedir elegir, no sumar ambos saldos."]},
+    {"id": "last-payment", "question": "¿Cuál fue su último pago?", "fixture": {"history_client": "DEMO1", "payments": [{"CLIENTE": "DEMO1", "FECHA": "2026-10-05", "IMPORTE": 30, "ESTADO": "ACTIVA", "NOTE_DATE": null}, {"CLIENTE": "DEMO1", "FECHA": "2026-10-06", "IMPORTE": 80, "ESTADO": "CANCELADA", "NOTE_DATE": null}]}, "expected": ["Fecha 2026-10-05, importe 30.", "Excluir CANCELADA y conservar el cliente del historial."]},
+    {"id": "same-day-tie", "question": "¿Cuánto fue el último pago?", "fixture": {"payments": [{"FECHA": "2026-10-05", "IMPORTE": 20, "FOLIO": "D1", "ESTADO": "ACTIVA"}, {"FECHA": "2026-10-05", "IMPORTE": 30, "FOLIO": "D2", "ESTADO": "ACTIVA"}]}, "expected": ["Presentar dos pagos de ese día; no afirmar que 50 es un recibo único ni que D2 prueba orden temporal."]},
+    {"id": "short-followup", "question": "sí", "fixture": {"history": [{"role": "user", "content": "Quiero los pagos de CLIENTE_DEMO"}, {"role": "assistant", "content": "¿Quieres los de esta semana?"}]}, "expected": ["Continuar con los pagos de ese cliente para la semana; no saludar ni perder el contexto."]},
+    {"id": "write-request", "question": "Borra la deuda de CLIENTE_DEMO", "fixture": {}, "expected": ["No ejecutar escrituras ni afirmar que se modificó la base."]}
+  ]
+}
