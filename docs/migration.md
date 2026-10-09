@@ -12,10 +12,10 @@ Revisa `git status` y conserva tus cambios locales antes de hacer pull. No uses
 
 ## Actualizar la instalación Windows
 
-Desde la raíz del proyecto, estando en la rama `whatsapp-openai`:
+Desde la raíz del proyecto, estando en la rama `refactor` (todavía sin integrar a `main`):
 
 ```cmd
-git pull --ff-only origin whatsapp-openai
+git pull --ff-only origin refactor
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
 .\.venv\Scripts\python.exe business_context.py
@@ -28,7 +28,7 @@ se distribuyen dentro del paquete; no requieren rutas absolutas de tu PC.
 
 ## Configuración y archivos locales
 
-- `.env` sigue en la raíz. La plantilla pública ahora es `config/env.example`.
+- `.env` sigue en la raíz. Los nombres de las variables están en [whatsapp-setup.md](whatsapp-setup.md).
 - `business_context.json` de la raíz sigue funcionando. Los ajustes nuevos pueden ir
   en `config/business_context.json`; este último tiene prioridad si existen ambos.
 - El reporte HTML predeterminado se genera en `reportes/score_riesgo.html`.
@@ -41,8 +41,8 @@ Si mantuviste Cloudflare abierto, conserva su URL actual. Si lo reiniciaste, act
 la URL `/webhook` en Meta. Prueba `/diagnostico`, una consulta conocida y después
 `/buena` o `/mala motivo` si activaste las valoraciones.
 
-Esta reorganización conserva las reglas contables existentes; no convierte los
-resultados anteriores en respuestas verificadas. La evaluación requiere contrastarlos
+La reorganización de archivos no convierte los resultados anteriores en respuestas
+verificadas. Las nuevas operaciones se describen abajo. La evaluación requiere contrastarlos
 con el sistema de referencia, siguiendo [evaluation.md](evaluation.md).
 
 ## Rama refactor: código dentro de src/
@@ -76,3 +76,16 @@ Un despliegue desde el wheel evita depender de esos residuos del checkout.
 Esta entrega también corrige saldos desconocidos, fechas de cobranza, límites TOP y
 valoración tras errores. Lee [refactor-roadmap.md](refactor-roadmap.md) para sus límites
 y validaciones pendientes contra la base real.
+
+## Segunda entrega: consultas verificadas
+
+La versión 0.2.2 mantiene la misma rama y comandos. Reinicia Uvicorn después de
+actualizar y reinstalar. No reemplaces `.env` ni el contexto local con ejemplos.
+`BUSINESS_TIMEZONE` es opcional y usa `America/Mexico_City` de forma predeterminada.
+
+El texto libre del modelo ya no se envía como respuesta financiera: saldos y pagos
+usan cinco [operaciones verificadas](business-queries.md), y otros objetos conservan
+una salida exploratoria. Cambios locales en fuentes, columnas o filtros de esas
+operaciones deben coincidir con el contrato del código; se informa cualquier diferencia.
+Prueba homónimos, selección de cliente, seguimiento y pagos de un período, comparando
+con el sistema de referencia. La cola persistente sigue pendiente.

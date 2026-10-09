@@ -3,14 +3,14 @@
 Base auditada: `4a55ebf`. Rama de trabajo: `refactor`. El responsable eligió comenzar
 por exactitud y regresiones; la siguiente entrega se revisa por separado.
 
-| Hallazgo | Primera entrega | Pendiente |
+| Hallazgo | Estado tras segunda entrega | Pendiente |
 | --- | --- | --- |
 | H01: saldo desconocido verde | Corregido en cálculo y HTML; nulos/no numéricos/infinitos quedan sin datos con motivo | Contrastar casos reales |
 | H02: fecha incorrecta | Cobranza usa FECHA, conversión 103, corte superior y detección de fechas inválidas | Validación SQL real; confirmar fecha de créditos, reglas de reversos y calibrar score |
 | H03: pérdida de mensajes | Pendiente | Cola persistente, recuperación y orden por conversación |
-| H04: cifras sin evidencia | Pendiente | Contrato de respuesta y evidencia correspondiente a la pregunta |
+| H04: cifras sin evidencia | Texto financiero libre descartado; respuesta de negocio desde filas y estado explícito | Evaluar elección de intención/cliente con modelo real; otras fuentes son exploratorias |
 | H05: límites SQL alterados | TOP pequeño se conserva; TOP grande se acota; paginación no soportada se rechaza | No habilita paginación todavía |
-| H06: reglas solo en prompt | Pendiente | Herramientas de negocio verificadas y parametrizadas |
+| H06: reglas solo en prompt | Cinco operaciones parametrizadas para clientes y pagos; reglas fuera del modelo | Validar tipos/fechas en SQL Server; extender contratos a otros reportes |
 | H07: voto sobre otra respuesta | Un error entregado invalida la referencia anterior | Valoración por ID de mensaje y clasificación de fallos de disponibilidad |
 | H08: evaluación/trazas | Pendiente | Runner de referencia, causas, tokens, tiempos y versiones |
 | H09: pruebas de límites de datos | Fixtures del cálculo, presentación JS, límites y feedback; CI Windows/Linux y smoke del wheel | Integración con SQL Server y pruebas de recuperación/concurrencia |
@@ -40,7 +40,20 @@ permite usar el resultado como backtest histórico. La fecha de créditos no fue
 
 ## Siguientes entregas
 
-1. Evidencia y herramientas de negocio: H04/H06, con escenarios de homónimos y pagos.
-2. Entrega confiable: H03/H11; debe completarse antes de ampliar usuarios simultáneos.
-3. Evaluación y rendimiento: H08/H09/H10.
-4. Operación: H12, zona horaria, respaldo, arranque supervisado y validación del despliegue.
+1. Entrega confiable: H03/H11; debe completarse antes de ampliar usuarios simultáneos.
+2. Evaluación y rendimiento: H08/H09/H10.
+3. Operación: H12, respaldo, arranque supervisado y validación del despliegue.
+
+## Evidencia de la segunda entrega
+
+Contratos y alcance en [business-queries.md](business-queries.md). Las regresiones
+sintéticas cubren homónimos, códigos duplicados, saldo desconocido, cancelaciones,
+importes negativos, fechas ausentes, empates del último pago, límites de listados,
+períodos y respuestas sin evidencia. Un webhook firmado recorre agente y consultas
+con dependencias externas simuladas, incluida la pregunta de seguimiento.
+
+El calendario del agente usa una zona IANA explícita, predeterminada a
+`America/Mexico_City`. Las pruebas locales no validan SQL Server remoto ni la
+interpretación de un modelo real. Las consultas exploratorias no se presentan como
+definiciones de negocio verificadas; la selección de la operación sigue necesitando
+evaluación. No se considera concluida la preparación para producción.

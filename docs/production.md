@@ -43,7 +43,8 @@ junto al paquete instalado. `/health` comprueba el proceso, no servicios externo
 
 - Contrastar saldos/pagos con consultas de referencia aprobadas. Confirmar el mapeo
   pendiente de créditos y las reglas del reporte antes de usar su score en decisiones.
-- Completar evidencia de respuestas y entrega persistente de mensajes (H03/H04/H06/H11).
+- Validar las nuevas operaciones de [negocio](business-queries.md) con modelo y SQL reales,
+  y completar entrega persistente de mensajes (H03/H11).
   Hoy el proceso todavía puede descartar trabajo simultáneo y perder envíos fallidos.
 - Unificar TLS del reporte/agente y validar permisos SQL de lectura. La excepción de
   certificado de la demo no es la configuración predeterminada de producción.

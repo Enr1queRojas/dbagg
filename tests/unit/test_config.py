@@ -5,7 +5,7 @@ from dbagg.config import Settings
 
 
 class TLSSettingsTests(unittest.TestCase):
-    def settings(self, encrypt="yes", trust="yes", opt_in="false"):
+    def settings(self, encrypt="yes", trust="yes", opt_in="false", timezone="America/Mexico_City"):
         values = dict(
             OPENAI_API_KEY="test",
             META_ACCESS_TOKEN="test",
@@ -17,6 +17,7 @@ class TLSSettingsTests(unittest.TestCase):
             SQL_ALLOWED_TABLES="proadel.demo",
             DB_CONNECTION_STRING=f"DRIVER={{test}};Encrypt={encrypt};TrustServerCertificate={trust};",
             DB_ALLOW_UNVERIFIED_TLS=opt_in,
+            BUSINESS_TIMEZONE=timezone,
         )
         with patch.dict(os.environ, values, clear=True), patch("dbagg.config.load_dotenv"):
             return Settings.from_env()
@@ -35,3 +36,8 @@ class TLSSettingsTests(unittest.TestCase):
 
     def test_verified_tls_needs_no_exception(self):
         self.settings(trust="no")
+
+    def test_business_timezone_is_validated(self):
+        self.assertEqual(self.settings(trust="no").business_timezone, "America/Mexico_City")
+        with self.assertRaisesRegex(ValueError, "BUSINESS_TIMEZONE"):
+            self.settings(trust="no", timezone="Zona/Inexistente")

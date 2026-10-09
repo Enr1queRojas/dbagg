@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dbagg"
-version = "0.2.1"
+version = "0.2.2"
 description = "Asistente interno de WhatsApp y reportes sobre SQL Server"
 requires-python = ">=3.11"
 dependencies = [
@@ -17,6 +17,7 @@ dependencies = [
   "sqlglot==26.16.4",
   "numpy==2.4.6",
   "pandas==3.0.6",
+  "tzdata==2026.5",
 ]
 
 [project.optional-dependencies]

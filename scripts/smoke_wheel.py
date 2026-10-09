@@ -21,6 +21,9 @@ import pandas as pd
 from fastapi.testclient import TestClient
 from dbagg.api.app import create_app
 from dbagg.config import Settings
+from dbagg.business.calendar import business_today
+from dbagg.business.customers import validate_context
+from dbagg.agent.prompts import PROMPT_VERSION, tool_definitions
 from dbagg.context.loader import load_business_context
 from dbagg.paths import project_root
 from dbagg.reporting.html import generar_html
@@ -28,6 +31,10 @@ from dbagg.reporting.html import generar_html
 assert Path(dbagg.__file__).resolve().is_relative_to(Path(sys.argv[1]).resolve())
 assert project_root() == Path.cwd()
 assert 'customer_balance' in json.loads(load_business_context())['topics']
+validate_context(load_business_context(), 'ultimo_pago')
+assert business_today('America/Mexico_City')
+assert PROMPT_VERSION == 'customer-reports-v2'
+assert 'consultar_negocio' in {t['function']['name'] for t in tool_definitions()}
 columns = ['cliente','D','n_pagos','fuente','segmento','P_tipico','d_tipico','t','C','R','score','dias_liquidar','semaforo']
 output = generar_html(pd.DataFrame(columns=columns))
 assert output == Path.cwd() / 'reportes' / 'score_riesgo.html'

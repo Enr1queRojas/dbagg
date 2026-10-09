@@ -24,7 +24,7 @@ además del paquete local. Para actualizar una instalación existente consulta
 
 ## 2. Configurar SQL y OpenAI
 
-Conserva tu `.env` existente; agrega los nombres de `config/env.example` sin
+Conserva tu `.env` existente; agrega las variables descritas en esta guía sin
 sobrescribir las credenciales. No compartas el archivo, no lo subas a Git y no
 sincronices las credenciales con otras personas mediante OneDrive.
 
@@ -32,6 +32,7 @@ sincronices las credenciales con otras personas mediante OneDrive.
   Configura alertas de presupuesto y revisa el consumo: una alerta no constituye
   necesariamente un límite estricto. https://platform.openai.com/api-keys
 - `OPENAI_MODEL`: modelo disponible en esa cuenta, inicialmente `gpt-4.1-mini`.
+- `BUSINESS_TIMEZONE`: zona IANA del negocio; predeterminada `America/Mexico_City`.
 - `DB_CONNECTION_STRING`: cadena ODBC completa con `Encrypt=yes` y
   `TrustServerCertificate=no`. El servicio no usa el fallback del generador de
   reportes que desactiva la verificación de certificado. Si falla TLS, corrige
@@ -44,7 +45,10 @@ sincronices las credenciales con otras personas mediante OneDrive.
   y el validador no sustituyen permisos de base de datos. Solicita a tu administrador
   una cuenta dedicada; no uses una cuenta administradora o con permisos de escritura.
 
-El esquema, la pregunta y los resultados limitados se envían a OpenAI. Las respuestas
+La pregunta, contexto e historial se envían a OpenAI. Las consultas exploratorias
+también envían metadatos y resultados limitados. Las operaciones verificadas generan
+la respuesta desde SQL sin reenviar esas filas al modelo en el mismo turno; esa respuesta
+puede formar parte del historial enviado en la siguiente pregunta. Las respuestas
 se envían a Meta/WhatsApp. Autoriza esos datos para ese uso antes de conectar vistas
 reales. No se guardan conversaciones, SQL ni resultados en logs de la aplicación.
 

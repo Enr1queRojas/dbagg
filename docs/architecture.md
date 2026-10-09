@@ -8,6 +8,7 @@ src/dbagg/
   services/memory.py         Memoria por remitente, deduplicación y límite de mensajes
   agent/service.py           Ciclo acotado de herramientas de OpenAI
   agent/prompts.py           Instrucciones, contratos y versión del prompt
+  business/                 Consultas parametrizadas, calendario y respuestas desde evidencia
   context/                  Carga/mezcla y definiciones de negocio distribuidas
   database/client.py        Acceso al catálogo y consultas SQL acotadas
   database/validation.py    Validación independiente del SQL generado
@@ -26,8 +27,11 @@ comandos anteriores. La implementación vive en el paquete `dbagg`; no hay una s
 copia del agente. La entrada recomendada es `dbagg.api.app:create_app --factory`.
 
 El webhook valida la firma y el remitente antes de delegar al servicio de conversación.
-El agente inspecciona el catálogo y propone SQL; el validador lo restringe antes del
-acceso a datos. El transporte Meta no conoce las reglas del negocio ni las credenciales
+El agente elige operaciones de negocio; `business/` comprueba metadatos y ejecuta
+consultas parametrizadas para saldos y pagos. Sus respuestas se generan desde filas,
+con avisos de ambigüedad o datos faltantes. Para otros objetos puede proponer SQL
+exploratorio; el validador lo restringe antes del acceso a datos y la salida identifica
+su definición de negocio como pendiente. El transporte Meta no conoce las reglas del negocio ni las credenciales
 SQL. Los prompts y el contexto llevan versiones registradas con las valoraciones.
 
 ## Configuración y archivos

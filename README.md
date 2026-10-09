@@ -17,8 +17,8 @@ python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
-En una instalación nueva, copia `config/env.example` a `.env` y completa los valores
-localmente. Si ya tienes `.env`, consérvalo. Arranca el servicio:
+En una instalación nueva, crea `.env` localmente con las variables de la
+[guía de WhatsApp](docs/whatsapp-setup.md). Si ya tienes `.env`, consérvalo. Arranca el servicio:
 
 ```cmd
 .\.venv\Scripts\python.exe -m uvicorn whatsapp_agent:create_app --factory --host 127.0.0.1 --port 8000 --workers 1 --no-access-log
@@ -35,6 +35,7 @@ en Meta la URL del túnel terminada en `/webhook`. La guía de
 | `src/dbagg/api/`, `src/dbagg/integrations/` | Webhook HTTP y cliente de Meta |
 | `src/dbagg/agent/`, `src/dbagg/services/` | Modelo, herramientas, memoria y conversación |
 | `src/dbagg/database/` | Conexión, catálogo y validación de SQL de lectura |
+| `src/dbagg/business/` | Contratos parametrizados de saldos/pagos, calendario y respuestas |
 | `src/dbagg/context/` | Reglas de negocio versionadas y carga de ajustes locales |
 | `src/dbagg/reporting/` | Cálculo y plantilla del reporte HTML |
 | `src/dbagg/evaluation/`, `evals/` | Valoraciones, revisión humana y casos sintéticos |
@@ -55,6 +56,8 @@ La [guía de evaluación](docs/evaluation.md) incluye una rúbrica, revisión co
 sistema de referencia y exportación de ejemplos corregidos y anonimizados. Solo se
 exportan casos aprobados; no se inicia entrenamiento ni se suben datos automáticamente.
 Las reglas de negocio se documentan en [contexto de negocio](docs/business-context.md).
+Las [consultas verificadas](docs/business-queries.md) cubren saldo, ranking, pagos,
+último pago y total de pagos por cliente. Otras consultas muestran una salida exploratoria.
 
 ## Desarrollo y validación
 

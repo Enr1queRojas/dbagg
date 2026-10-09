@@ -3,6 +3,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 from dbagg.agent.service import Assistant
+from tests.unit.test_customer_queries import CUSTOMERS, PAYMENTS, SyntheticDatabase
 
 
 class AssistantTests(unittest.TestCase):
@@ -42,9 +43,12 @@ class AssistantTests(unittest.TestCase):
         self.assistant.client.chat.completions.create.side_effect = [
             self.describe(),
             self.query("SELECT SUM(SALDO_PENDIENTE) AS saldo FROM proadel.vw_AlertasCobranza"),
-            self.completion("Saldo: 100"),
+            self.completion("Saldo: 999"),
         ]
-        self.assertEqual(self.assistant.answer("saldo total"), "Saldo: 100")
+        answer = self.assistant.answer("saldo total")
+        self.assertIn("saldo: 100", answer)
+        self.assertNotIn("999", answer)
+        self.assertIn("requiere revisión", answer)
         self.assertIn("TOP 50", self.assistant.db.query.call_args.args[0])
         self.assertEqual(self.assistant.client.chat.completions.create.call_count, 3)
 
@@ -58,9 +62,12 @@ class AssistantTests(unittest.TestCase):
 
     def test_clarification_does_not_query_database(self):
         self.assistant.client.chat.completions.create.return_value = self.completion(
-            "¿Qué cliente?"
+            name="pedir_aclaracion", arguments={"reason": "cliente"}
         )
-        self.assertEqual(self.assistant.answer("su saldo"), "¿Qué cliente?")
+        self.assertEqual(
+            self.assistant.answer("su saldo"),
+            "¿De qué cliente quieres consultar el saldo o los pagos? Indica su nombre o código.",
+        )
         self.assistant.db.query.assert_not_called()
 
     def test_business_definitions_reach_model_without_changing_permissions(self):
@@ -92,22 +99,102 @@ class AssistantTests(unittest.TestCase):
         self.assertEqual(len(history), 2)
 
     def test_natural_name_can_be_resolved_before_balance(self):
+        db = SyntheticDatabase()
+        self.addCleanup(db.conn.close)
+        db.customer("DEMO1", "Cliente Prueba", "100")
+        self.assistant.db = db
+        self.assistant.settings.tables = {CUSTOMERS, PAYMENTS}
+        self.assistant.client.chat.completions.create.return_value = self.completion(
+            "Debe 999 pesos",
+            name="consultar_negocio",
+            arguments={"operation": "saldo", "customer": "Prueba"},
+        )
+        answer = self.assistant.answer("¿Cuánto debe Prueba?")
+        self.assertEqual(
+            answer,
+            "Saldo actual de Cliente Prueba (código DEMO1): 100.00.\nImporte sin moneda confirmada.",
+        )
+        self.assertEqual(len(db.calls), 3)
+        self.assertEqual(self.assistant.last_trace["operation"], "saldo")
+        self.assertTrue(self.assistant.last_trace["evidence_id"])
+        self.assertEqual(self.assistant.client.chat.completions.create.call_count, 1)
+
+    def test_model_cannot_answer_financial_facts_without_a_query(self):
+        self.assistant.client.chat.completions.create.return_value = self.completion(
+            "Debe 999 pesos"
+        )
+        answer = self.assistant.answer("¿Cuánto debe Prueba?")
+        self.assertIn("No obtuve resultados", answer)
+        self.assertNotIn("999", answer)
+        self.assertEqual(self.assistant.last_trace["status"], "needs_clarification")
+
+    def test_failed_query_invalidates_previous_exploratory_result(self):
         self.assistant.client.chat.completions.create.side_effect = [
             self.describe(),
-            self.query(
-                "SELECT CLIENTE FROM proadel.vw_AlertasCobranza WHERE NOMBRE LIKE '%Esparza%'"
-            ),
-            self.query(
-                "SELECT SALDO_PENDIENTE FROM proadel.vw_AlertasCobranza WHERE CLIENTE='A.ESPARZA3'"
-            ),
-            self.completion("El saldo consultado es 100."),
+            self.query("SELECT SALDO_PENDIENTE FROM proadel.vw_AlertasCobranza"),
+            self.query("SELECT dato FROM otra.secreta"),
+            self.completion("Confirmado: 100"),
         ]
-        self.assertEqual(
-            self.assistant.answer("¿Cuánto debe Esparza?"), "El saldo consultado es 100."
+        answer = self.assistant.answer("consulta")
+        self.assertNotIn("100", answer)
+        self.assertIn("No obtuve resultados", answer)
+        self.assertEqual(self.assistant.last_trace["sources"], [])
+
+    def test_protected_financial_sources_cannot_bypass_business_tools(self):
+        self.assistant.settings.tables = {CUSTOMERS}
+        self.assistant.client.chat.completions.create.side_effect = [
+            self.completion(name="describir_tablas", arguments={"tables": [CUSTOMERS]}),
+            self.query(f"SELECT SUM([TOTAL_CREDITO]) FROM {CUSTOMERS}"),
+            self.completion("Su deuda es 999"),
+        ]
+        answer = self.assistant.answer("saldo")
+        self.assistant.db.query.assert_not_called()
+        self.assertNotIn("999", answer)
+
+    def test_invented_customer_is_rejected_before_schema_or_query(self):
+        self.assistant.client.chat.completions.create.return_value = self.completion(
+            name="consultar_negocio", arguments={"operation": "saldo", "customer": "INVENTADO3"}
         )
-        self.assertEqual(self.assistant.db.query.call_count, 2)
-        last_messages = self.assistant.client.chat.completions.create.call_args.kwargs["messages"]
-        self.assertTrue(any(m["role"] == "tool" for m in last_messages))
+        self.assertIn("No pude vincular", self.assistant.answer("¿Cuánto debe Prueba?"))
+        self.assistant.db.schema.assert_not_called()
+        self.assistant.db.query.assert_not_called()
+
+    def test_followup_can_use_customer_selected_in_conversation(self):
+        db = SyntheticDatabase()
+        self.addCleanup(db.conn.close)
+        db.customer("DEMO1", "Cliente Prueba", 100)
+        db.payment(1, "2023-01-25", 20, customer="DEMO1")
+        assistant = Assistant(
+            SimpleNamespace(model="test", tables={CUSTOMERS, PAYMENTS}), db=db, client=Mock()
+        )
+        assistant.client.chat.completions.create.return_value = self.completion(
+            name="consultar_negocio", arguments={"operation": "ultimo_pago", "customer": "DEMO1"}
+        )
+        history = [
+            {
+                "role": "assistant",
+                "content": "Saldo actual de Cliente Prueba (código DEMO1): 100.00.",
+            }
+        ]
+        answer = assistant.answer("¿Y su último pago?", history)
+        self.assertIn("2023-01-25", answer)
+        self.assertIn("20.00", answer)
+
+    def test_calendar_passed_to_model_uses_business_timezone(self):
+        from datetime import date
+
+        self.assistant.settings.business_timezone = "America/Mexico_City"
+        self.assistant.client.chat.completions.create.return_value = self.completion(
+            name="pedir_aclaracion", arguments={"reason": "criterio"}
+        )
+        with patch("dbagg.agent.service.business_today", return_value=date(2026, 10, 8)) as clock:
+            self.assistant.answer("esta semana")
+        clock.assert_called_once_with("America/Mexico_City")
+        prompt = self.assistant.client.chat.completions.create.call_args.kwargs["messages"][0][
+            "content"
+        ]
+        self.assertIn('"today": "2026-10-08"', prompt)
+        self.assertIn('"week_start": "2026-10-05"', prompt)
 
     def test_query_requires_inspecting_real_columns(self):
         self.assistant.client.chat.completions.create.side_effect = [

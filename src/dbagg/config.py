@@ -5,6 +5,7 @@ import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from dotenv import load_dotenv
 from dbagg.paths import project_root
 from dbagg.database.connection import parse_odbc_options
@@ -26,6 +27,7 @@ class Settings:
     connection: str = field(repr=False)
     feedback_enabled: bool = False
     feedback_path: Path | None = None
+    business_timezone: str = "America/Mexico_City"
 
     @classmethod
     def from_env(cls):
@@ -63,6 +65,11 @@ class Settings:
         if not os.environ["META_PHONE_NUMBER_ID"].isdigit():
             raise ValueError("META_PHONE_NUMBER_ID debe ser numérico.")
         connection = os.environ["DB_CONNECTION_STRING"]
+        timezone = os.getenv("BUSINESS_TIMEZONE", "America/Mexico_City")
+        try:
+            ZoneInfo(timezone)
+        except (ZoneInfoNotFoundError, ValueError):
+            raise ValueError("BUSINESS_TIMEZONE debe ser una zona IANA válida.") from None
         # Verified TLS by default; explicit temporary exception for the local demo.
         options = parse_odbc_options(connection)
         if options.get("encrypt", "").lower() not in ("yes", "mandatory", "strict"):
@@ -94,4 +101,5 @@ class Settings:
             connection,
             os.getenv("FEEDBACK_ENABLED", "").lower() == "true",
             project_root() / "data" / "feedback.sqlite3",
+            timezone,
         )
