@@ -24,7 +24,7 @@ además del paquete local. Para actualizar una instalación existente consulta
 
 ## 2. Configurar SQL y OpenAI
 
-Conserva tu `.env` existente; agrega los nombres de `config/env.example` sin
+Conserva tu `.env` existente; agrega las variables descritas en esta guía sin
 sobrescribir las credenciales. No compartas el archivo, no lo subas a Git y no
 sincronices las credenciales con otras personas mediante OneDrive.
 
@@ -32,6 +32,7 @@ sincronices las credenciales con otras personas mediante OneDrive.
   Configura alertas de presupuesto y revisa el consumo: una alerta no constituye
   necesariamente un límite estricto. https://platform.openai.com/api-keys
 - `OPENAI_MODEL`: modelo disponible en esa cuenta, inicialmente `gpt-4.1-mini`.
+- `BUSINESS_TIMEZONE`: zona IANA del negocio; predeterminada `America/Mexico_City`.
 - `DB_CONNECTION_STRING`: cadena ODBC completa con `Encrypt=yes` y
   `TrustServerCertificate=no`. El servicio no usa el fallback del generador de
   reportes que desactiva la verificación de certificado. Si falla TLS, corrige
@@ -44,7 +45,10 @@ sincronices las credenciales con otras personas mediante OneDrive.
   y el validador no sustituyen permisos de base de datos. Solicita a tu administrador
   una cuenta dedicada; no uses una cuenta administradora o con permisos de escritura.
 
-El esquema, la pregunta y los resultados limitados se envían a OpenAI. Las respuestas
+La pregunta, contexto e historial se envían a OpenAI. Las consultas exploratorias
+también envían metadatos y resultados limitados. Las operaciones verificadas generan
+la respuesta desde SQL sin reenviar esas filas al modelo en el mismo turno; esa respuesta
+puede formar parte del historial enviado en la siguiente pregunta. Las respuestas
 se envían a Meta/WhatsApp. Autoriza esos datos para ese uso antes de conectar vistas
 reales. No se guardan conversaciones, SQL ni resultados en logs de la aplicación.
 
@@ -143,7 +147,7 @@ y puede buscar candidatos antes de consultar el detalle. Los nombres de tablas n
 garantizan el significado de un saldo, relación o estado. Si hay ambigüedad real debe
 preguntar por el cliente/período o criterio de negocio, sin pedir SQL.
 
-El agente carga automáticamente `dbagg/context/default.json` con rutas de negocio y
+El agente carga automáticamente `src/dbagg/context/default.json` con rutas de negocio y
 definiciones pendientes. Puedes complementar con `business_context.json` usando campos de
 `config/business_context.example.json`, sin sobrescribir ajustes existentes. Consulta
 [business-context.md](business-context.md) para registrar columnas verificadas, relaciones
@@ -161,7 +165,8 @@ real debe validarse comparando consultas conocidas.
 a SQL_ALLOWED_TABLES. Restringe la lista a objetos de negocio aprobados; los objetos
 temporales y de importación no deberían mezclarse con reportes vigentes.
 
-- Una pregunta de hasta 1.000 caracteres; consultas TOP 50, timeout SQL 15 segundos,
+- Una pregunta de hasta 1.000 caracteres; consultas con un máximo de 50 filas y
+  TOP menores conservados, timeout SQL 15 segundos,
   timeout de conexión 10 segundos y resultados acotados. Los valores largos se recortan.
 - Hasta nueve llamadas al modelo, cuatro descripciones de catálogo y cuatro SELECT por
 pregunta. Este flujo puede costar más que el piloto anterior de dos llamadas; revisa

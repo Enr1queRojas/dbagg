@@ -1,13 +1,14 @@
 # Arquitectura
 
 ```text
-dbagg/
+src/dbagg/
   api/app.py                Webhook HTTP, firma y números autorizados
   integrations/meta.py       Envío a Meta y códigos de error seguros
   services/conversation.py   Conversación, comandos y registro opcional de valoraciones
   services/memory.py         Memoria por remitente, deduplicación y límite de mensajes
   agent/service.py           Ciclo acotado de herramientas de OpenAI
   agent/prompts.py           Instrucciones, contratos y versión del prompt
+  business/                 Consultas parametrizadas, calendario y respuestas desde evidencia
   context/                  Carga/mezcla y definiciones de negocio distribuidas
   database/client.py        Acceso al catálogo y consultas SQL acotadas
   database/validation.py    Validación independiente del SQL generado
@@ -26,8 +27,11 @@ comandos anteriores. La implementación vive en el paquete `dbagg`; no hay una s
 copia del agente. La entrada recomendada es `dbagg.api.app:create_app --factory`.
 
 El webhook valida la firma y el remitente antes de delegar al servicio de conversación.
-El agente inspecciona el catálogo y propone SQL; el validador lo restringe antes del
-acceso a datos. El transporte Meta no conoce las reglas del negocio ni las credenciales
+El agente elige operaciones de negocio; `business/` comprueba metadatos y ejecuta
+consultas parametrizadas para saldos y pagos. Sus respuestas se generan desde filas,
+con avisos de ambigüedad o datos faltantes. Para otros objetos puede proponer SQL
+exploratorio; el validador lo restringe antes del acceso a datos y la salida identifica
+su definición de negocio como pendiente. El transporte Meta no conoce las reglas del negocio ni las credenciales
 SQL. Los prompts y el contexto llevan versiones registradas con las valoraciones.
 
 ## Configuración y archivos
@@ -36,7 +40,7 @@ La raíz del checkout contiene `.env`. `DBAGG_HOME` permite seleccionar otra ra�
 una instalación empaquetada; sin ese valor, una instalación fuera del checkout usa
 el directorio de trabajo. No se cambia el directorio de trabajo del proceso.
 
-`dbagg/context/default.json` y la plantilla HTML se distribuyen dentro del paquete.
+`src/dbagg/context/default.json` y la plantilla HTML se distribuyen dentro del paquete.
 El contexto base se combina primero con el archivo local antiguo `business_context.json`
 y después con `config/business_context.json`. Los ajustes locales no se modifican ni
 se versionan. Las listas reemplazan listas; los diccionarios se combinan recursivamente.
@@ -56,6 +60,9 @@ El contexto se recarga por pregunta. Su huella identifica la configuración usad
 no se conserva una copia del prompt completo ni de los resultados SQL en la evaluación.
 Las etiquetas humanas no se aplican automáticamente como instrucciones al agente.
 
-El cálculo del reporte de riesgo conserva su comportamiento previo. Su referencia
-a `NOTE_DATE` en cobranza sigue siendo una limitación conocida frente al campo `FECHA`
-confirmado para el agente; esta reorganización no valida ni modifica esa fórmula.
+El reporte usa `FECHA` en cobranza, con conversión SQL estilo 103 y corte al día
+siguiente exclusivo. Un saldo desconocido o historial de fechas inválidas deja el
+caso sin clasificar y muestra el motivo. El cálculo puro está separado de la lectura SQL.
+La fecha de créditos conserva `NOTE_DATE` hasta confirmar su mapeo. El reporte mantiene
+el filtro histórico de importes positivos; esa regla y sus umbrales necesitan validación
+contable. Consulta [refactor-roadmap.md](refactor-roadmap.md) y [production.md](production.md).

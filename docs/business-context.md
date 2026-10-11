@@ -1,8 +1,11 @@
 # Contexto de negocio para el agente
 
-El agente carga `dbagg/context/default.json` en cada pregunta. El archivo incluye
+El agente carga `src/dbagg/context/default.json` en cada pregunta. El archivo incluye
 rutas de consulta y reglas para evitar confundir saldos, ventas, cobros y existencias.
 Son indicaciones para el modelo, no una garantía de exactitud contable.
+Saldo, ranking y pagos disponen además de [contratos ejecutables](business-queries.md):
+las reglas confirmadas se comprueban fuera del modelo y sus importes se presentan
+directamente desde SQL. Otros reportes siguen requiriendo definiciones verificadas.
 
 | Pregunta de negocio | Primera fuente a inspeccionar | Evidencia disponible |
 | --- | --- | --- |
@@ -15,7 +18,7 @@ Son indicaciones para el modelo, no una garantía de exactitud contable.
 | ¿Cuánto compramos o debemos a proveedores? | `proadel.REP_COMPRAS`, `proadel.CATALOGO_PROVEEDORES_DATA_V` | Candidatas por nombre; compras, pagos y saldo son métricas distintas. |
 | ¿Qué clientes tienen riesgo? | `score_riesgo.py` | Cálculo del reporte; todavía no disponible como herramienta de WhatsApp. |
 
-El modelo sigue obligado a inspeccionar columnas y consultar solo los objetos de
+Las herramientas siguen obligadas a inspeccionar columnas y consultar solo los objetos de
 `SQL_ALLOWED_TABLES`. Un nombre sugerido en el contexto no habilita permisos.
 Los objetos de importación, temporales e históricos no se usan como fuente preferida
 para responder totales vigentes.
@@ -49,6 +52,10 @@ Se carga primero la base del paquete, después el archivo de la raíz y al final
 `config/`, que tiene prioridad si existen ambos. Sus diccionarios se combinan con los valores del
 archivo base y sus valores tienen prioridad. Las listas se reemplazan completas;
 `null` expresa desconocido. No es necesario copiar el archivo base ni editar Python.
+En las cinco operaciones verificadas, cambiar fuentes, columnas, filtros o su estado
+de confirmación a valores distintos del contrato produce un rechazo explícito.
+Esos cambios requieren actualizar también el contrato Python y sus pruebas; las
+reglas en texto libre no alteran automáticamente las consultas parametrizadas.
 Los archivos existentes se conservan. Un JSON inválido o demasiado grande produce un
 error explícito y no se ignora silenciosamente.
 Se conserva el límite previo de 16.000 caracteres para cada archivo y se permiten
@@ -110,6 +117,10 @@ No añadas `IMPORTE>0` como regla general: el responsable confirmó el estado v�
 no el tratamiento de importes negativos o reversos. Verifica unicidad del código
 del catálogo antes de unir; normalmente basta filtrar los pagos por código resuelto.
 
-El reporte `score_riesgo.py` todavía usa `NOTE_DATE` en cobranza; queda pendiente
-corregir ese mapeo del reporte por separado. Su salida no valida fechas de pago ni
-riesgo en estos datos. El contexto del agente ya usa la fecha confirmada.
+El reporte `score_riesgo.py` ahora usa `FECHA` en cobranza, convierte fechas con estilo
+103 y detecta fechas vacías/no convertibles. Los clientes afectados con deuda quedan
+sin clasificar. El mapeo de fecha de `CREDITO_DATA` sigue pendiente: conserva `NOTE_DATE`.
+El cálculo mantiene su filtro histórico de importes positivos y umbrales provisionales;
+se deben validar con el responsable antes de usar el riesgo como criterio operativo.
+El parámetro `hoy` limita el historial consultado, pero el saldo sigue siendo vigente;
+no es una reconstrucción de saldo a una fecha histórica.

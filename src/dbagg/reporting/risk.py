@@ -38,7 +38,7 @@ COB = {
     "cliente": "[CLIENTE]",
     "monto": "[IMPORTE]",
     "estatus": "[ESTADO]",
-    "fecha": "[NOTE_DATE]",
+    "fecha": "[FECHA]",
 }
 CRE = {
     "tabla": "proadel.CREDITO_DATA",
@@ -52,16 +52,26 @@ ALERTAS = {
     "idx_saldo": 5,  # SALDO_PENDIENTE
 }
 
+
 # ============ CONSULTAS ============
+def _fecha_sql(column):
+    # SQL Server can cast an empty string to 1900-01-01. Normalize blanks to NULL
+    # first, and use style 103 for both native dates and dd/MM/yyyy text columns.
+    return f"TRY_CONVERT(date, NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(40), {column}, 103))), ''), 103)"
+
+
+FECHA_COBRANZA = _fecha_sql(COB["fecha"])
+FECHA_CREDITO = _fecha_sql(CRE["fecha"])
 SQL_PAGOS = f"""
 WITH pagos_diarios AS (
     SELECT {COB["cliente"]}               AS cliente,
-           CAST({COB["fecha"]} AS date)   AS fecha,
+           {FECHA_COBRANZA}              AS fecha,
            SUM({COB["monto"]})            AS monto
     FROM {COB["tabla"]}
     WHERE {COB["estatus"]} = 'ACTIVA'
       AND {COB["monto"]} > 0
-    GROUP BY {COB["cliente"]}, CAST({COB["fecha"]} AS date)
+      AND {FECHA_COBRANZA} < ?
+    GROUP BY {COB["cliente"]}, {FECHA_COBRANZA}
 ),
 intervalos AS (
     SELECT cliente, fecha, monto,
@@ -76,20 +86,32 @@ WHERE fecha >= ?
 """
 
 SQL_ULTIMO_PAGO = f"""
-SELECT {COB["cliente"]} AS cliente, MAX(CAST({COB["fecha"]} AS date)) AS ultimo_pago
+SELECT {COB["cliente"]} AS cliente, MAX({FECHA_COBRANZA}) AS ultimo_pago
 FROM {COB["tabla"]}
 WHERE {COB["estatus"]} = 'ACTIVA' AND {COB["monto"]} > 0
+  AND {FECHA_COBRANZA} < ?
 GROUP BY {COB["cliente"]}
 """
 
 SQL_PRIMER_CARGO = f"""
-SELECT {CRE["cliente"]} AS cliente, MIN(CAST({CRE["fecha"]} AS date)) AS primer_cargo
+SELECT {CRE["cliente"]} AS cliente, MIN({FECHA_CREDITO}) AS primer_cargo
 FROM {CRE["tabla"]}
 WHERE {CRE["estatus"]} = 'ACTIVA'
+  AND {FECHA_CREDITO} < ?
 GROUP BY {CRE["cliente"]}
 """
 
 SQL_SALDOS = f"SELECT * FROM {ALERTAS['vista']}"
+
+# Unparseable dates cannot safely be assigned to a period. Keep the affected
+# customer unscored instead of interpreting missing dates as no payments.
+SQL_FECHAS_INVALIDAS = f"""
+SELECT {COB["cliente"]} AS cliente, COUNT(*) AS fechas_invalidas
+FROM {COB["tabla"]}
+WHERE {COB["estatus"]} = 'ACTIVA' AND {COB["monto"]} > 0
+  AND {FECHA_COBRANZA} IS NULL
+GROUP BY {COB["cliente"]}
+"""
 
 
 # ============ UTILIDADES ============
@@ -112,13 +134,16 @@ def _leer_saldos(conn):
 
 
 def _limpiar_clave(serie):
-    return serie.astype(str).str.strip()
+    cleaned = serie.astype("string").str.strip()
+    if (cleaned.isna() | cleaned.eq("")).any():
+        raise ValueError("Hay registros sin clave de cliente; corrige el origen del reporte.")
+    return cleaned
 
 
 def valor_tipico(valores):
     """>= MIN_PAGOS_IQR datos: promedio sin atípicos (IQR). Menos: mediana."""
     v = np.asarray(valores, dtype=float)
-    v = v[~np.isnan(v)]
+    v = v[np.isfinite(v)]
     if v.size == 0:
         return np.nan
     if v.size >= MIN_PAGOS_IQR:
@@ -130,7 +155,7 @@ def valor_tipico(valores):
 
 
 def semaforo(score):
-    if pd.isna(score):
+    if pd.isna(score) or not np.isfinite(score):
         return "sin_datos"
     if score > UMBRAL_ROJO:
         return "rojo"
@@ -141,25 +166,42 @@ def semaforo(score):
 
 # ============ FUNCIÓN PRINCIPAL ============
 def calcular_score_riesgo(conn_str, hoy=None):
+    """Use current balances and payment history up to hoy; not a historical balance snapshot."""
     hoy = hoy or date.today()
     inicio = hoy - timedelta(days=VENTANA_DIAS)
+    fin = hoy + timedelta(days=1)
 
     # --- 1. Extracción (solo lectura) ---
     import pyodbc
 
-    conn = pyodbc.connect(conn_str, readonly=True)
+    conn = pyodbc.connect(conn_str, readonly=True, timeout=10)
     try:
-        pagos = _leer(conn, SQL_PAGOS, (inicio,))
-        ultimo = _leer(conn, SQL_ULTIMO_PAGO)
-        primer = _leer(conn, SQL_PRIMER_CARGO)
+        conn.timeout = 15
+        pagos = _leer(conn, SQL_PAGOS, (fin, inicio))
+        ultimo = _leer(conn, SQL_ULTIMO_PAGO, (fin,))
+        primer = _leer(conn, SQL_PRIMER_CARGO, (fin,))
+        calidad = _leer(conn, SQL_FECHAS_INVALIDAS)
         saldos = _leer_saldos(conn)
     finally:
         conn.close()
 
-    for df in (pagos, ultimo, primer, saldos):
+    return calcular_desde_datos(pagos, ultimo, primer, saldos, calidad, hoy)
+
+
+def calcular_desde_datos(pagos, ultimo, primer, saldos, calidad, hoy):
+    """Calculate from extracted daily payments and current balances without SQL I/O."""
+    pagos, ultimo, primer, saldos, calidad = (
+        frame.copy() for frame in (pagos, ultimo, primer, saldos, calidad)
+    )
+
+    for df in (pagos, ultimo, primer, saldos, calidad):
         df["cliente"] = _limpiar_clave(df["cliente"])
+    for df in (ultimo, primer, saldos, calidad):
+        if df["cliente"].duplicated().any():
+            raise ValueError("Hay claves de cliente duplicadas en un resumen del reporte.")
     pagos["monto"] = pagos["monto"].astype(float)
-    saldos["D"] = saldos["D"].astype(float)
+    saldos["D"] = pd.to_numeric(saldos["D"], errors="coerce").astype(float)
+    saldos.loc[~np.isfinite(saldos["D"]), "D"] = np.nan
 
     # --- 2. Limpieza e indicadores propios ---
     stats = (
@@ -177,12 +219,15 @@ def calcular_score_riesgo(conn_str, hoy=None):
         .merge(stats, on="cliente", how="left")
         .merge(ultimo, on="cliente", how="left")
         .merge(primer, on="cliente", how="left")
+        .merge(calidad, on="cliente", how="left")
     )
     base["n_pagos"] = base["n_pagos"].fillna(0).astype(int)
     base["historial"] = base["n_pagos"] >= MIN_PAGOS
 
     # --- 3. Segmentos por monto de deuda ---
-    con_deuda = base["D"] > 0
+    saldo_conocido = base["D"].notna()
+    con_deuda = saldo_conocido & (base["D"] > 0)
+    sin_deuda = saldo_conocido & (base["D"] <= 0)
     base["segmento"] = np.nan
     if con_deuda.any():
         base.loc[con_deuda, "segmento"] = pd.qcut(
@@ -208,11 +253,24 @@ def calcular_score_riesgo(conn_str, hoy=None):
     P = base["P_tipico"].clip(lower=0.01)
     d = base["d_tipico"].clip(lower=1)
     base["C"] = base["D"].clip(lower=0) / P
-    base["R"] = np.maximum(1.0, (base["t"] / d).fillna(1.0))
+    base["R"] = np.maximum(1.0, base["t"] / d)
     base["score"] = base["C"] * base["R"]
-    base.loc[~con_deuda, ["C", "score"]] = 0.0
-    base.loc[~con_deuda, "R"] = 1.0
+    base.loc[sin_deuda, ["C", "score"]] = 0.0
+    base.loc[sin_deuda, "R"] = 1.0
     base["dias_liquidar"] = base["score"] * d
+    base.loc[sin_deuda, "dias_liquidar"] = 0.0
+    base["motivo"] = ""
+    base.loc[con_deuda & base["score"].isna(), "motivo"] = (
+        "Historial insuficiente para calcular el riesgo."
+    )
+    base.loc[con_deuda & base["t"].isna(), "motivo"] = (
+        "No hay fecha válida del último pago ni del primer cargo."
+    )
+    base.loc[con_deuda & base["fechas_invalidas"].fillna(0).gt(0), "motivo"] = (
+        "Hay pagos activos con FECHA vacía o inválida."
+    )
+    base.loc[~saldo_conocido, "motivo"] = "Saldo desconocido o inválido."
+    base.loc[base["motivo"].ne(""), ["C", "R", "score", "dias_liquidar"]] = np.nan
     base["semaforo"] = base["score"].apply(semaforo)
 
     cols = [
@@ -229,5 +287,6 @@ def calcular_score_riesgo(conn_str, hoy=None):
         "score",
         "dias_liquidar",
         "semaforo",
+        "motivo",
     ]
     return base[cols].sort_values("score", ascending=False).reset_index(drop=True)

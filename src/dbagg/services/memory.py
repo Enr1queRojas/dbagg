@@ -36,6 +36,10 @@ class ConversationMemory:
         self.history(sender)
         return self.interactions.get(sender)
 
+    def invalidate_rating(self, sender):
+        """A delivered error must not make the previous answer the target of a new vote."""
+        self.interactions.pop(sender, None)
+
     def clear(self, sender):
         self.sessions.pop(sender, None)
         self.interactions.pop(sender, None)

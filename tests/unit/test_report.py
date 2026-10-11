@@ -90,6 +90,39 @@ class ReportTests(unittest.TestCase):
             self.assertIn('"dias": null', path.read_text())
             self.assertEqual(semaforo(float("nan")), "sin_datos")
 
+    def test_missing_balance_and_reason_survive_html_without_placeholder_expansion(self):
+        frame = pd.DataFrame(
+            [
+                [
+                    "__REPORT_HELPERS__",
+                    None,
+                    0,
+                    "segmento",
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    "sin_datos",
+                ]
+            ],
+            columns=COLUMNS,
+        )
+        frame["motivo"] = "Saldo inválido <revisar>"
+        with tempfile.TemporaryDirectory() as folder:
+            path = generar_html(frame, Path(folder) / "report.html")
+            html = path.read_text(encoding="utf-8")
+            payload = json.loads(re.search(r"const REPORT = (.*);", html)[1])
+        row = payload["rows"][0]
+        self.assertIsNone(row["D"])
+        self.assertEqual(row["c"], "__REPORT_HELPERS__")
+        self.assertEqual(row["motivo"], "Saldo inválido <revisar>")
+        self.assertIn("function riskState", html)
+        self.assertNotIn("Saldo inválido <revisar>", html)
+
 
 if __name__ == "__main__":
     unittest.main()

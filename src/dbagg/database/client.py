@@ -55,21 +55,30 @@ class Database:
         finally:
             conn.close()
 
-    def query(self, sql):
+    def query(self, sql, params=(), row_limit=MAX_ROWS):
+        if type(row_limit) is not int or not 1 <= row_limit <= MAX_ROWS:
+            raise ValueError("Límite de filas inválido.")
         conn = self._connect()
         try:
             cursor = conn.cursor()
-            cursor.execute(sql)
+            cursor.execute(sql, *params)
             columns = [str(c[0])[:100] for c in cursor.description]
+            fetched = cursor.fetchmany(row_limit + 1)
+            truncated = any(
+                v is not None and len(str(v)) > MAX_CELL_CHARS
+                for row in fetched[:row_limit]
+                for v in row
+            )
             rows = [
                 [None if v is None else str(v)[:MAX_CELL_CHARS] for v in row]
-                for row in cursor.fetchmany(MAX_ROWS)
+                for row in fetched[:row_limit]
             ]
             result = {
                 "columns": columns,
                 "rows": [],
-                "row_limit": MAX_ROWS,
-                "values_may_be_truncated": True,
+                "row_limit": row_limit,
+                "has_more": len(fetched) > row_limit,
+                "values_may_be_truncated": truncated,
             }
             for row in rows:
                 candidate = dict(result, rows=result["rows"] + [row])
