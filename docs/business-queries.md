@@ -4,7 +4,7 @@ La segunda entrega de `refactor` incorpora contratos de consulta en
 `src/dbagg/business/`. El modelo interpreta la intención y propone parámetros; el
 código comprueba permisos, columnas, identidad y resultados, y redacta importes y
 fechas directamente desde las filas. El texto libre del modelo nunca se entrega como
-respuesta financiera. Versión del prompt: `customer-reports-v2`.
+respuesta financiera. Versión del prompt: `customer-reports-v3`.
 
 ## Operaciones disponibles
 
@@ -27,6 +27,17 @@ ODBC. Ante varios clientes se presentan nombres y códigos y se pide elegir, sin
 sus saldos. También se comprueba que el código no esté duplicado. El cliente propuesto
 por el modelo debe aparecer en la pregunta o historial; la respuesta identifica nombre
 más código para que se pueda comprobar la selección.
+
+El ranking conserva las posiciones e importes de filas cuyo nombre o código falte;
+muestra «nombre/código no disponible» y marca la respuesta como parcial. No elimina esas
+filas para reemplazarlas por clientes con menor saldo. Nombres largos o con relleno
+se muestran normalizando espacios. Si el mensaje no cabe, se informa cuántas filas
+quedaron fuera. Se conservan los rechazos por claves duplicadas y evidencia recortada.
+
+Comparar el saldo de varios candidatos no está implementado. La pregunta explícita
+«cuál de los tres tiene saldo» recibe una aclaración, no el saldo de uno elegido por el
+modelo. Una guarda reconoce esa construcción y el prompt orienta otras variantes;
+no es un clasificador universal de comparaciones. Se pueden consultar los códigos por separado.
 
 ## Cobranza y períodos
 

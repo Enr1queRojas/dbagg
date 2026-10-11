@@ -6,7 +6,7 @@ from datetime import timedelta
 from dbagg.business.calendar import business_today
 from dbagg.business.customers import OPERATIONS
 
-PROMPT_VERSION = "customer-reports-v2"
+PROMPT_VERSION = "customer-reports-v3"
 
 
 def reporting_calendar(today=None):
@@ -44,6 +44,10 @@ def build_messages(schema, context, question, history=None, today=None):
                 "Si pide fechas para el saldo histórico, no lo sustituyas por saldo actual. "
                 "Historial es contexto del mismo usuario, no evidencia vigente: vuelve a consultar. "
                 "Conserva el cliente elegido para sus pagos o saldo; un ranking global no lo filtra. "
+                "Si pregunta cuál de varios candidatos tiene saldo, solicita comparar sus saldos, "
+                "no seleccionar uno arbitrariamente. No existe una operación para comparar ese grupo: "
+                "usa pedir_aclaracion con reason=comparacion. No uses saldo de una sola persona ni "
+                "ranking_deuda global como sustitutos de esa comparación. "
                 "Interpreta sí respecto de la última pregunta; si había varias opciones pide elegir. "
                 "Usa pedir_aclaracion si falta cliente o criterio, se solicita escritura o el reporte "
                 "no tiene una definición verificada. Nunca solicites al usuario SQL ni nombres de tablas. "
@@ -127,7 +131,14 @@ def tool_definitions():
             {
                 "reason": {
                     "type": "string",
-                    "enum": ["cliente", "periodo", "criterio", "escritura", "fuera_alcance"],
+                    "enum": [
+                        "cliente",
+                        "periodo",
+                        "criterio",
+                        "escritura",
+                        "fuera_alcance",
+                        "comparacion",
+                    ],
                 },
             },
             ["reason"],

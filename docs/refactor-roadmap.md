@@ -57,3 +57,11 @@ El calendario del agente usa una zona IANA explícita, predeterminada a
 interpretación de un modelo real. Las consultas exploratorias no se presentan como
 definiciones de negocio verificadas; la selección de la operación sigue necesitando
 evaluación. No se considera concluida la preparación para producción.
+
+## Correcciones de la prueba real
+
+La prueba de WhatsApp detectó un rechazo del ranking por identificación inválida y
+una selección arbitraria al pedir comparar candidatos. La versión 0.2.3 reproduce
+causas del rechazo (nulos, blancos y longitud) con datos sintéticos, presenta el ranking
+con advertencias cuando falte identificación y aclara la comparación no soportada.
+La corrección requiere repetir esos dos escenarios en la PC antes de aprobar el merge.

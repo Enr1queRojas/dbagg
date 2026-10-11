@@ -48,6 +48,12 @@ def label(value, max_length=100):
     return " ".join(str(value).split())
 
 
+def display_label(value, missing_text):
+    """Display an already bounded result cell without claiming a verified identity."""
+    text = " ".join(str(value).split()) if value is not None else ""
+    return (text, False) if text else (missing_text, True)
+
+
 def render_exploratory(result):
     """No narrative or calculated totals supplied by the model are trusted here."""
     rows = result.get("rows", [])

@@ -12,6 +12,7 @@ from dbagg.database.client import Database
 from dbagg.database.validation import validate_sql
 from dbagg.context.loader import load_business_context, context_version
 from dbagg.agent.prompts import build_messages, tool_definitions
+from dbagg.agent.intent import requests_candidate_comparison, COMPARISON_CLARIFICATION
 from dbagg.business.calendar import business_today
 from dbagg.business.customers import CustomerQueries, PROTECTED_SOURCES, validate_context
 from dbagg.business.evidence import BusinessError, render_exploratory
@@ -51,6 +52,9 @@ class Assistant:
         logger.info("dbagg stage=catalogue_ready")
         context = load_business_context()
         self.last_trace = {"context_version": context_version(context)}
+        if requests_candidate_comparison(question):
+            self.last_trace.update(status="needs_clarification", sources=[])
+            return COMPARISON_CLARIFICATION
         today = business_today(getattr(self.settings, "business_timezone", "America/Mexico_City"))
         messages = build_messages(schema, context, question, history, today=today)
         tools = tool_definitions()
@@ -128,6 +132,7 @@ class Assistant:
                         return answer.text
                     elif call.function.name == "pedir_aclaracion":
                         prompts = {
+                            "comparacion": COMPARISON_CLARIFICATION,
                             "cliente": "¿De qué cliente quieres consultar el saldo o los pagos? Indica su nombre o código.",
                             "periodo": "¿Qué período quieres consultar? Puedes indicar esta semana, este mes o un rango de fechas.",
                             "criterio": "Necesito precisar el concepto: ¿quieres saldo actual, pagos, último pago o un ranking de deuda?",

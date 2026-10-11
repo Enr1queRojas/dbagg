@@ -4,7 +4,14 @@ import json
 from datetime import timedelta
 
 from dbagg.business.calendar import business_today, period_bounds
-from dbagg.business.evidence import BusinessAnswer, BusinessError, amount, label, records
+from dbagg.business.evidence import (
+    BusinessAnswer,
+    BusinessError,
+    amount,
+    label,
+    records,
+    display_label,
+)
 
 CUSTOMERS = "proadel.catalogo_clientes_data_v"
 PAYMENTS = "proadel.cobranza_data"
@@ -331,9 +338,27 @@ class CustomerQueries:
                 "partial" if missing else "empty",
             )
         lines = [f"Clientes con mayor saldo pendiente (hasta {limit}):"]
-        lines += [
-            f"{i}. {label(r['nombre'])} ({label(r['codigo'])}): {amount(r['importe'])}"
-            for i, r in enumerate(rows, 1)
-        ]
+        incomplete_identity = False
+        shown = 0
+        for i, row in enumerate(rows, 1):
+            name, missing_name = display_label(row["nombre"], "nombre no disponible")
+            code, missing_code = display_label(row["codigo"], "código no disponible")
+            incomplete_identity |= missing_name or missing_code
+            line = f"{i}. {name} ({code}): {amount(row['importe'])}"
+            if len("\n".join(lines + [line])) > 2800:
+                break
+            lines.append(line)
+            shown += 1
+        if incomplete_identity:
+            lines.append(
+                "Hay registros con identificación incompleta; requieren revisión en el catálogo."
+            )
+        if shown < len(rows):
+            lines.append(
+                f"Muestro {shown} de {len(rows)} registros del ranking por espacio; la lista es parcial."
+            )
         lines.append("Importes sin moneda confirmada. Los empates se ordenan por código.")
-        return self._answer("\n".join(lines) + warning, "partial" if missing else "answered")
+        return self._answer(
+            "\n".join(lines) + warning,
+            "partial" if missing or incomplete_identity or shown < len(rows) else "answered",
+        )

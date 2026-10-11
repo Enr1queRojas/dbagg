@@ -33,7 +33,7 @@ assert project_root() == Path.cwd()
 assert 'customer_balance' in json.loads(load_business_context())['topics']
 validate_context(load_business_context(), 'ultimo_pago')
 assert business_today('America/Mexico_City')
-assert PROMPT_VERSION == 'customer-reports-v2'
+assert PROMPT_VERSION == 'customer-reports-v3'
 assert 'consultar_negocio' in {t['function']['name'] for t in tool_definitions()}
 columns = ['cliente','D','n_pagos','fuente','segmento','P_tipico','d_tipico','t','C','R','score','dias_liquidar','semaforo']
 output = generar_html(pd.DataFrame(columns=columns))

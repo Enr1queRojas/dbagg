@@ -3,6 +3,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 from dbagg.agent.service import Assistant
+from dbagg.agent.intent import requests_candidate_comparison
 from tests.unit.test_customer_queries import CUSTOMERS, PAYMENTS, SyntheticDatabase
 
 
@@ -211,6 +212,72 @@ class AssistantTests(unittest.TestCase):
         ]
         self.assistant.answer("consulta otra tabla")
         self.assistant.db.schema.assert_not_called()
+
+    def test_group_balance_question_does_not_pick_one_candidate_arbitrarily(self):
+        history = [
+            {"role": "user", "content": "¿Cuánto debe Demo?"},
+            {
+                "role": "assistant",
+                "content": "Encontré varios clientes: Demo (código D1), Demo (código D2), Demo (código D3). ¿Cuál quieres consultar?",
+            },
+            {"role": "user", "content": "D1"},
+            {"role": "assistant", "content": "Saldo actual de Demo (código D1): 0.00."},
+        ]
+        self.assistant.client.chat.completions.create.return_value = self.completion(
+            name="consultar_negocio", arguments={"operation": "saldo", "customer": "D2"}
+        )
+        for question in (
+            "cual de los tres demo tiene saldo?",
+            "¿Cuál de esos tiene saldo?",
+            "¿Quién de los 3 debe?",
+        ):
+            with self.subTest(question=question):
+                answer = self.assistant.answer(question, history)
+                self.assertIn("comparar", answer)
+                self.assertIn("cada código", answer)
+                self.assertEqual(self.assistant.last_trace["status"], "needs_clarification")
+        self.assistant.db.query.assert_not_called()
+        self.assistant.client.chat.completions.create.assert_not_called()
+
+    def test_global_ranking_is_not_treated_as_candidate_comparison(self):
+        self.assistant.client.chat.completions.create.return_value = self.completion(
+            name="consultar_negocio", arguments={"operation": "ranking_deuda", "limit": 5}
+        )
+        db = SyntheticDatabase()
+        self.addCleanup(db.conn.close)
+        db.customer("D1", "Demo", 100)
+        db.customer("D2", None, 500)
+        self.assistant.db = db
+        self.assistant.settings.tables = {CUSTOMERS}
+        answer = self.assistant.answer(
+            "¿Quiénes son los cinco clientes que más deben?",
+            history=[
+                {"role": "user", "content": "Consulta D1"},
+                {"role": "assistant", "content": "Saldo actual de Demo (código D1): 100.00."},
+            ],
+        )
+        self.assertIn("Demo (D1): 100.00", answer)
+        self.assertIn("nombre no disponible (D2): 500.00", answer)
+        self.assertEqual(self.assistant.last_trace["status"], "partial")
+        self.assertEqual(self.assistant.last_trace["operation"], "ranking_deuda")
+
+    def test_comparison_guard_does_not_intercept_unrelated_requests(self):
+        for question in (
+            "¿Cuál de estos productos tiene más existencias?",
+            "¿Cuál fue su último pago?",
+            "¿Quiénes son los cinco clientes que más deben?",
+            "Consulta el saldo de D2",
+        ):
+            with self.subTest(question=question):
+                self.assertFalse(requests_candidate_comparison(question))
+
+    def test_model_can_request_clarification_for_other_comparison_phrasings(self):
+        self.assistant.client.chat.completions.create.return_value = self.completion(
+            name="pedir_aclaracion", arguments={"reason": "comparacion"}
+        )
+        answer = self.assistant.answer("Compara los saldos de los clientes anteriores")
+        self.assertIn("cada código", answer)
+        self.assistant.db.query.assert_not_called()
 
     def test_tool_loop_is_bounded(self):
         self.assistant.client.chat.completions.create.return_value = self.describe()

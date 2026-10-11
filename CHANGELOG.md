@@ -1,5 +1,16 @@
 # Cambios
 
+## 0.2.3 — Correcciones de la validación previa al merge
+
+- El ranking conserva filas con nombre/código faltante y muestra una advertencia de
+  identificación incompleta. Nombres largos o con espacios de relleno ya no invalidan
+  toda la respuesta. El mensaje se limita por filas completas, sin cambiar importes.
+- Ante «cuál de los tres tiene saldo», el agente explica que la comparación de ese grupo
+  no está implementada y pide consultar cada código; no elige uno arbitrariamente.
+  Se agrega una guarda para esa forma de pregunta y orientación al modelo para otras variantes.
+- Prompt `customer-reports-v3` y regresiones con datos sintéticos. Repetir ranking en
+  SQL Server real: el mensaje anterior no distinguía vacío, nulo o longitud excesiva.
+
 ## 0.2.2 — Segunda entrega de refactor
 
 - Cinco operaciones verificadas para saldo, ranking y pagos por cliente; SQL parametrizado,

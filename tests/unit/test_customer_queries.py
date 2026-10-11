@@ -257,6 +257,40 @@ class CustomerQueryTests(unittest.TestCase):
                 self.ask("pagos", **kwargs)
         self.assertEqual(self.db.calls, [])
 
+    def test_ranking_keeps_rows_with_missing_names_or_codes(self):
+        self.db.customer("C2", None, 900)
+        self.db.customer(None, "Cliente sin clave", 800)
+        self.db.customer("C4", "   ", 700)
+        answer = self.ask("ranking_deuda", customer=None, limit=3)
+        self.assertEqual(answer.status, "partial")
+        self.assertIn("900.00", answer.text)
+        self.assertIn("800.00", answer.text)
+        self.assertIn("700.00", answer.text)
+        self.assertNotIn("123.45", answer.text)
+        self.assertIn("nombre no disponible", answer.text)
+        self.assertIn("código no disponible", answer.text)
+        self.assertIn("identificación incompleta", answer.text)
+
+    def test_ranking_supports_long_and_padded_names(self):
+        name = "Empresa de ejemplo " * 9
+        self.db.customer("LARGO", name, 900)
+        self.db.customer("OTRO", "Nombre corto" + " " * 150, 800)
+        answer = self.ask("ranking_deuda", customer=None, limit=2)
+        self.assertEqual(answer.status, "answered")
+        self.assertIn(name.strip(), answer.text)
+        self.assertIn("Nombre corto (OTRO): 800.00", answer.text)
+        self.assertIn("900.00", answer.text)
+
+    def test_ranking_message_limit_preserves_whole_rows_and_reports_omissions(self):
+        for i in range(10):
+            self.db.customer(str(i) + "C" * 290, "Nombre " + "N" * 280, 1000 - i)
+        answer = self.ask("ranking_deuda", customer=None, limit=10)
+        self.assertEqual(answer.status, "partial")
+        self.assertLess(len(answer.text), 3500)
+        self.assertIn("por espacio", answer.text)
+        self.assertIn("1,000.00", answer.text)
+        self.assertNotIn("123.45", answer.text)
+
     def test_context_override_cannot_silently_change_payment_date(self):
         context = json.loads(load_business_context())
         validate_context(json.dumps(context), "ultimo_pago")
