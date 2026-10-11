@@ -80,7 +80,22 @@ class ConversationService:
                     save_turn = True
             except Exception as exc:
                 answer_failed = True
-                logger.warning("dbagg stage=answer_failed error_type=%s", type(exc).__name__)
+                status = (
+                    exc.response.status_code
+                    if isinstance(exc, httpx.HTTPStatusError)
+                    else getattr(exc, "status_code", None)
+                )
+                if type(status) is int and 100 <= status <= 599:
+                    profile = getattr(getattr(self.settings, "llm", None), "profile", None)
+                    provider = profile.provider if profile is not None else "openai"
+                    logger.warning(
+                        "dbagg stage=answer_failed error_type=%s provider=%s http_status=%s",
+                        type(exc).__name__,
+                        provider,
+                        status,
+                    )
+                else:
+                    logger.warning("dbagg stage=answer_failed error_type=%s", type(exc).__name__)
                 answer = "No pude completar la consulta. Revisa la conexión y la configuración del servicio."
             try:
                 self.deliver(sender, answer)
@@ -99,8 +114,10 @@ class ConversationService:
                             "question": question,
                             "answer": answer,
                             "history": history,
-                            "model": self.settings.model,
-                            "prompt_version": PROMPT_VERSION,
+                            "model": trace.get("model", self.settings.model),
+                            "provider": trace.get("provider"),
+                            "profile": trace.get("profile"),
+                            "prompt_version": trace.get("prompt_version", PROMPT_VERSION),
                             "context_version": trace.get("context_version"),
                         },
                     )

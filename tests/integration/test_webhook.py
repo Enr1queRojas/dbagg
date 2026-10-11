@@ -67,6 +67,15 @@ class WebhookTests(unittest.TestCase):
         self.assertEqual(response.text, "42")
         self.assertEqual(self.client.get("/webhook").status_code, 403)
 
+    def test_application_closes_only_the_assistant_it_owns(self):
+        with patch("dbagg.api.app.Assistant") as factory:
+            with TestClient(create_app(self.settings)) as client:
+                self.assertEqual(client.get("/health").status_code, 200)
+            factory.return_value.close.assert_called_once()
+        with TestClient(create_app(self.settings, self.assistant, self.send)):
+            pass
+        self.assistant.close.assert_not_called()
+
     def test_unsigned_or_unauthorized_messages_never_reach_llm(self):
         self.assertEqual(self.post(self.payload(), signed=False).status_code, 403)
         self.assertEqual(self.post(self.payload(sender="9999999999")).status_code, 200)
@@ -116,6 +125,22 @@ class WebhookTests(unittest.TestCase):
         self.assertNotIn("secret-key", output)
         self.assertNotIn("private", output)
         self.assertNotIn("graph.facebook.com", output)
+
+    def test_model_http_error_logs_status_without_provider_response_or_key(self):
+        request = httpx.Request(
+            "POST", "https://example.test/messages", headers={"x-api-key": "private-key"}
+        )
+        response = httpx.Response(401, request=request, json={"error": "private response"})
+        self.assistant.answer.side_effect = httpx.HTTPStatusError(
+            "private-key", request=request, response=response
+        )
+        with self.assertLogs("uvicorn.error", level="WARNING") as logs:
+            self.post(self.payload())
+        output = "\n".join(logs.output)
+        self.assertIn("stage=answer_failed", output)
+        self.assertIn("http_status=401", output)
+        self.assertNotIn("private", output)
+        self.assertNotIn("example.test", output)
 
     def test_diagnostic_identifies_local_agent_without_llm(self):
         payload = self.payload()

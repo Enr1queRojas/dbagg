@@ -7,6 +7,7 @@ credenciales ni datos de clientes. Mantén los cambios dentro del alcance solici
 
 - HTTP y firma: `src/dbagg/api/`; Meta: `src/dbagg/integrations/`.
 - Agente y prompts: `src/dbagg/agent/`; coordinación y memoria: `src/dbagg/services/`.
+- Proveedores y perfiles LLM: `src/dbagg/llm/`. Consulta `docs/llm-configuration.md`.
 - Acceso SQL y validación: `src/dbagg/database/`. La lista de objetos permitidos se
   aplica en código y los permisos de la cuenta SQL deben ser de solo lectura.
 - Reglas confirmadas: `src/dbagg/context/default.json`. Consulta `docs/business-context.md`;
@@ -20,8 +21,10 @@ credenciales ni datos de clientes. Mantén los cambios dentro del alcance solici
    bases de evaluaciones al repositorio, fixtures o prompts.
 3. Mantén las validaciones SQL y los límites fuera del modelo. No amplíes permisos
    ni elimines controles para resolver un fallo de razonamiento.
-4. Si cambias instrucciones, actualiza `PROMPT_VERSION` en `src/dbagg/agent/prompts.py`.
-   La versión del contexto se calcula a partir de su contenido combinado.
+4. Las instrucciones base viven en `src/dbagg/agent/templates/`; las locales se generan
+   en `config/prompts/`. Su contenido lleva una huella automática. Si cambias el contrato
+   de prompts/herramientas, actualiza `PROMPT_VERSION` en `src/dbagg/agent/prompt_files.py`
+   (reexportado por `prompts.py`). La versión del contexto se calcula con su contenido.
 5. Reproduce errores deterministas con pruebas de regresión. Para exactitud contable,
    aplica `evals/rubric.md` y los casos sintéticos; una prueba con modelos simulados
    no demuestra que un modelo real responderá correctamente.

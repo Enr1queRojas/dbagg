@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dbagg"
-version = "0.2.3"
+version = "0.3.0"
 description = "Asistente interno de WhatsApp y reportes sobre SQL Server"
 requires-python = ">=3.11"
 dependencies = [
@@ -27,6 +27,7 @@ dev = ["ruff==0.16.10", "build==1.6.1"]
 dbagg-report = "dbagg.reporting.cli:main"
 dbagg-context = "dbagg.context.loader:main"
 dbagg-eval = "dbagg.evaluation.cli:main"
+dbagg-llm = "dbagg.llm.__main__:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -35,6 +36,8 @@ include = ["dbagg*"]
 [tool.setuptools.package-data]
 "dbagg.context" = ["default.json"]
 "dbagg.reporting" = ["templates/*.html", "static/*.js"]
+"dbagg.agent" = ["templates/*.md", "templates/*.json"]
+"dbagg.llm" = ["default.toml"]
 
 [tool.ruff]
 target-version = "py311"

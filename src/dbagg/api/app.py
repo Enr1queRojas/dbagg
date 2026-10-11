@@ -4,6 +4,7 @@ import hashlib
 import hmac
 import json
 import logging
+from contextlib import asynccontextmanager
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
 from fastapi.responses import PlainTextResponse
 from dbagg.config import Settings
@@ -18,8 +19,18 @@ logger = logging.getLogger("uvicorn.error")
 
 def create_app(settings=None, assistant=None, send_message=None, feedback_store=None):
     settings = settings or Settings.from_env()
-    assistant = assistant or Assistant(settings)
-    app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
+    owns_assistant = assistant is None
+    assistant = assistant if assistant is not None else Assistant(settings)
+
+    @asynccontextmanager
+    async def lifespan(app):
+        try:
+            yield
+        finally:
+            if owns_assistant:
+                assistant.close()
+
+    app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
     gate = MessageGate()
     deliver = send_message or MetaClient(settings).send
     conversation = ConversationService(settings, assistant, deliver, feedback_store)

@@ -7,11 +7,13 @@ import unicodedata
 import pyodbc
 import sqlglot
 from sqlglot import exp
-from openai import OpenAI
 from dbagg.database.client import Database
 from dbagg.database.validation import validate_sql
 from dbagg.context.loader import load_business_context, context_version
 from dbagg.agent.prompts import build_messages, tool_definitions
+from dbagg.agent.prompt_files import load_prompt_bundle
+from dbagg.llm.config import LLMConfig, ModelProfile
+from dbagg.llm.providers import create_provider
 from dbagg.agent.intent import requests_candidate_comparison, COMPARISON_CLARIFICATION
 from dbagg.business.calendar import business_today
 from dbagg.business.customers import CustomerQueries, PROTECTED_SOURCES, validate_context
@@ -38,42 +40,53 @@ def customer_in_conversation(customer, question, history):
 
 
 class Assistant:
-    def __init__(self, settings, db=None, client=None):
+    def __init__(self, settings, db=None, client=None, provider=None):
         self.settings = settings
         self.db = db if db is not None else Database(settings)
-        self.client = (
-            client
-            if client is not None
-            else OpenAI(api_key=settings.api_key, timeout=30, max_retries=1)
+        self.llm_config = getattr(settings, "llm", None) or LLMConfig(
+            ModelProfile(model=settings.model, temperature=0)
         )
+        self.provider = (
+            provider
+            if provider is not None
+            else create_provider(
+                self.llm_config.profile,
+                getattr(settings, "api_key", ""),
+                client=client,
+            )
+        )
+        # Compatibility for tests/extensions that inject an OpenAI-compatible client.
+        self.client = client
+
+    def close(self):
+        self.provider.close()
 
     def answer(self, question, history=None):
         schema = json.dumps(sorted(self.settings.tables), ensure_ascii=False)
         logger.info("dbagg stage=catalogue_ready")
         context = load_business_context()
-        self.last_trace = {"context_version": context_version(context)}
+        bundle = load_prompt_bundle(self.llm_config)
+        profile = self.llm_config.profile
+        self.last_trace = {
+            "context_version": context_version(context),
+            "prompt_version": bundle.version,
+            "provider": profile.provider,
+            "profile": profile.name,
+            "model": profile.model,
+        }
         if requests_candidate_comparison(question):
             self.last_trace.update(status="needs_clarification", sources=[])
             return COMPARISON_CLARIFICATION
         today = business_today(getattr(self.settings, "business_timezone", "America/Mexico_City"))
-        messages = build_messages(schema, context, question, history, today=today)
-        tools = tool_definitions()
+        messages = build_messages(schema, context, question, history, today=today, bundle=bundle)
+        tools = tool_definitions(bundle)
         attempts, descriptions, successful = 0, 0, 0
         described = set()
         latest_result = None
         latest_sources = []
         for _ in range(9):
-            response = self.client.chat.completions.create(
-                model=self.settings.model,
-                temperature=0,
-                max_tokens=1200,
-                tools=tools,
-                tool_choice="auto",
-                parallel_tool_calls=False,
-                messages=messages,
-            )
-            message = response.choices[0].message
-            calls = getattr(message, "tool_calls", None) or []
+            message = self.provider.complete(messages, tools)
+            calls = message.tool_calls
             if not calls:
                 logger.info(
                     "dbagg stage=%s", "answer_ready" if successful else "clarification_no_query"
@@ -87,29 +100,13 @@ class Assistant:
                         return str(exc)
                 self.last_trace.update(status="needs_clarification", sources=[])
                 return "No obtuve resultados para respaldar una respuesta. ¿Qué cliente o reporte quieres consultar? Puedo consultar saldos, pagos y rankings; no modificar datos."
-            messages.append(
-                {
-                    "role": "assistant",
-                    "content": message.content,
-                    "tool_calls": [
-                        {
-                            "id": c.id,
-                            "type": "function",
-                            "function": {
-                                "name": c.function.name,
-                                "arguments": c.function.arguments,
-                            },
-                        }
-                        for c in calls
-                    ],
-                }
-            )
+            messages.append(message.history_message)
             for call in calls:
                 try:
-                    if call.function.name in {"consultar_negocio", "consultar_sql"}:
+                    if call.name in {"consultar_negocio", "consultar_sql"}:
                         latest_result, latest_sources = None, []
-                    arguments = json.loads(call.function.arguments)
-                    if call.function.name == "consultar_negocio":
+                    arguments = json.loads(call.arguments)
+                    if call.name == "consultar_negocio":
                         validate_context(context, arguments.get("operation"))
                         if arguments.get(
                             "operation"
@@ -130,7 +127,7 @@ class Assistant:
                         )
                         logger.info("dbagg stage=business_answer status=%s", answer.status)
                         return answer.text
-                    elif call.function.name == "pedir_aclaracion":
+                    elif call.name == "pedir_aclaracion":
                         prompts = {
                             "comparacion": COMPARISON_CLARIFICATION,
                             "cliente": "¿De qué cliente quieres consultar el saldo o los pagos? Indica su nombre o código.",
@@ -141,7 +138,7 @@ class Assistant:
                         }
                         self.last_trace.update(status="needs_clarification", sources=[])
                         return prompts[arguments["reason"]]
-                    elif call.function.name == "describir_tablas":
+                    elif call.name == "describir_tablas":
                         descriptions += 1
                         selected = arguments["tables"]
                         if (
@@ -157,7 +154,7 @@ class Assistant:
                         result = json.loads(self.db.schema(selected))
                         described.update(selected)
                         logger.info("dbagg stage=schema_ok")
-                    elif call.function.name == "consultar_sql":
+                    elif call.name == "consultar_sql":
                         attempts += 1
                         if attempts > 4:
                             raise ValueError("Límite de consultas alcanzado.")

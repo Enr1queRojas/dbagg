@@ -1,0 +1,6 @@
+{
+  "consultar_negocio": "Consulta verificada de clientes; devuelve una respuesta completa o pide elegir cliente.",
+  "pedir_aclaracion": "Pide una aclaración de negocio sin afirmar datos no consultados.",
+  "describir_tablas": "Lee columnas y tipos de uno a cinco objetos autorizados; no lee filas.",
+  "consultar_sql": "Exploración SELECT validada. No sirve para fuentes de clientes/cobranza verificadas."
+}
