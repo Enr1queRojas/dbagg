@@ -50,14 +50,20 @@ class FeedbackStore:
         connection = sqlite3.connect(self.path, timeout=10)
         connection.row_factory = sqlite3.Row
         try:
+            connection.execute("BEGIN IMMEDIATE")
             connection.execute("""CREATE TABLE IF NOT EXISTS feedback (
                 id TEXT PRIMARY KEY, created_at TEXT NOT NULL,
                 question TEXT NOT NULL, answer TEXT NOT NULL, history_json TEXT NOT NULL,
                 model TEXT NOT NULL, prompt_version TEXT NOT NULL, context_version TEXT,
+                provider TEXT, profile TEXT,
                 rating TEXT NOT NULL CHECK(rating IN ('good','bad')), reason TEXT NOT NULL,
                 review_status TEXT NOT NULL DEFAULT 'pending', reviewer TEXT,
                 reviewed_at TEXT, prepared_case_json TEXT
             )""")
+            columns = {row["name"] for row in connection.execute("PRAGMA table_info(feedback)")}
+            for column in ("provider", "profile"):
+                if column not in columns:
+                    connection.execute(f"ALTER TABLE feedback ADD COLUMN {column} TEXT")
             yield connection
             connection.commit()
         except Exception:
@@ -73,8 +79,8 @@ class FeedbackStore:
             connection.execute(
                 """INSERT INTO feedback
                 (id, created_at, question, answer, history_json, model, prompt_version,
-                 context_version, rating, reason)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 context_version, rating, reason, provider, profile)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET rating=excluded.rating, reason=excluded.reason,
                     review_status='pending', reviewer=NULL, reviewed_at=NULL, prepared_case_json=NULL""",
                 (
@@ -88,6 +94,8 @@ class FeedbackStore:
                     interaction.get("context_version"),
                     rating,
                     reason[:1000],
+                    interaction.get("provider"),
+                    interaction.get("profile"),
                 ),
             )
         return interaction["id"]
@@ -106,7 +114,7 @@ class FeedbackStore:
             return [
                 dict(row)
                 for row in connection.execute(
-                    "SELECT id, created_at, rating, model, prompt_version FROM feedback "
+                    "SELECT id, created_at, rating, model, prompt_version, provider, profile FROM feedback "
                     "WHERE review_status='pending' ORDER BY created_at"
                 )
             ]

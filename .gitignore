@@ -227,3 +227,6 @@ data/
 reportes/
 score_riesgo.html
 *.sqlite3
+config/llm.toml
+config/prompts/agent.md
+config/prompts/tools.json

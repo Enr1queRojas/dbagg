@@ -1,4 +1,5 @@
 import json
+import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
@@ -71,6 +72,38 @@ class FeedbackTests(unittest.TestCase):
         self.assertEqual(self.store.get("case-1")["review_status"], "pending")
         with self.assertRaises(ValueError):
             validate_training_case(dict(self.prepared, messages=[]))
+
+    def test_provider_profile_and_prompt_fingerprint_are_saved(self):
+        interaction = dict(
+            self.interaction,
+            provider="anthropic",
+            profile="claude",
+            prompt_version="customer-reports-v4:synthetic",
+        )
+        self.store.record(interaction, "good")
+        stored = self.store.get("case-1")
+        self.assertEqual(stored["provider"], "anthropic")
+        self.assertEqual(stored["profile"], "claude")
+        self.assertEqual(stored["prompt_version"], "customer-reports-v4:synthetic")
+        self.assertEqual(self.store.list_pending()[0]["provider"], "anthropic")
+
+    def test_old_database_migrates_without_losing_reviewed_examples(self):
+        self.store.record(self.interaction, "good")
+        self.store.review("case-1", "approved", "reviewer", self.prepared)
+        with sqlite3.connect(self.store.path) as connection:
+            connection.execute("ALTER TABLE feedback DROP COLUMN provider")
+            connection.execute("ALTER TABLE feedback DROP COLUMN profile")
+        original = self.store.get("case-1")
+        self.assertEqual(original["review_status"], "approved")
+        self.assertIsNone(original["provider"])
+        self.assertEqual(
+            json.loads(original["prepared_case_json"]), {"messages": self.prepared["messages"]}
+        )
+        self.store.record(
+            dict(self.interaction, id="case-2", provider="gemini", profile="gemini"), "bad"
+        )
+        self.assertEqual(self.store.get("case-2")["provider"], "gemini")
+        self.assertEqual(self.store.get("case-1")["review_status"], "approved")
 
     def test_rejection_is_not_exported(self):
         self.store.record(self.interaction, "good")

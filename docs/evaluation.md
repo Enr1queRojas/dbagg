@@ -1,5 +1,11 @@
 # Evaluación y mejora del agente
 
+Desde 0.3, cada valoración incluye proveedor, perfil, modelo seleccionado y la huella
+de los prompts usados para esa respuesta. Cambiar los archivos después no cambia esa
+referencia. Los registros antiguos conservan proveedor/perfil vacíos cuando se desconocen;
+la migración agrega columnas sin borrar revisiones ni ejemplos aprobados.
+Consulta [configuración LLM](llm-configuration.md) para repetir preguntas con otro modelo.
+
 Una respuesta útil no necesariamente es correcta. Separamos tres pasos:
 
 1. **Valoración del usuario:** marca buena/mala, sin convertirla en verdad verificada.

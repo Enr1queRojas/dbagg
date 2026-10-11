@@ -1,0 +1,44 @@
+version = 1
+active_profile = "openai"
+
+# Las claves se leen del entorno o .env. Nunca escribirlas en este archivo.
+# Los IDs de modelos son ejemplos; confirmar disponibilidad en cada cuenta.
+[profiles.openai]
+provider = "openai"
+model = "gpt-4.1-mini"
+api_key_env = "OPENAI_API_KEY"
+base_url = "https://api.openai.com/v1"
+max_output_tokens = 1200
+temperature = 0.0
+timeout_seconds = 30
+max_retries = 1
+token_parameter = "max_tokens"
+
+[profiles.glm]
+provider = "glm"
+model = "glm-4.7"
+api_key_env = "ZAI_API_KEY"
+base_url = "https://api.z.ai/api/paas/v4"
+max_output_tokens = 2000
+timeout_seconds = 30
+max_retries = 1
+[profiles.glm.extra_body]
+thinking = { type = "disabled" }
+
+[profiles.gemini]
+provider = "gemini"
+model = "gemini-2.5-flash"
+api_key_env = "GEMINI_API_KEY"
+base_url = "https://generativelanguage.googleapis.com/v1beta/openai"
+max_output_tokens = 2000
+timeout_seconds = 30
+max_retries = 1
+
+[profiles.claude]
+provider = "anthropic"
+model = "claude-sonnet-4-5"
+api_key_env = "ANTHROPIC_API_KEY"
+base_url = "https://api.anthropic.com/v1"
+max_output_tokens = 2000
+timeout_seconds = 30
+max_retries = 1

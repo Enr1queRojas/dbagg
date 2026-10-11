@@ -1,5 +1,19 @@
 # Cambios
 
+## 0.3.0 — Proveedores LLM y prompts configurables
+
+- Perfiles TOML para OpenAI, GLM, Gemini, Claude y otros endpoints compatibles con OpenAI.
+  El agente consume un contrato común; los adaptadores preservan llamadas a herramientas
+  y firmas necesarias para continuar el turno. No hay fallback automático de proveedor.
+- `dbagg-llm init/check` crea y valida configuración local sin copiar ni imprimir claves.
+  Sin archivo local se mantiene la configuración OpenAI anterior.
+- Prompts y descripciones editables en archivos UTF-8; carga por pregunta y huella real
+  `customer-reports-v4:<hash>`. Los permisos, esquemas y controles SQL siguen en código.
+- Valoraciones con proveedor/perfil/modelo y huella de prompt. Migración SQLite aditiva
+  que conserva valoraciones y revisiones existentes.
+- Pruebas HTTP simuladas para los cuatro proveedores; disponibilidad de modelos y
+  credenciales de las cuentas requieren validación real.
+
 ## 0.2.3 — Correcciones de la validación previa al merge
 
 - El ranking conserva filas con nombre/código faltante y muestra una advertencia de

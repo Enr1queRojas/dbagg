@@ -1,11 +1,12 @@
-# Piloto interno de WhatsApp con OpenAI y SQL Server
+# Piloto interno de WhatsApp con modelos LLM y SQL Server
 
 Este servicio se ejecuta en la PC Windows que ya tiene acceso a SQL Server.
 Solo responde a números autorizados. Recibe texto, consulta el catálogo de los
-objetos permitidos y ofrece a OpenAI herramientas para inspeccionar columnas,
+objetos permitidos y ofrece al proveedor LLM configurado herramientas para inspeccionar columnas,
 resolver clientes por nombre, ejecutar SELECT validados y responder con los resultados.
 El modelo predeterminado es `gpt-4.1-mini`, configurable
-en `OPENAI_MODEL`; confirma su disponibilidad y tarifa en tu cuenta antes de usarlo.
+en `OPENAI_MODEL` mientras no exista configuración TOML local. Para OpenAI, GLM,
+Gemini o Claude y prompts editables, consulta [llm-configuration.md](llm-configuration.md).
 No confundir una suscripción de ChatGPT con acceso y facturación de la API.
 
 ## 1. Instalar en la PC
@@ -45,7 +46,7 @@ sincronices las credenciales con otras personas mediante OneDrive.
   y el validador no sustituyen permisos de base de datos. Solicita a tu administrador
   una cuenta dedicada; no uses una cuenta administradora o con permisos de escritura.
 
-La pregunta, contexto e historial se envían a OpenAI. Las consultas exploratorias
+La pregunta, contexto e historial se envían al proveedor LLM seleccionado. Las consultas exploratorias
 también envían metadatos y resultados limitados. Las operaciones verificadas generan
 la respuesta desde SQL sin reenviar esas filas al modelo en el mismo turno; esa respuesta
 puede formar parte del historial enviado en la siguiente pregunta. Las respuestas

@@ -2,6 +2,7 @@ import os
 import unittest
 from unittest.mock import patch
 from dbagg.config import Settings
+from dbagg.llm.config import LLMConfig, ModelProfile
 
 
 class TLSSettingsTests(unittest.TestCase):
@@ -19,7 +20,11 @@ class TLSSettingsTests(unittest.TestCase):
             DB_ALLOW_UNVERIFIED_TLS=opt_in,
             BUSINESS_TIMEZONE=timezone,
         )
-        with patch.dict(os.environ, values, clear=True), patch("dbagg.config.load_dotenv"):
+        with (
+            patch.dict(os.environ, values, clear=True),
+            patch("dbagg.config.load_dotenv"),
+            patch("dbagg.config.load_llm_config", return_value=LLMConfig(ModelProfile())),
+        ):
             return Settings.from_env()
 
     def test_default_rejects_unverified_tls(self):

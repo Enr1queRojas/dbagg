@@ -33,7 +33,14 @@ assert project_root() == Path.cwd()
 assert 'customer_balance' in json.loads(load_business_context())['topics']
 validate_context(load_business_context(), 'ultimo_pago')
 assert business_today('America/Mexico_City')
-assert PROMPT_VERSION == 'customer-reports-v3'
+assert PROMPT_VERSION == 'customer-reports-v4'
+from dbagg.llm.__main__ import initialize
+from dbagg.llm.config import load_llm_config
+from dbagg.agent.prompt_files import load_prompt_bundle
+initialize(Path.cwd())
+llm_config = load_llm_config(environ={})
+assert llm_config.profile.provider == 'openai'
+assert load_prompt_bundle(llm_config).version.startswith('customer-reports-v4:')
 assert 'consultar_negocio' in {t['function']['name'] for t in tool_definitions()}
 columns = ['cliente','D','n_pagos','fuente','segmento','P_tipico','d_tipico','t','C','R','score','dias_liquidar','semaforo']
 output = generar_html(pd.DataFrame(columns=columns))

@@ -4,7 +4,7 @@ La segunda entrega de `refactor` incorpora contratos de consulta en
 `src/dbagg/business/`. El modelo interpreta la intención y propone parámetros; el
 código comprueba permisos, columnas, identidad y resultados, y redacta importes y
 fechas directamente desde las filas. El texto libre del modelo nunca se entrega como
-respuesta financiera. Versión del prompt: `customer-reports-v3`.
+respuesta financiera. Versión del prompt: `customer-reports-v4:<huella del contenido>`.
 
 ## Operaciones disponibles
 

@@ -8,6 +8,9 @@ src/dbagg/
   services/memory.py         Memoria por remitente, deduplicación y límite de mensajes
   agent/service.py           Ciclo acotado de herramientas de OpenAI
   agent/prompts.py           Instrucciones, contratos y versión del prompt
+  agent/prompt_files.py      Carga de texto editable y huella de las instrucciones
+  agent/templates/          Prompts distribuidos en el paquete
+  llm/                      Perfiles y adaptadores OpenAI-compatible / Anthropic
   business/                 Consultas parametrizadas, calendario y respuestas desde evidencia
   context/                  Carga/mezcla y definiciones de negocio distribuidas
   database/client.py        Acceso al catálogo y consultas SQL acotadas
@@ -33,6 +36,16 @@ con avisos de ambigüedad o datos faltantes. Para otros objetos puede proponer S
 exploratorio; el validador lo restringe antes del acceso a datos y la salida identifica
 su definición de negocio como pendiente. El transporte Meta no conoce las reglas del negocio ni las credenciales
 SQL. Los prompts y el contexto llevan versiones registradas con las valoraciones.
+
+El agente consume `ModelProvider.complete` y respuestas normalizadas. OpenAI, GLM y
+Gemini usan Chat Completions compatible; Claude usa Messages con traducción de resultados
+de herramientas. Los adaptadores conservan firmas y bloques opacos necesarios para
+continuar el turno, sin incorporarlos a los logs ni valoraciones. No hay fallback de
+proveedor: la configuración seleccionada se mantiene durante la solicitud.
+
+`config/llm.toml` y `config/prompts/` se generan localmente con `dbagg-llm init`.
+Las claves se resuelven por nombre de variable. El archivo se carga al arrancar;
+los textos se recargan por pregunta. Herramientas y validaciones permanecen en código.
 
 ## Configuración y archivos
 

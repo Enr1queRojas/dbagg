@@ -50,6 +50,24 @@ class FeedbackWebhookTests(unittest.TestCase):
         self.assertEqual(self.store.list_pending(), [])
         self.assertIn("No hay una respuesta reciente", self.webhook.send.call_args.args[1])
 
+    def test_rating_keeps_the_provider_and_prompt_of_the_delivered_answer(self):
+        self.webhook.assistant.last_trace = {
+            "provider": "anthropic",
+            "profile": "claude_trial",
+            "model": "selected-model",
+            "prompt_version": "customer-reports-v4:original",
+            "context_version": "context-a",
+        }
+        with patch("dbagg.services.memory.time.monotonic", return_value=100):
+            self.webhook.post(self.message("Pregunta", "query"))
+            self.webhook.assistant.last_trace = {"provider": "gemini", "prompt_version": "changed"}
+            self.webhook.post(self.message("/buena", "rating"))
+        record = self.store.get(self.store.list_pending()[0]["id"])
+        self.assertEqual(record["provider"], "anthropic")
+        self.assertEqual(record["profile"], "claude_trial")
+        self.assertEqual(record["model"], "selected-model")
+        self.assertEqual(record["prompt_version"], "customer-reports-v4:original")
+
     def test_feedback_is_disabled_by_default(self):
         self.webhook.client = TestClient(
             create_app(self.webhook.settings, self.webhook.assistant, self.webhook.send)

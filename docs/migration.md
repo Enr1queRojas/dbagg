@@ -89,3 +89,20 @@ una salida exploratoria. Cambios locales en fuentes, columnas o filtros de esas
 operaciones deben coincidir con el contrato del código; se informa cualquier diferencia.
 Prueba homónimos, selección de cliente, seguimiento y pagos de un período, comparando
 con el sistema de referencia. La cola persistente sigue pendiente.
+
+## Versión 0.3: perfiles y prompts
+
+La rama de este feature es `feature/llm-config-providers`, creada desde `main` después
+integrar `refactor`. Reinstala con `python -m pip install -r requirements.txt`.
+Los comandos anteriores del webhook se conservan.
+
+Sin TOML local se mantiene OpenAI con `OPENAI_API_KEY` y `OPENAI_MODEL`. Para habilitar
+configuración editable, ejecuta `python -m dbagg.llm init`, edita `config/llm.toml`
+y valida con `python -m dbagg.llm check`. El comando no reemplaza archivos existentes.
+Las claves siguen en `.env`; solo se requiere la del proveedor activo. Reinicia el
+servicio para cambiar perfil, modelo, rutas o claves. No necesitas reiniciar Cloudflare.
+
+Si tienes valoraciones locales, conserva su respaldo privado. Al acceder a la base,
+se agregan columnas `provider` y `profile` sin cambiar registros ni revisiones existentes.
+Las nuevas valoraciones incluyen también la huella del contenido de los prompts.
+Consulta [llm-configuration.md](llm-configuration.md) para precedencia y pruebas.

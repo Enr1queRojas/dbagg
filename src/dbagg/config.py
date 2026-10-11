@@ -9,6 +9,8 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from dotenv import load_dotenv
 from dbagg.paths import project_root
 from dbagg.database.connection import parse_odbc_options
+from dbagg.llm.config import LLMConfig, load_llm_config
+from dbagg.agent.prompt_files import load_prompt_bundle
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -28,12 +30,15 @@ class Settings:
     feedback_enabled: bool = False
     feedback_path: Path | None = None
     business_timezone: str = "America/Mexico_City"
+    llm: LLMConfig | None = None
 
     @classmethod
     def from_env(cls):
         load_dotenv(project_root() / ".env")
+        llm = load_llm_config()
+        load_prompt_bundle(llm)
         required = (
-            "OPENAI_API_KEY",
+            llm.profile.api_key_env,
             "META_ACCESS_TOKEN",
             "META_APP_SECRET",
             "META_VERIFY_TOKEN",
@@ -89,8 +94,8 @@ class Settings:
                 "el cifrado sigue siendo obligatorio."
             )
         return cls(
-            os.environ["OPENAI_API_KEY"],
-            os.getenv("OPENAI_MODEL", "gpt-4.1-mini"),
+            os.environ[llm.profile.api_key_env],
+            llm.profile.model,
             os.environ["META_ACCESS_TOKEN"],
             os.environ["META_APP_SECRET"],
             os.environ["META_VERIFY_TOKEN"],
@@ -102,4 +107,5 @@ class Settings:
             os.getenv("FEEDBACK_ENABLED", "").lower() == "true",
             project_root() / "data" / "feedback.sqlite3",
             timezone,
+            llm,
         )

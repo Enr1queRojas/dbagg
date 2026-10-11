@@ -9,14 +9,13 @@ from tests.unit.test_customer_queries import CUSTOMERS, PAYMENTS, SyntheticDatab
 
 class AssistantTests(unittest.TestCase):
     def setUp(self):
-        self.assistant = Assistant.__new__(Assistant)
-        self.assistant.settings = SimpleNamespace(
-            model="test", tables={"proadel.vw_alertascobranza"}
+        self.assistant = Assistant(
+            SimpleNamespace(model="test", tables={"proadel.vw_alertascobranza"}),
+            db=Mock(),
+            client=Mock(),
         )
-        self.assistant.db = Mock()
         self.assistant.db.schema.return_value = '[{"table":"proadel.vw_alertascobranza"}]'
         self.assistant.db.query.return_value = {"columns": ["saldo"], "rows": [["100"]]}
-        self.assistant.client = Mock()
 
     def completion(self, content=None, name=None, arguments=None):
         calls = (
@@ -29,7 +28,12 @@ class AssistantTests(unittest.TestCase):
             ]
         )
         return SimpleNamespace(
-            choices=[SimpleNamespace(message=SimpleNamespace(content=content, tool_calls=calls))]
+            choices=[
+                SimpleNamespace(
+                    finish_reason="tool_calls" if calls else "stop",
+                    message=SimpleNamespace(content=content, tool_calls=calls),
+                )
+            ]
         )
 
     def describe(self):

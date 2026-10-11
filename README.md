@@ -1,7 +1,7 @@
 # dbagg
 
 Generador de reportes de riesgo de crédito y piloto interno para consultar SQL Server
-por WhatsApp con OpenAI.
+por WhatsApp con modelos configurables: OpenAI, GLM, Gemini y Claude.
 
 Estado: piloto en estabilización para producción. El avance por entregas está en
 [refactor-roadmap.md](docs/refactor-roadmap.md); los requisitos de despliegue están
@@ -34,6 +34,7 @@ en Meta la URL del túnel terminada en `/webhook`. La guía de
 | --- | --- |
 | `src/dbagg/api/`, `src/dbagg/integrations/` | Webhook HTTP y cliente de Meta |
 | `src/dbagg/agent/`, `src/dbagg/services/` | Modelo, herramientas, memoria y conversación |
+| `src/dbagg/llm/` | Perfiles y adaptadores de proveedores LLM |
 | `src/dbagg/database/` | Conexión, catálogo y validación de SQL de lectura |
 | `src/dbagg/business/` | Contratos parametrizados de saldos/pagos, calendario y respuestas |
 | `src/dbagg/context/` | Reglas de negocio versionadas y carga de ajustes locales |
@@ -47,6 +48,18 @@ de Git. Consulta la [arquitectura](docs/architecture.md) y la
 [guía de actualización](docs/migration.md) antes de actualizar una instalación existente.
 
 ## Mejorar las respuestas del agente
+
+Para editar modelo y prompts sin cambiar Python:
+
+```cmd
+.\.venv\Scripts\python.exe -m dbagg.llm init
+.\.venv\Scripts\python.exe -m dbagg.llm check
+```
+
+Edita `config/llm.toml` para seleccionar proveedor/modelo y `config/prompts/` para
+las instrucciones. Las claves permanecen en `.env`. Reinicia el backend al cambiar
+modelo; el texto de los prompts se recarga por pregunta. Sin estos archivos se
+conserva la configuración OpenAI anterior. Consulta la [guía LLM](docs/llm-configuration.md).
 
 Activa `FEEDBACK_ENABLED=true` en `.env` y reinicia. Después de una respuesta puedes
 enviar `/buena` o `/mala motivo`. La valoración guarda localmente la pregunta, respuesta

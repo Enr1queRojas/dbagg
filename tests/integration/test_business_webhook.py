@@ -35,7 +35,10 @@ class BusinessWebhookTests(unittest.TestCase):
             return SimpleNamespace(
                 choices=[
                     SimpleNamespace(
-                        message=SimpleNamespace(content="Importe inventado: 999", tool_calls=[call])
+                        finish_reason="tool_calls",
+                        message=SimpleNamespace(
+                            content="Importe inventado: 999", tool_calls=[call]
+                        ),
                     )
                 ]
             )
