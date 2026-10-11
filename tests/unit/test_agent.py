@@ -75,6 +75,30 @@ class AssistantTests(unittest.TestCase):
         )
         self.assistant.db.query.assert_not_called()
 
+    def test_non_object_tool_arguments_are_rejected_without_crashing(self):
+        for arguments in (None, [], "saldo", 42):
+            with self.subTest(arguments=arguments):
+                self.assistant.client.chat.completions.create.side_effect = [
+                    self.completion(name="consultar_negocio", arguments=arguments),
+                    self.completion("Debe 999"),
+                ]
+                answer = self.assistant.answer("¿Cuánto debe Demo?")
+                self.assertIn("No obtuve resultados", answer)
+                self.assertNotIn("999", answer)
+        self.assistant.db.schema.assert_not_called()
+        self.assistant.db.query.assert_not_called()
+
+    def test_mixed_table_names_do_not_partially_execute_a_description(self):
+        self.assistant.client.chat.completions.create.side_effect = [
+            self.completion(
+                name="describir_tablas",
+                arguments={"tables": ["proadel.vw_alertascobranza", None]},
+            ),
+            self.completion(),
+        ]
+        self.assistant.answer("consulta")
+        self.assistant.db.schema.assert_not_called()
+
     def test_business_definitions_reach_model_without_changing_permissions(self):
         self.assistant.client.chat.completions.create.return_value = self.completion(
             "¿Ventas netas?"

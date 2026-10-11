@@ -1,5 +1,18 @@
 # Cambios
 
+## 0.3.1 — Claridad del agente y prompt v5
+
+- El bucle del agente delega consultas de negocio, inspección, SQL y presentación en
+  métodos explícitos de la misma clase. Sin nuevas capas ni dependencias.
+- Argumentos JSON que no son objetos y listas de tablas con elementos inválidos se
+  rechazan antes de acceder a la base; los límites y controles SQL se conservan.
+- Prompt v5 organizado por decisión, identidad, tiempo, alcance y exploración;
+  ejemplos sintéticos y descripciones precisas de herramientas. No añade operaciones.
+- Casos de evaluación para cambios de tema y reportes no soportados. La mejora de
+  interpretación requiere comparación con el modelo real; no se deduce de los mocks.
+- Los prompts locales existentes se conservan. Actualización y reversión en
+  `docs/prompt-design.md`.
+
 ## 0.3.0 — Proveedores LLM y prompts configurables
 
 - Perfiles TOML para OpenAI, GLM, Gemini, Claude y otros endpoints compatibles con OpenAI.

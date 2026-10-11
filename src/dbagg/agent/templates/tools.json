@@ -1,6 +1,6 @@
 {
-  "consultar_negocio": "Consulta verificada de clientes; devuelve una respuesta completa o pide elegir cliente.",
-  "pedir_aclaracion": "Pide una aclaración de negocio sin afirmar datos no consultados.",
-  "describir_tablas": "Lee columnas y tipos de uno a cinco objetos autorizados; no lee filas.",
-  "consultar_sql": "Exploración SELECT validada. No sirve para fuentes de clientes/cobranza verificadas."
+  "consultar_negocio": "Ejecuta una de cinco operaciones verificadas y devuelve la respuesta final: saldo actual, ranking_deuda global, pagos, ultimo_pago o total_pagos. Resuelve nombres/códigos y pide elegir ante homónimos; no necesita describir_tablas. customer debe venir de la conversación y se omite en ranking_deuda. Solo pagos y total_pagos admiten períodos. No soporta saldo histórico, comparación de clientes ni estado de cuenta completo.",
+  "pedir_aclaracion": "Termina el turno con una aclaración redactada por el servicio. Usa cliente o periodo si falta esa información; criterio para intención imprecisa o pedidos compuestos; comparacion para saldos de un grupo; escritura para modificar datos; fuera_alcance para reportes o filtros no soportados. No pide SQL ni nombres de tablas.",
+  "describir_tablas": "Lee columnas y tipos de uno a cinco objetos autorizados, sin filas. Requisito previo de consultar_sql para exploración; no se necesita para consultar_negocio. El esquema por sí solo no confirma fórmulas, relaciones ni significado contable.",
+  "consultar_sql": "Ejecuta un SELECT SQL Server validado sobre objetos autorizados previamente descritos. Solo exploración: no sustituye consultar_negocio ni permite catálogo de clientes/cobranza protegidos. No admite escrituras, CTE, hints ni destinos remotos. La salida es limitada; no sumar una muestra como si fuera el total. Tras obtener evidencia suficiente, finalizar sin más llamadas."
 }

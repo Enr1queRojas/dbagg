@@ -148,3 +148,6 @@ Referencias de los protocolos: [OpenAI](https://platform.openai.com/docs/api-ref
 [Gemini](https://ai.google.dev/gemini-api/docs/openai),
 [Z.ai](https://docs.z.ai/guides/overview/quick-start) y
 [Anthropic](https://platform.claude.com/docs/en/api/messages).
+
+Para probar el prompt v5, conservar tus ajustes y comparar respuestas, consulta
+[diseño y evaluación del prompt](prompt-design.md).
