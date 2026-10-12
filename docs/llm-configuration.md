@@ -125,7 +125,7 @@ excesivo produce un error; no se sustituye silenciosamente por instrucciones ant
 Puedes usar otras rutas mediante `[prompts] system_file` y `tools_file`, relativas al
 TOML o absolutas. Sin esas opciones se usan los recursos distribuidos del paquete.
 
-Cada respuesta conserva `customer-reports-v4:<huella>` calculada con el texto y las
+Cada respuesta conserva `customer-reports-v5:<huella>` calculada con el texto y las
 descripciones realmente cargadas. Las valoraciones `/buena` y `/mala` guardan también
 el modelo, proveedor y perfil seleccionados. La base SQLite existente recibe las dos
 columnas nuevas sin borrar registros, revisiones ni ejemplos aprobados; las entradas

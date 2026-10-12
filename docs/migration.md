@@ -1,108 +1,90 @@
-# Actualizar desde la estructura anterior
+# Actualizar una instalación existente
 
-## Antes de actualizar
+## Código y dependencias
 
-Cierra Uvicorn. Conserva una copia privada fuera del repositorio de tu `.env`, ajustes
-de negocio y cualquier reporte HTML que quieras guardar. Esta rama retira de Git los
-HTML generados que antes estaban versionados: al actualizar, Git puede quitar esas
-copias del directorio de trabajo. No se borra el historial anterior del repositorio.
+Detén Uvicorn. Revisa `git status` y conserva cambios locales, `.env`, contexto de negocio,
+prompts, valoraciones y reportes. No uses `reset --hard` ni sustituyas tus ajustes por ejemplos.
 
-Revisa `git status` y conserva tus cambios locales antes de hacer pull. No uses
-`reset --hard` ni sobrescribas tu configuración con los ejemplos.
-
-## Actualizar la instalación Windows
-
-Desde la raíz del proyecto, estando en la rama `refactor` (todavía sin integrar a `main`):
+Para una versión ya integrada, actualiza desde `main`:
 
 ```cmd
-git pull --ff-only origin refactor
+git switch main
+git pull --ff-only origin main
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
 .\.venv\Scripts\python.exe business_context.py
+.\.venv\Scripts\python.exe -m dbagg.llm check
+```
+
+Si estás probando un cambio pendiente, usa la rama indicada en ese PR. Las ramas históricas
+`refactor` y `feature/llm-config-providers` ya se integraron; no es necesario recrearlas.
+Los comandos `whatsapp_agent:create_app` y `python score_riesgo.py` siguen siendo compatibles.
+Node.js 24 se usa en las pruebas de presentación; no es necesario para ejecutar el backend.
+
+## Revisar residuos locales después de un merge
+
+Un merge retira archivos versionados, pero puede dejar carpetas que contienen cachés ignoradas.
+La implementación vigente vive en `src/dbagg/`; un `dbagg/` antiguo en la raíz no significa que
+existan dos versiones activas. Comprueba la importación:
+
+```cmd
+.\.venv\Scripts\python.exe -c "import dbagg; print(dbagg.__file__)"
+.\.venv\Scripts\python.exe scripts\clean_generated.py
+```
+
+La primera ruta debe apuntar al paquete instalado; en el checkout editable será `src/dbagg/`.
+La segunda orden solo muestra candidatos. Para retirar los residuos comprobados:
+
+```cmd
+.\.venv\Scripts\python.exe scripts\clean_generated.py --apply
+```
+
+El script revisa cachés en la raíz, `src/`, `tests/` y `scripts/`. Retira el `dbagg/` antiguo
+solo si contiene exclusivamente bytecode dentro de `__pycache__` o carpetas vacías, y `core/`
+solo si está vacío. Conserva candidatos con archivos versionados, enlaces/junctions o contenido
+no reconocido. Si Git no está disponible, no elimina nada. No examina `.venv`, `config`, `data`
+ni reportes. Los cachés se regeneran al ejecutar Python; su reaparición es normal.
+
+`build/`, `dist/`, los metadatos `*.egg-info` y reportes anteriores no se borran automáticamente:
+pueden contener artefactos de una publicación o estar en uso por una instalación editable.
+Un archivo ignorado no es necesariamente basura. Nunca uses `git clean -fdx` para este trabajo:
+también puede borrar claves, datos, entorno virtual y configuración local.
+
+Para auditar futuros archivos: comprueba si Git los versiona, busca referencias con `rg`, revisa
+entrypoints en `pyproject.toml`, recursos del paquete y pruebas antes de retirarlos. No basta
+que un archivo no tenga imports: plantillas, CLI y fixtures se cargan por otros mecanismos.
+
+## Configuración que se conserva
+
+- `.env` sigue en la raíz. Variables en [whatsapp-setup.md](whatsapp-setup.md).
+- `config/business_context.json` tiene prioridad sobre el archivo antiguo de la raíz.
+- `config/llm.toml` y `config/prompts/` son locales; un pull no actualiza su contenido.
+  Para cambiar a v5 conservando una reversión, sigue [prompt-design.md](prompt-design.md).
+- `data/feedback.sqlite3` contiene las valoraciones privadas; `reportes/` contiene HTML generado.
+- `DBAGG_HOME` selecciona otra raíz de datos/configuración para instalaciones fuera del checkout.
+
+Los scripts de la raíz son adaptadores pequeños, probados y todavía utilizados por los comandos
+anteriores. `src/dbagg/agent/templates/` contiene las plantillas distribuidas; `config/prompts/`
+contiene ajustes locales: tienen propósitos distintos. Los casos de `evals/` también se conservan.
+
+## Cambios de versiones anteriores
+
+Desde 0.2, el paquete vive en `src/dbagg/` y los reportes nuevos se generan en `reportes/`.
+Conserva una copia privada de los HTML antiguos que necesites: actualizar desde una versión
+que los tenía en Git puede retirarlos del directorio de trabajo. Las cinco operaciones de
+[negocio](business-queries.md) usan contratos verificados; no cambian por editar un prompt.
+
+Desde 0.3, `python -m dbagg.llm init` crea perfiles/prompts solo si no existen. Sin TOML local
+se mantiene OpenAI con `OPENAI_API_KEY` y `OPENAI_MODEL`. Reinicia para cambiar modelo, claves
+o rutas; las ediciones de texto del prompt se recargan por pregunta. Las valoraciones reciben
+columnas adicionales sin borrar registros anteriores. Consulta [llm-configuration.md](llm-configuration.md).
+
+## Volver a arrancar
+
+```cmd
 .\.venv\Scripts\python.exe -m uvicorn whatsapp_agent:create_app --factory --host 127.0.0.1 --port 8000 --workers 1 --no-access-log
 ```
 
-Una vez integrada la rama, actualiza desde `main`. Los comandos de Uvicorn y
-`python score_riesgo.py` se conservan. La plantilla y las reglas predeterminadas ahora
-se distribuyen dentro del paquete; no requieren rutas absolutas de tu PC.
-
-## Configuración y archivos locales
-
-- `.env` sigue en la raíz. Los nombres de las variables están en [whatsapp-setup.md](whatsapp-setup.md).
-- `business_context.json` de la raíz sigue funcionando. Los ajustes nuevos pueden ir
-  en `config/business_context.json`; este último tiene prioridad si existen ambos.
-- El reporte HTML predeterminado se genera en `reportes/score_riesgo.html`.
-- Las valoraciones están desactivadas por defecto. Agrega `FEEDBACK_ENABLED=true`
-  para habilitarlas. La base local se crea en `data/feedback.sqlite3` al usarla.
-- `DBAGG_HOME` permite elegir otro directorio para `.env`, ajustes y datos locales.
-  Si ejecutas desde el checkout no necesitas configurarlo.
-
-Si mantuviste Cloudflare abierto, conserva su URL actual. Si lo reiniciaste, actualiza
-la URL `/webhook` en Meta. Prueba `/diagnostico`, una consulta conocida y después
-`/buena` o `/mala motivo` si activaste las valoraciones.
-
-La reorganización de archivos no convierte los resultados anteriores en respuestas
-verificadas. Las nuevas operaciones se describen abajo. La evaluación requiere contrastarlos
-con el sistema de referencia, siguiendo [evaluation.md](evaluation.md).
-
-## Rama refactor: código dentro de src/
-
-La primera entrega mueve el paquete a `src/dbagg/`. El directorio exterior es el
-repositorio; el paquete Python vive solo dentro de `src/`. Reinstala después del pull:
-
-```cmd
-git switch refactor
-git pull --ff-only origin refactor
-.\.venv\Scripts\python.exe -c "import shutil; shutil.rmtree('dbagg.egg-info', ignore_errors=True)"
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe -m unittest discover -s tests -v
-```
-
-Si la rama aún no existe localmente, usa `git fetch origin` y
-`git switch --track origin/refactor`. `.env` continúa en la raíz y los comandos de
-Uvicorn y del reporte se conservan. Node.js 24 es necesario para ejecutar la prueba
-de presentación JavaScript; no se necesita para ejecutar el servicio Python.
-
-El comando de limpieza retira solo los metadatos generados por la instalación antigua
-en la raíz (`dbagg.egg-info`); no toca `.env` ni datos. Dejarlos después de mover a
-`src/` puede hacer que herramientas de Python informen la versión anterior. La nueva
-instalación genera sus metadatos dentro de `src/` y el entorno virtual.
-
-`core` no forma parte del repositorio. Si quedó vacía en tu PC, `rmdir core` la retira;
-si contiene archivos, ese comando no los elimina. Los directorios generados o archivos
-ignorados de instalaciones anteriores pueden permanecer localmente tras un pull.
-Un despliegue desde el wheel evita depender de esos residuos del checkout.
-
-Esta entrega también corrige saldos desconocidos, fechas de cobranza, límites TOP y
-valoración tras errores. Lee [refactor-roadmap.md](refactor-roadmap.md) para sus límites
-y validaciones pendientes contra la base real.
-
-## Segunda entrega: consultas verificadas
-
-La versión 0.2.2 mantiene la misma rama y comandos. Reinicia Uvicorn después de
-actualizar y reinstalar. No reemplaces `.env` ni el contexto local con ejemplos.
-`BUSINESS_TIMEZONE` es opcional y usa `America/Mexico_City` de forma predeterminada.
-
-El texto libre del modelo ya no se envía como respuesta financiera: saldos y pagos
-usan cinco [operaciones verificadas](business-queries.md), y otros objetos conservan
-una salida exploratoria. Cambios locales en fuentes, columnas o filtros de esas
-operaciones deben coincidir con el contrato del código; se informa cualquier diferencia.
-Prueba homónimos, selección de cliente, seguimiento y pagos de un período, comparando
-con el sistema de referencia. La cola persistente sigue pendiente.
-
-## Versión 0.3: perfiles y prompts
-
-La rama de este feature es `feature/llm-config-providers`, creada desde `main` después
-integrar `refactor`. Reinstala con `python -m pip install -r requirements.txt`.
-Los comandos anteriores del webhook se conservan.
-
-Sin TOML local se mantiene OpenAI con `OPENAI_API_KEY` y `OPENAI_MODEL`. Para habilitar
-configuración editable, ejecuta `python -m dbagg.llm init`, edita `config/llm.toml`
-y valida con `python -m dbagg.llm check`. El comando no reemplaza archivos existentes.
-Las claves siguen en `.env`; solo se requiere la del proveedor activo. Reinicia el
-servicio para cambiar perfil, modelo, rutas o claves. No necesitas reiniciar Cloudflare.
-
-Si tienes valoraciones locales, conserva su respaldo privado. Al acceder a la base,
-se agregan columnas `provider` y `profile` sin cambiar registros ni revisiones existentes.
-Las nuevas valoraciones incluyen también la huella del contenido de los prompts.
-Consulta [llm-configuration.md](llm-configuration.md) para precedencia y pruebas.
+Si Cloudflare siguió abierto, conserva la URL; si lo reiniciaste y cambió, actualiza `/webhook`
+en Meta. Prueba `/diagnostico`, una consulta conocida y su seguimiento. Contrasta los importes
+con el sistema de referencia; las pruebas locales no validan servicios externos.

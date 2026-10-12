@@ -1,5 +1,13 @@
 # Cambios
 
+## Sin publicar — Mantenimiento del checkout
+
+- Limpieza con vista previa de cachés y restos de la estructura antigua; conserva
+  archivos versionados, configuración, datos y enlaces.
+- Guías actualizadas para usar main o la rama del PR, sin instrucciones de recrear
+  ramas eliminadas; ejemplos de contexto apuntan a archivos vigentes.
+- CI ejecuta los pushes de todas las ramas, además de los pull requests.
+
 ## 0.3.1 — Claridad del agente y prompt v5
 
 - El bucle del agente delega consultas de negocio, inspección, SQL y presentación en

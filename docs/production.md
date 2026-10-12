@@ -1,7 +1,7 @@
 # Preparación para producción
 
 El código se distribuye como paquete Python, con implementación en `src/dbagg/`.
-La rama `refactor` es de estabilización: tener una estructura limpia y un wheel válido
+El proyecto sigue en estabilización: tener una estructura limpia y un wheel válido
 no confirma todavía entrega confiable ni exactitud financiera en producción.
 
 ## Construir un artefacto verificable

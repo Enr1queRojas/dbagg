@@ -2,7 +2,6 @@ name: checks
 on:
   pull_request:
   push:
-    branches: [main, whatsapp-openai, refactor]
 permissions:
   contents: read
 jobs:

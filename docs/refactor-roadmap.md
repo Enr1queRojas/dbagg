@@ -1,7 +1,8 @@
 # Refactor por entregas
 
-Base auditada: `4a55ebf`. Rama de trabajo: `refactor`. El responsable eligió comenzar
-por exactitud y regresiones; la siguiente entrega se revisa por separado.
+Base de la auditoría original: `4a55ebf`. Las entregas de `refactor` se integraron en
+`main`. Este documento conserva los hallazgos y pendientes; no indica una rama de
+instalación. Cada mejora nueva se revisa en su propio PR.
 
 | Hallazgo | Estado tras segunda entrega | Pendiente |
 | --- | --- | --- |
