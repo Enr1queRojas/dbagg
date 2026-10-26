@@ -21,6 +21,19 @@ from dbagg.business.evidence import BusinessError, render_exploratory
 
 logger = logging.getLogger("uvicorn.error")
 
+MAX_MODEL_ROUNDS = 9
+MAX_SQL_QUERIES = 4
+MAX_SCHEMA_REQUESTS = 4
+
+CLARIFICATIONS = {
+    "comparacion": COMPARISON_CLARIFICATION,
+    "cliente": "¿De qué cliente quieres consultar el saldo o los pagos? Indica su nombre o código.",
+    "periodo": "¿Qué período quieres consultar? Puedes indicar esta semana, este mes o un rango de fechas.",
+    "criterio": "Necesito precisar el concepto: ¿quieres saldo actual, pagos, último pago o un ranking de deuda?",
+    "escritura": "Solo puedo consultar información; no puedo modificar ni eliminar datos.",
+    "fuera_alcance": "Ese reporte todavía no tiene una definición de negocio verificada. Puedo ayudarte con saldos, pagos y rankings de deuda.",
+}
+
 
 def customer_in_conversation(customer, question, history):
     def normalize(value):
@@ -80,103 +93,40 @@ class Assistant:
         today = business_today(getattr(self.settings, "business_timezone", "America/Mexico_City"))
         messages = build_messages(schema, context, question, history, today=today, bundle=bundle)
         tools = tool_definitions(bundle)
-        attempts, descriptions, successful = 0, 0, 0
+        attempts, descriptions = 0, 0
         described = set()
         latest_result = None
         latest_sources = []
-        for _ in range(9):
+        for _ in range(MAX_MODEL_ROUNDS):
             message = self.provider.complete(messages, tools)
             calls = message.tool_calls
             if not calls:
-                logger.info(
-                    "dbagg stage=%s", "answer_ready" if successful else "clarification_no_query"
-                )
-                if latest_result is not None:
-                    self.last_trace.update(status="exploratory", sources=latest_sources)
-                    try:
-                        return render_exploratory(latest_result)
-                    except BusinessError as exc:
-                        self.last_trace.update(status="unavailable", sources=[])
-                        return str(exc)
-                self.last_trace.update(status="needs_clarification", sources=[])
-                return "No obtuve resultados para respaldar una respuesta. ¿Qué cliente o reporte quieres consultar? Puedo consultar saldos, pagos y rankings; no modificar datos."
+                return self._finish_exploration(latest_result, latest_sources)
             messages.append(message.history_message)
             for call in calls:
                 try:
                     if call.name in {"consultar_negocio", "consultar_sql"}:
                         latest_result, latest_sources = None, []
                     arguments = json.loads(call.arguments)
+                    if not isinstance(arguments, dict):
+                        raise ValueError("Los argumentos deben ser un objeto JSON.")
                     if call.name == "consultar_negocio":
-                        validate_context(context, arguments.get("operation"))
-                        if arguments.get(
-                            "operation"
-                        ) != "ranking_deuda" and not customer_in_conversation(
-                            arguments.get("customer"), question, history
-                        ):
-                            raise BusinessError(
-                                "No pude vincular ese cliente con la conversación. Indica su nombre o código."
-                            )
-                        answer = CustomerQueries(
-                            self.db, self.settings.tables, today=today
-                        ).execute(**arguments)
-                        self.last_trace.update(
-                            status=answer.status,
-                            operation=answer.operation,
-                            sources=answer.sources,
-                            evidence_id=answer.evidence_id,
-                        )
-                        logger.info("dbagg stage=business_answer status=%s", answer.status)
-                        return answer.text
+                        return self._consult_business(arguments, context, question, history, today)
                     elif call.name == "pedir_aclaracion":
-                        prompts = {
-                            "comparacion": COMPARISON_CLARIFICATION,
-                            "cliente": "¿De qué cliente quieres consultar el saldo o los pagos? Indica su nombre o código.",
-                            "periodo": "¿Qué período quieres consultar? Puedes indicar esta semana, este mes o un rango de fechas.",
-                            "criterio": "Necesito precisar el concepto: ¿quieres saldo actual, pagos, último pago o un ranking de deuda?",
-                            "escritura": "Solo puedo consultar información; no puedo modificar ni eliminar datos.",
-                            "fuera_alcance": "Ese reporte todavía no tiene una definición de negocio verificada. Puedo ayudarte con saldos, pagos y rankings de deuda.",
-                        }
+                        text = CLARIFICATIONS[arguments["reason"]]
                         self.last_trace.update(status="needs_clarification", sources=[])
-                        return prompts[arguments["reason"]]
+                        return text
                     elif call.name == "describir_tablas":
                         descriptions += 1
-                        selected = arguments["tables"]
-                        if (
-                            descriptions > 4
-                            or not isinstance(selected, list)
-                            or not 1 <= len(selected) <= 5
-                        ):
+                        if descriptions > MAX_SCHEMA_REQUESTS:
                             raise ValueError("Límite de descripciones alcanzado.")
-                        selected = [t.lower() for t in selected if isinstance(t, str)]
-                        if not selected or not set(selected).issubset(self.settings.tables):
-                            raise ValueError("Objetos no autorizados.")
-                        logger.info("dbagg stage=schema_start")
-                        result = json.loads(self.db.schema(selected))
-                        described.update(selected)
-                        logger.info("dbagg stage=schema_ok")
+                        result = self._describe_tables(arguments["tables"], described)
                     elif call.name == "consultar_sql":
                         attempts += 1
-                        if attempts > 4:
+                        if attempts > MAX_SQL_QUERIES:
                             raise ValueError("Límite de consultas alcanzado.")
-                        sql = validate_sql(arguments["sql"], self.settings.tables)
-                        referenced = {
-                            f"{t.db}.{t.name}".lower()
-                            for t in sqlglot.parse_one(sql, read="tsql").find_all(exp.Table)
-                        }
-                        if referenced & PROTECTED_SOURCES:
-                            raise ValueError(
-                                "Estas fuentes requieren las operaciones de negocio verificadas."
-                            )
-                        if not referenced.issubset(described):
-                            raise ValueError(
-                                "Primero inspecciona las columnas de los objetos usados."
-                            )
-                        logger.info("dbagg stage=sql_validated")
-                        result = self.db.query(sql)
+                        result, latest_sources = self._query_sql(arguments["sql"], described)
                         latest_result = result
-                        latest_sources = sorted(referenced)
-                        successful += 1
-                        logger.info("dbagg stage=query_ok")
                     else:
                         raise ValueError("Herramienta no autorizada.")
                 except BusinessError as exc:
@@ -205,3 +155,63 @@ class Assistant:
                 )
         self.last_trace.update(status="needs_clarification", sources=[])
         return "No pude resolver la pregunta dentro del límite de consultas. ¿Puedes precisar el nombre o período?"
+
+    def _consult_business(self, arguments, context, question, history, today):
+        validate_context(context, arguments.get("operation"))
+        if arguments.get("operation") != "ranking_deuda" and not customer_in_conversation(
+            arguments.get("customer"), question, history
+        ):
+            raise BusinessError(
+                "No pude vincular ese cliente con la conversación. Indica su nombre o código."
+            )
+        answer = CustomerQueries(self.db, self.settings.tables, today=today).execute(**arguments)
+        self.last_trace.update(
+            status=answer.status,
+            operation=answer.operation,
+            sources=answer.sources,
+            evidence_id=answer.evidence_id,
+        )
+        logger.info("dbagg stage=business_answer status=%s", answer.status)
+        return answer.text
+
+    def _describe_tables(self, selected, described):
+        if not isinstance(selected, list) or not 1 <= len(selected) <= 5:
+            raise ValueError("Describe entre uno y cinco objetos.")
+        if any(not isinstance(table, str) for table in selected):
+            raise ValueError("Los nombres de objetos deben ser texto.")
+        selected = [table.lower() for table in selected]
+        if not set(selected).issubset(self.settings.tables):
+            raise ValueError("Objetos no autorizados.")
+        logger.info("dbagg stage=schema_start")
+        result = json.loads(self.db.schema(selected))
+        described.update(selected)
+        logger.info("dbagg stage=schema_ok")
+        return result
+
+    def _query_sql(self, statement, described):
+        sql = validate_sql(statement, self.settings.tables)
+        referenced = {
+            f"{table.db}.{table.name}".lower()
+            for table in sqlglot.parse_one(sql, read="tsql").find_all(exp.Table)
+        }
+        if referenced & PROTECTED_SOURCES:
+            raise ValueError("Estas fuentes requieren las operaciones de negocio verificadas.")
+        if not referenced.issubset(described):
+            raise ValueError("Primero inspecciona las columnas de los objetos usados.")
+        logger.info("dbagg stage=sql_validated")
+        result = self.db.query(sql)
+        logger.info("dbagg stage=query_ok")
+        return result, sorted(referenced)
+
+    def _finish_exploration(self, result, sources):
+        if result is None:
+            logger.info("dbagg stage=clarification_no_query")
+            self.last_trace.update(status="needs_clarification", sources=[])
+            return "No obtuve resultados para respaldar una respuesta. ¿Qué cliente o reporte quieres consultar? Puedo consultar saldos, pagos y rankings; no modificar datos."
+        logger.info("dbagg stage=answer_ready")
+        self.last_trace.update(status="exploratory", sources=sources)
+        try:
+            return render_exploratory(result)
+        except BusinessError as exc:
+            self.last_trace.update(status="unavailable", sources=[])
+            return str(exc)

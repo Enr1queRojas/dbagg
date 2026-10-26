@@ -1,10 +1,10 @@
 # Consultas de negocio verificadas
 
-La segunda entrega de `refactor` incorpora contratos de consulta en
+El agente aplica contratos de consulta en
 `src/dbagg/business/`. El modelo interpreta la intención y propone parámetros; el
 código comprueba permisos, columnas, identidad y resultados, y redacta importes y
 fechas directamente desde las filas. El texto libre del modelo nunca se entrega como
-respuesta financiera. Versión del prompt: `customer-reports-v4:<huella del contenido>`.
+respuesta financiera. Versión del prompt: `customer-reports-v5:<huella del contenido>`.
 
 ## Operaciones disponibles
 
@@ -96,7 +96,7 @@ SQLite ejecuta consultas traducidas para verificar selección y agregación; dob
 ODBC comprueban parámetros y recortes. Esto **no acredita** compatibilidad del SQL Server
 remoto, su collation, conversión de texto ni interpretación del modelo real.
 
-Desde la PC autorizada, después de actualizar `refactor` y reiniciar el servicio:
+Desde la PC autorizada, después de actualizar la versión instalada y reiniciar el servicio:
 
 1. `/reiniciar` y `/diagnostico`.
 2. Consultar un cliente conocido y comparar código y saldo con el sistema de referencia.

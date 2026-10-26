@@ -125,7 +125,7 @@ excesivo produce un error; no se sustituye silenciosamente por instrucciones ant
 Puedes usar otras rutas mediante `[prompts] system_file` y `tools_file`, relativas al
 TOML o absolutas. Sin esas opciones se usan los recursos distribuidos del paquete.
 
-Cada respuesta conserva `customer-reports-v4:<huella>` calculada con el texto y las
+Cada respuesta conserva `customer-reports-v5:<huella>` calculada con el texto y las
 descripciones realmente cargadas. Las valoraciones `/buena` y `/mala` guardan también
 el modelo, proveedor y perfil seleccionados. La base SQLite existente recibe las dos
 columnas nuevas sin borrar registros, revisiones ni ejemplos aprobados; las entradas
@@ -148,3 +148,6 @@ Referencias de los protocolos: [OpenAI](https://platform.openai.com/docs/api-ref
 [Gemini](https://ai.google.dev/gemini-api/docs/openai),
 [Z.ai](https://docs.z.ai/guides/overview/quick-start) y
 [Anthropic](https://platform.claude.com/docs/en/api/messages).
+
+Para probar el prompt v5, conservar tus ajustes y comparar respuestas, consulta
+[diseño y evaluación del prompt](prompt-design.md).

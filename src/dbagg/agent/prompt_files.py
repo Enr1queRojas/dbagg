@@ -5,7 +5,7 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
-PROMPT_VERSION = "customer-reports-v4"
+PROMPT_VERSION = "customer-reports-v5"
 TOOL_NAMES = frozenset(
     {"consultar_negocio", "pedir_aclaracion", "describir_tablas", "consultar_sql"}
 )

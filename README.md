@@ -88,3 +88,10 @@ En Linux usa `.venv/bin/python`. CI configura estas verificaciones con Python 3.
 el servicio Python no lo requiere. Las pruebas simulan SQL, OpenAI y Meta; la conectividad y exactitud con datos
 reales se validan por separado desde la PC autorizada. El piloto conserva memoria en
 un solo proceso y requiere `--workers 1`.
+
+## Mantenimiento del checkout
+
+`python scripts/clean_generated.py` muestra cachés y carpetas antiguas vacías que pueden
+retirarse. Con el backend detenido, `--apply` elimina solo candidatos comprobados.
+No limpia configuración, reportes, valoraciones ni el entorno virtual. Consulta
+[actualización y limpieza](docs/migration.md) para distinguir residuos de archivos activos.
