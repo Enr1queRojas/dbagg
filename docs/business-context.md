@@ -18,8 +18,13 @@ directamente desde SQL. Otros reportes siguen requiriendo definiciones verificad
 | ¿Cuánto compramos o debemos a proveedores? | `proadel.REP_COMPRAS`, `proadel.CATALOGO_PROVEEDORES_DATA_V` | Candidatas por nombre; compras, pagos y saldo son métricas distintas. |
 | ¿Qué clientes tienen riesgo? | `score_riesgo.py` | Cálculo del reporte; todavía no disponible como herramienta de WhatsApp. |
 
+| ¿Cuánto gastamos? ¿En qué categoría? | `proadel.GASTOS_DATA` y totales `TOTAL_GASTOS_*_V` | Candidatas; columnas comprobadas en metadatos (`FECHA` es texto). Estados válidos y corte pendientes. |
+| ¿Qué existencias hay? (inventario propio) | `proadel.ALMACENES_DISPONIBLES_V`, `CATALOGO_PRODUCTOS_DATA_V`, `CATALOGO_INSUMOS_DATA_V` | Candidatas; tienen `EXISTENCIAS`/`SALDO ACTUAL` y `UNIDAD`. Pueden repetir el mismo stock: no sumar entre vistas. |
+
 Las herramientas siguen obligadas a inspeccionar columnas y consultar solo los objetos de
-`SQL_ALLOWED_TABLES`. Un nombre sugerido en el contexto no habilita permisos.
+`SQL_ALLOWED_TABLES` que también estén en el catálogo de fuentes
+(`src/dbagg/database/catalog.json`, ver [architecture.md](architecture.md)). Un nombre
+sugerido en este contexto no habilita permisos; el catálogo sí lo limita en código.
 Los objetos de importación, temporales e históricos no se usan como fuente preferida
 para responder totales vigentes.
 

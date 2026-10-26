@@ -28,8 +28,30 @@ def _literal_limit(select):
     return count
 
 
-def validate_sql(sql, allowed_tables):
-    """Conservative SQL subset; DB permissions are the final security boundary."""
+def _check_catalog(tree, tables, catalog):
+    """Column and join policy from the source catalogue."""
+    referenced = {f"{t.db}.{t.name}".lower() for t in tables}
+    if not catalog.join_allowed(referenced):
+        raise ValueError(
+            "Combinar estos objetos no está autorizado; consulta cada uno por separado."
+        )
+    for node in tree.walk():
+        if isinstance(node, exp.Star) and not isinstance(node.parent, exp.Count):
+            raise ValueError("Indica columnas explícitas; SELECT * no está permitido.")
+    aliases = {a.alias.lower() for a in tree.find_all(exp.Alias) if a.alias}
+    allowed = catalog.allowed_columns(referenced)
+    for column in tree.find_all(exp.Column):
+        name = column.name.lower()
+        if name not in allowed and name not in aliases:
+            raise ValueError("Columna no autorizada para este objeto.")
+
+
+def validate_sql(sql, allowed_tables, catalog=None):
+    """Conservative SQL subset; DB permissions are the final security boundary.
+
+    With a catalogue, also restrict columns to the catalogued ones and joins to
+    declared relationships.
+    """
     if not isinstance(sql, str) or len(sql) > 8000:
         raise ValueError("Consulta inválida.")
     statements = sqlglot.parse(sql, read="tsql")
@@ -64,6 +86,8 @@ def validate_sql(sql, allowed_tables):
             or table.args.get("hints")
         ):
             raise ValueError("Tabla, destino remoto o hint no autorizado.")
+    if catalog is not None:
+        _check_catalog(tree, tables, catalog)
     for node in tree.walk():
         if isinstance(node, exp.Func) and node.sql_name() not in {
             "AND",

@@ -47,6 +47,36 @@ proveedor: la configuración seleccionada se mantiene durante la solicitud.
 Las claves se resuelven por nombre de variable. El archivo se carga al arrancar;
 los textos se recargan por pregunta. Herramientas y validaciones permanecen en código.
 
+## Catálogo de fuentes SQL
+
+El acceso SQL del agente se controla por capas, todas fuera del modelo:
+
+| Capa | Control | Ubicación |
+| --- | --- | --- |
+| Permisos | Cuenta SQL de solo lectura; restringirla a los objetos del catálogo sigue pendiente con el DBA | SQL Server |
+| Catálogo | Fuente, dominio, estado (`verified`/`candidate`), acceso y columnas permitidas | `database/catalog.json` |
+| Allowlist | `SQL_ALLOWED_TABLES` ∩ catálogo; el `.env` acota, nunca amplía | `config.py` |
+| Prompt | Fichas por dominio (clientes, gastos, inventarios) en lugar de nombres sueltos | `agent/service.py` |
+| Validación | Un objeto por consulta salvo relación declarada; columnas explícitas del catálogo; sin `SELECT *` | `database/validation.py` |
+| Contratos | `business_tool`: solo mediante `consultar_negocio` | `business/customers.py` |
+
+`describir_tablas` devuelve solo las columnas catalogadas. Direcciones, teléfonos,
+responsables de captura y choferes no se catalogan. `joins` está vacío: ninguna relación
+entre objetos está confirmada, así que cada objeto se consulta por separado.
+`last_trace.catalog_version` registra la huella del catálogo usado.
+
+Las columnas proceden de metadatos de SQL Server (`INFORMATION_SCHEMA`, 2026-10-26); su
+existencia está comprobada, su significado no. Las fuentes `candidate` responden con la
+etiqueta exploratoria. Para añadir o confirmar una fuente: describir la pregunta de
+negocio, editar `catalog.json`, ajustar `tests/unit/test_catalog.py` y, si cambia el
+contrato del prompt, `PROMPT_VERSION`.
+
+Valor recomendado de `SQL_ALLOWED_TABLES` (los 26 objetos catalogados, una línea):
+
+```text
+proadel.CATALOGO_CLIENTES_DATA_V,proadel.COBRANZA_DATA,proadel.CREDITO_DATA,proadel.CONTADO_DATA,proadel.DEV_VENTA_DATA,proadel.RESUMEN_COBRANZA_V,proadel.vw_AlertasCobranza,proadel.TOTAL_CREDITO_CLIENTES_V,proadel.TOTAL_COBRANZA_CLIENTES_V,proadel.TOTAL_DEV_VENTA_CLIENTES_V,proadel.VENTAS_DIARIAS_V,proadel.FRECUENCIA_PEDIDOS_V,proadel.ULTIMO_PEDIDO_PRODUCTO_V,proadel.PROYECCION_AGOTAMIENTO_PRODUCTO_V,proadel.RESUMEN_CONSUMO_MAIZ,proadel.PROXIMA_COMPRA_MAIZ_V,proadel.GASTOS_DATA,proadel.CATALOGO_GASTOS_DATA_V,proadel.TOTAL_GASTOS_GASTOS_V,proadel.TOTAL_GASTOS_BANCOS_V,proadel.ALMACENES_DISPONIBLES_V,proadel.CATALOGO_PRODUCTOS_DATA_V,proadel.CATALOGO_INSUMOS_DATA_V,proadel.TOTAL_PROCESOS_PRODUCTOS_V,proadel.TOTAL_PROCESOS_PRODUCTOS_ENTRADAS_V,proadel.TOTAL_PROCESOS_PRODUCTOS_SALIDAS_V
+```
+
 ## Configuración y archivos
 
 La raíz del checkout contiene `.env`. `DBAGG_HOME` permite seleccionar otra raíz para

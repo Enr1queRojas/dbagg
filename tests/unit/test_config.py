@@ -15,7 +15,7 @@ class TLSSettingsTests(unittest.TestCase):
             META_PHONE_NUMBER_ID="123",
             META_GRAPH_VERSION="v25.0",
             WHATSAPP_ALLOWED_NUMBERS="5215555555555",
-            SQL_ALLOWED_TABLES="proadel.demo",
+            SQL_ALLOWED_TABLES="proadel.gastos_data",
             DB_CONNECTION_STRING=f"DRIVER={{test}};Encrypt={encrypt};TrustServerCertificate={trust};",
             DB_ALLOW_UNVERIFIED_TLS=opt_in,
             BUSINESS_TIMEZONE=timezone,

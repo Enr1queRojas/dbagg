@@ -38,7 +38,10 @@ sincronices las credenciales con otras personas mediante OneDrive.
   `TrustServerCertificate=no`. El servicio no usa el fallback del generador de
   reportes que desactiva la verificación de certificado. Si falla TLS, corrige
   el nombre/cadena de confianza del certificado con el proveedor.
-- `SQL_ALLOWED_TABLES`: lista explícita `schema.objeto` separada por comas.
+- `SQL_ALLOWED_TABLES`: lista explícita `schema.objeto` separada por comas. Solo puede
+  acotar el catálogo de fuentes (`src/dbagg/database/catalog.json`); los objetos fuera del
+  catálogo se ignoran con una advertencia al arrancar. Consulta
+  [architecture.md](architecture.md#catálogo-de-fuentes-sql) para el valor recomendado.
   Prefiere vistas dedicadas que solo expongan columnas aptas para WhatsApp.
   No añadas tablas de contraseñas, tarjetas, datos personales innecesarios o
   información que no deba salir de la organización.
