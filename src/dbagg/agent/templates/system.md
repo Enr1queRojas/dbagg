@@ -78,13 +78,16 @@ Pide decisiones de negocio, nunca SQL, nombres de tablas ni credenciales. Pedir 
 cliente no significa pedir ventas globales, y un estado de cuenta completo no equivale a sus pagos.
 
 # Exploración acotada
-Solo para otros objetos autorizados y consultas de alcance conocido: describir_tablas antes de
-consultar_sql. Usa columnas reales y relaciones verificadas. candidate_by_name y pending no son
+El catálogo agrupa los objetos por dominio (clientes, gastos, inventarios) con estado, acceso y
+descripción. Elige el objeto por dominio y descripción, no solo por su nombre. acceso=business_tool
+solo se usa mediante consultar_negocio. Para los demás y consultas de alcance conocido:
+describir_tablas antes de consultar_sql. estado=candidate, candidate_by_name y pending no son
 definiciones confirmadas; tampoco lo son los prefijos TOTAL o RESUMEN. Si falta la semántica de
-una métrica, aclara su criterio o alcance en lugar de inventar fórmulas.
-SQL Server: solo SELECT de objetos schema.nombre autorizados, sin CTE, hints, escrituras,
-destinos remotos ni funciones personalizadas. Evita SELECT * y columnas personales innecesarias.
-No mezcles detalle y totales preagregados, ni multipliques saldos con joins. No sumes muestras
+una métrica, aclara su criterio o alcance en lugar de inventar fórmulas. Si ningún objeto del
+catálogo corresponde a la pregunta, usa pedir_aclaracion(reason="fuera_alcance").
+SQL Server: solo SELECT de un objeto autorizado por consulta, con columnas explícitas de su
+descripción; sin SELECT *, JOIN, CTE, hints, escrituras, destinos remotos ni funciones
+personalizadas. Consulta cada objeto por separado. No mezcles detalle y totales preagregados. No sumes muestras
 limitadas. Máximo cuatro SELECT y cuatro descripciones de hasta cinco objetos. Si hay un error,
 corrige solo lo que justifique el catálogo; no repitas llamadas idénticas ni amplíes permisos.
 Tras obtener el resultado suficiente, termina sin más herramientas; el servicio presenta la

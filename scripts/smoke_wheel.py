@@ -33,14 +33,16 @@ assert project_root() == Path.cwd()
 assert 'customer_balance' in json.loads(load_business_context())['topics']
 validate_context(load_business_context(), 'ultimo_pago')
 assert business_today('America/Mexico_City')
-assert PROMPT_VERSION == 'customer-reports-v5'
+assert PROMPT_VERSION == 'catalog-domains-v6'
+from dbagg.database.catalog import load_catalog
+assert load_catalog().restrict({'proadel.gastos_data', 'proadel.rentas_data'}) == {'proadel.gastos_data'}
 from dbagg.llm.__main__ import initialize
 from dbagg.llm.config import load_llm_config
 from dbagg.agent.prompt_files import load_prompt_bundle
 initialize(Path.cwd())
 llm_config = load_llm_config(environ={})
 assert llm_config.profile.provider == 'openai'
-assert load_prompt_bundle(llm_config).version.startswith('customer-reports-v5:')
+assert load_prompt_bundle(llm_config).version.startswith('catalog-domains-v6:')
 assert 'consultar_negocio' in {t['function']['name'] for t in tool_definitions()}
 columns = ['cliente','D','n_pagos','fuente','segmento','P_tipico','d_tipico','t','C','R','score','dias_liquidar','semaforo']
 output = generar_html(pd.DataFrame(columns=columns))
@@ -57,7 +59,7 @@ with TestClient(create_app(settings, assistant, deliver)) as client:
     assert client.post('/webhook', content=body, headers={'x-hub-signature-256':signature}).status_code == 200
     assert 'Diagnóstico del webhook correcto' in deliver.call_args.args[1]
     assistant.answer.assert_not_called()
-print('Wheel OK: import, configuration root, context, HTML/JS and signed webhook.')
+print('Wheel OK: import, configuration root, context, SQL catalogue, HTML/JS and signed webhook.')
 """
 
 

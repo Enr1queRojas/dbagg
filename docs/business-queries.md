@@ -4,7 +4,7 @@ El agente aplica contratos de consulta en
 `src/dbagg/business/`. El modelo interpreta la intención y propone parámetros; el
 código comprueba permisos, columnas, identidad y resultados, y redacta importes y
 fechas directamente desde las filas. El texto libre del modelo nunca se entrega como
-respuesta financiera. Versión del prompt: `customer-reports-v5:<huella del contenido>`.
+respuesta financiera. Versión del prompt: `catalog-domains-v6:<huella del contenido>`.
 
 ## Operaciones disponibles
 

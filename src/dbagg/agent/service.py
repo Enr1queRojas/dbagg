@@ -7,6 +7,7 @@ import unicodedata
 import pyodbc
 import sqlglot
 from sqlglot import exp
+from dbagg.database.catalog import load_catalog
 from dbagg.database.client import Database
 from dbagg.database.validation import validate_sql
 from dbagg.context.loader import load_business_context, context_version
@@ -70,12 +71,18 @@ class Assistant:
         )
         # Compatibility for tests/extensions that inject an OpenAI-compatible client.
         self.client = client
+        self.catalog = load_catalog()
+
+    @property
+    def tables(self):
+        """Configured objects, never beyond the source catalogue."""
+        return self.catalog.restrict(self.settings.tables)
 
     def close(self):
         self.provider.close()
 
     def answer(self, question, history=None):
-        schema = json.dumps(sorted(self.settings.tables), ensure_ascii=False)
+        schema = json.dumps(self.catalog.cards(self.tables), ensure_ascii=False)
         logger.info("dbagg stage=catalogue_ready")
         context = load_business_context()
         bundle = load_prompt_bundle(self.llm_config)
@@ -83,6 +90,7 @@ class Assistant:
         self.last_trace = {
             "context_version": context_version(context),
             "prompt_version": bundle.version,
+            "catalog_version": self.catalog.version,
             "provider": profile.provider,
             "profile": profile.name,
             "model": profile.model,
@@ -136,7 +144,8 @@ class Assistant:
                     logger.info("dbagg stage=sql_rejected")
                     result = {
                         "error": "Solicitud rechazada. Describe entre uno y cinco objetos autorizados "
-                        "antes de consultar; usa solo SELECT y columnas del catálogo, sin CTE, "
+                        "antes de consultar; usa solo SELECT de un objeto con columnas explícitas "
+                        "de su descripción, sin SELECT *, JOIN no declarado, CTE, "
                         "hints ni funciones no aprobadas. Para catálogo de clientes y cobranza usa consultar_negocio. "
                         "Máximo cuatro descripciones y cuatro SELECT."
                     }
@@ -164,7 +173,7 @@ class Assistant:
             raise BusinessError(
                 "No pude vincular ese cliente con la conversación. Indica su nombre o código."
             )
-        answer = CustomerQueries(self.db, self.settings.tables, today=today).execute(**arguments)
+        answer = CustomerQueries(self.db, self.tables, today=today).execute(**arguments)
         self.last_trace.update(
             status=answer.status,
             operation=answer.operation,
@@ -180,16 +189,16 @@ class Assistant:
         if any(not isinstance(table, str) for table in selected):
             raise ValueError("Los nombres de objetos deben ser texto.")
         selected = [table.lower() for table in selected]
-        if not set(selected).issubset(self.settings.tables):
+        if not set(selected).issubset(self.tables):
             raise ValueError("Objetos no autorizados.")
         logger.info("dbagg stage=schema_start")
-        result = json.loads(self.db.schema(selected))
+        result = self.catalog.filter_schema(json.loads(self.db.schema(selected)))
         described.update(selected)
         logger.info("dbagg stage=schema_ok")
         return result
 
     def _query_sql(self, statement, described):
-        sql = validate_sql(statement, self.settings.tables)
+        sql = validate_sql(statement, self.tables, self.catalog)
         referenced = {
             f"{table.db}.{table.name}".lower()
             for table in sqlglot.parse_one(sql, read="tsql").find_all(exp.Table)

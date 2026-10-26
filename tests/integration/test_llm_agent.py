@@ -76,7 +76,7 @@ class ProviderAgentTests(unittest.TestCase):
                 self.assertEqual(assistant.last_trace["provider"], provider)
                 self.assertEqual(assistant.last_trace["model"], "test-model")
                 self.assertTrue(
-                    assistant.last_trace["prompt_version"].startswith("customer-reports-v5:")
+                    assistant.last_trace["prompt_version"].startswith("catalog-domains-v6:")
                 )
                 self.assertTrue(db.calls)
 
