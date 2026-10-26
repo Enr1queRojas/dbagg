@@ -184,6 +184,44 @@ class CatalogAgentTests(unittest.TestCase):
         self.assertNotIn("RENTAS_DATA", prompt)
         self.assertTrue(assistant.last_trace["catalog_version"].startswith("catalog-v1:"))
 
+    def test_inventory_question_is_explored_and_marked_exploratory(self):
+        assistant = Assistant(
+            SimpleNamespace(model="test", tables={ALMACEN, CLIENTES}), db=Mock(), client=Mock()
+        )
+        assistant.db.schema.return_value = json.dumps(
+            [
+                {
+                    "table": ALMACEN,
+                    "columns": [
+                        {"name": n, "type": "nvarchar"}
+                        for n in ("CODIGO", "DESCRIPCION", "UNIDAD", "EXISTENCIAS", "PRECIO")
+                    ],
+                }
+            ]
+        )
+        assistant.db.query.return_value = {
+            "columns": ["DESCRIPCION", "UNIDAD", "EXISTENCIAS", "PRECIO"],
+            "rows": [["MAIZ DEMO", "KG", "1200", "5.50"]],
+        }
+        create = assistant.client.chat.completions.create
+        create.side_effect = [
+            self.completion(name="describir_tablas", arguments={"tables": [ALMACEN]}),
+            self.completion(
+                name="consultar_sql",
+                arguments={
+                    "sql": "SELECT DESCRIPCION, UNIDAD, EXISTENCIAS, PRECIO "
+                    "FROM proadel.ALMACENES_DISPONIBLES_V "
+                    "WHERE UPPER(DESCRIPCION) LIKE '%MA_Z%'"
+                },
+            ),
+            self.completion("Hay 1200 kg"),
+        ]
+        answer = assistant.answer("¿cuál es el monto del inventario del maíz?")
+        self.assertIn("MAIZ DEMO", answer)
+        self.assertIn("requiere revisión", answer)
+        self.assertIn("TOP 50", assistant.db.query.call_args.args[0])
+        self.assertEqual(assistant.last_trace["sources"], [ALMACEN])
+
     def test_described_columns_exclude_personal_data(self):
         assistant = Assistant(
             SimpleNamespace(model="test", tables={CLIENTES, GASTOS}), db=Mock(), client=Mock()

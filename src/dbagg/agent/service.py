@@ -15,7 +15,12 @@ from dbagg.agent.prompts import build_messages, tool_definitions
 from dbagg.agent.prompt_files import load_prompt_bundle
 from dbagg.llm.config import LLMConfig, ModelProfile
 from dbagg.llm.providers import create_provider
-from dbagg.agent.intent import requests_candidate_comparison, COMPARISON_CLARIFICATION
+from dbagg.agent.intent import (
+    COMPARISON_CLARIFICATION,
+    RANKING_HINT,
+    requests_candidate_comparison,
+    requests_ranking,
+)
 from dbagg.business.calendar import business_today
 from dbagg.business.customers import CustomerQueries, PROTECTED_SOURCES, validate_context
 from dbagg.business.evidence import BusinessError, render_exploratory
@@ -26,13 +31,18 @@ MAX_MODEL_ROUNDS = 9
 MAX_SQL_QUERIES = 4
 MAX_SCHEMA_REQUESTS = 4
 
+
+class ToolHint(Exception):
+    """Rejected tool choice that the model may correct in the next round."""
+
+
 CLARIFICATIONS = {
     "comparacion": COMPARISON_CLARIFICATION,
     "cliente": "¿De qué cliente quieres consultar el saldo o los pagos? Indica su nombre o código.",
     "periodo": "¿Qué período quieres consultar? Puedes indicar esta semana, este mes o un rango de fechas.",
-    "criterio": "Necesito precisar el concepto: ¿quieres saldo actual, pagos, último pago o un ranking de deuda?",
+    "criterio": "Necesito precisar el concepto. De clientes: saldo actual, saldos de varios clientes con un nombre, pagos, último pago o ranking de deuda. También puedo consultar existencias de inventario y gastos registrados. ¿Qué quieres revisar?",
     "escritura": "Solo puedo consultar información; no puedo modificar ni eliminar datos.",
-    "fuera_alcance": "Ese reporte todavía no tiene una definición de negocio verificada. Puedo ayudarte con saldos, pagos y rankings de deuda.",
+    "fuera_alcance": "Ese reporte todavía no tiene una definición de negocio verificada. Puedo ayudarte con saldos, pagos y rankings de deuda, y consultar existencias de inventario y gastos.",
 }
 
 
@@ -137,6 +147,8 @@ class Assistant:
                         latest_result = result
                     else:
                         raise ValueError("Herramienta no autorizada.")
+                except ToolHint as exc:
+                    result = {"error": str(exc)}
                 except BusinessError as exc:
                     self.last_trace.update(status="unavailable", sources=[])
                     return str(exc)
@@ -167,6 +179,9 @@ class Assistant:
 
     def _consult_business(self, arguments, context, question, history, today):
         validate_context(context, arguments.get("operation"))
+        if arguments.get("operation") == "ranking_deuda" and not requests_ranking(question):
+            logger.info("dbagg stage=ranking_not_requested")
+            raise ToolHint(RANKING_HINT)
         if arguments.get("operation") != "ranking_deuda" and not customer_in_conversation(
             arguments.get("customer"), question, history
         ):

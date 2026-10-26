@@ -11,6 +11,10 @@
 - El modelo recibe fichas por dominio en lugar de la lista de nombres. `last_trace`
   registra `catalog_version`. Prompt `catalog-domains-v6`; los prompts locales se
   conservan y deben incorporar el párrafo de exploración a mano.
+- Nueva operación `saldos_coincidencias`: saldo de cada homónimo por separado, sin sumar.
+  `ranking_deuda` solo se acepta si la pregunta pide un ranking («más deben», «top»,
+  «mayores»…); si no, el modelo recibe una indicación y un segundo intento. Corrige que
+  «los saldos de los 3 <nombre>» devolviera el ranking global.
 - Columnas tomadas de metadatos de SQL Server; su significado contable sigue pendiente.
   Las pruebas usan dobles: no validan SQL Server ni un modelo real.
 
