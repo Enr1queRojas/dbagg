@@ -142,6 +142,25 @@ El agente no debe inventar ese score cuando no esté en las vistas.
 
 ## Límites del piloto
 
+### Notas de voz
+
+Los números autorizados pueden enviar notas de voz de hasta 60 segundos (configurable,
+ver [llm-configuration.md](llm-configuration.md#transcripción-de-notas-de-voz)). El
+servicio descarga el audio de Meta, lo transcribe y lo procesa igual que un mensaje
+escrito. La respuesta empieza con «🎙️ Entendí: …» para que se pueda comprobar la
+transcripción antes de confiar en la cifra, sobre todo con nombres de clientes.
+
+- No requiere suscribir campos nuevos en Meta: el audio llega en `messages`.
+- El audio se procesa en memoria y no se guarda. Los logs registran etapa, tipo de
+  error y número de caracteres, nunca el contenido transcrito. El texto pasa al proveedor
+  de transcripción y, como cualquier pregunta, al modelo configurado.
+- Una nota de voz nunca ejecuta comandos (`/reiniciar`, `/buena`…), aunque se dicten.
+- Notas más largas o de más de 2 MB, audio vacío o fallos del proveedor reciben un
+  aviso para repetir o escribir la pregunta. La duración se lee del formato Ogg Opus de
+  WhatsApp; otros formatos (audios reenviados) solo se limitan por tamaño.
+- Logs útiles: `voice_accepted`, `voice_transcribed chars=N`, `voice_rejected reason=…`,
+  `voice_download_failed` y `voice_transcription_failed http_status=…`.
+
 ### Preguntas naturales y contexto de negocio
 
 El usuario no necesita nombrar tablas ni claves técnicas: puede preguntar “¿Cuánto

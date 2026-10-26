@@ -12,12 +12,13 @@ from dbagg.agent.service import Assistant
 from dbagg.services.memory import MessageGate
 from dbagg.services.conversation import ConversationService, CONTROL_COMMANDS, command_name
 from dbagg.integrations.meta import MetaClient
+from dbagg.services.voice import build_voice
 from dbagg.limits import MAX_QUESTION_CHARS
 
 logger = logging.getLogger("uvicorn.error")
 
 
-def create_app(settings=None, assistant=None, send_message=None, feedback_store=None):
+def create_app(settings=None, assistant=None, send_message=None, feedback_store=None, voice=None):
     settings = settings or Settings.from_env()
     owns_assistant = assistant is None
     assistant = assistant if assistant is not None else Assistant(settings)
@@ -32,8 +33,10 @@ def create_app(settings=None, assistant=None, send_message=None, feedback_store=
 
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
     gate = MessageGate()
-    deliver = send_message or MetaClient(settings).send
-    conversation = ConversationService(settings, assistant, deliver, feedback_store)
+    meta = MetaClient(settings)
+    deliver = send_message or meta.send
+    voice = voice if voice is not None else build_voice(settings, meta)
+    conversation = ConversationService(settings, assistant, deliver, feedback_store, voice)
 
     @app.get("/health")
     def health():
@@ -75,11 +78,20 @@ def create_app(settings=None, assistant=None, send_message=None, feedback_store=
                         continue
                     for message in value.get("messages", []):
                         sender = message.get("from", "")
-                        if sender not in settings.numbers or message.get("type") != "text":
+                        kind = message.get("type")
+                        if sender not in settings.numbers or kind not in {"text", "audio"}:
                             logger.info("dbagg stage=ignored_sender_or_type")
                             continue
-                        text = message.get("text", {}).get("body", "").strip()
                         message_id = message.get("id", "")
+                        if kind == "audio":
+                            media_id = str(message.get("audio", {}).get("id", ""))
+                            if message_id and media_id.isdigit() and gate.claim(message_id, sender):
+                                logger.info("dbagg stage=voice_accepted")
+                                background.add_task(conversation.process_voice, sender, media_id)
+                            else:
+                                logger.info("dbagg stage=ignored_duplicate_rate_or_media")
+                            continue
+                        text = message.get("text", {}).get("body", "").strip()
                         if (
                             message_id
                             and 0 < len(text) <= MAX_QUESTION_CHARS

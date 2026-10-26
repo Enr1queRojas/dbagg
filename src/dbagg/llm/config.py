@@ -30,10 +30,24 @@ class ModelProfile:
 
 
 @dataclass(frozen=True)
+class TranscriptionConfig:
+    """Voice-note transcription through an OpenAI-compatible /audio/transcriptions API."""
+
+    enabled: bool = True
+    model: str = "gpt-4o-mini-transcribe"
+    api_key_env: str = "OPENAI_API_KEY"
+    base_url: str = "https://api.openai.com/v1"
+    language: str = "es"
+    max_seconds: int = 60
+    timeout_seconds: float = 30
+
+
+@dataclass(frozen=True)
 class LLMConfig:
     profile: ModelProfile
     system_prompt: Path | None = None
     tool_descriptions: Path | None = None
+    transcription: TranscriptionConfig = field(default_factory=TranscriptionConfig)
 
 
 def _number(value, minimum, maximum, name, integer=False):
@@ -41,6 +55,45 @@ def _number(value, minimum, maximum, name, integer=False):
     if not valid_type or not minimum <= value <= maximum:
         raise ValueError(f"LLM: {name} fuera del rango permitido.")
     return value
+
+
+def _https_url(value):
+    try:
+        url = urlsplit(value)
+        _ = url.port
+        valid = (
+            url.scheme == "https"
+            and url.hostname
+            and not (url.username or url.password or url.query or url.fragment)
+        )
+    except (TypeError, ValueError):
+        valid = False
+    if not valid:
+        raise ValueError("LLM: base_url requiere HTTPS, sin credenciales, query ni fragmento.")
+
+
+def _transcription(data):
+    if data is None:
+        return TranscriptionConfig()
+    if not isinstance(data, dict) or set(data) - set(TranscriptionConfig.__dataclass_fields__):
+        raise ValueError("LLM: sección transcription con campos no admitidos.")
+    config = TranscriptionConfig(**data)
+    if type(config.enabled) is not bool:
+        raise ValueError("LLM: transcription.enabled debe ser true o false.")
+    if not isinstance(config.model, str) or not re.fullmatch(
+        r"[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,199}", config.model
+    ):
+        raise ValueError("LLM: modelo de transcripción inválido.")
+    if not isinstance(config.api_key_env, str) or not re.fullmatch(
+        r"[A-Z][A-Z0-9_]{0,99}", config.api_key_env
+    ):
+        raise ValueError("LLM: transcription.api_key_env debe ser el nombre de una variable.")
+    if not isinstance(config.language, str) or not re.fullmatch(r"[a-z]{2}", config.language):
+        raise ValueError("LLM: transcription.language debe ser un código ISO de dos letras.")
+    _https_url(config.base_url)
+    _number(config.max_seconds, 5, 300, "transcription.max_seconds", integer=True)
+    _number(config.timeout_seconds, 1, 120, "transcription.timeout_seconds")
+    return config
 
 
 def _profile(name, data):
@@ -62,18 +115,7 @@ def _profile(name, data):
         r"[A-Z][A-Z0-9_]{0,99}", profile.api_key_env
     ):
         raise ValueError("LLM: api_key_env debe ser el nombre de una variable de entorno.")
-    try:
-        url = urlsplit(profile.base_url)
-        _ = url.port
-        valid = (
-            url.scheme == "https"
-            and url.hostname
-            and not (url.username or url.password or url.query or url.fragment)
-        )
-    except (TypeError, ValueError):
-        valid = False
-    if not valid:
-        raise ValueError("LLM: base_url requiere HTTPS, sin credenciales, query ni fragmento.")
+    _https_url(profile.base_url)
     _number(profile.max_output_tokens, 128, 16384, "max_output_tokens", integer=True)
     _number(profile.timeout_seconds, 1, 120, "timeout_seconds")
     _number(profile.max_retries, 0, 2, "max_retries", integer=True)
@@ -118,7 +160,7 @@ def load_llm_config(root=None, environ=None, selected_profile=None):
     except (tomllib.TOMLDecodeError, UnicodeError):
         raise ValueError("LLM: archivo TOML inválido.") from None
     if (
-        set(data) - {"version", "active_profile", "profiles", "prompts"}
+        set(data) - {"version", "active_profile", "profiles", "prompts", "transcription"}
         or type(data.get("version")) is not int
         or data["version"] != 1
     ):
@@ -152,4 +194,9 @@ def load_llm_config(root=None, environ=None, selected_profile=None):
         candidate = Path(value)
         return candidate if candidate.is_absolute() else path.parent / candidate
 
-    return LLMConfig(profile, prompt_path("system_file"), prompt_path("tools_file"))
+    return LLMConfig(
+        profile,
+        prompt_path("system_file"),
+        prompt_path("tools_file"),
+        _transcription(data.get("transcription")),
+    )

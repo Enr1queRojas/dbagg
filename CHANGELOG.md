@@ -1,5 +1,16 @@
 # Cambios
 
+## Sin publicar — Notas de voz de WhatsApp
+
+- Los números autorizados pueden enviar notas de voz de hasta 60 s. Se descargan de Meta
+  en memoria, se transcriben con `gpt-4o-mini-transcribe` y siguen el mismo flujo que un
+  texto, con eco «🎙️ Entendí: …» antes de la respuesta.
+- Sección opcional `[transcription]` en `llm.toml`; sin la clave, las notas de voz se
+  rechazan con aviso y el texto sigue funcionando.
+- Una transcripción nunca ejecuta comandos. Audio y transcripciones no se guardan ni
+  aparecen en los logs. Pruebas con audio Ogg sintético y dobles HTTP; no validan Meta
+  ni el modelo de transcripción reales.
+
 ## Sin publicar — Catálogo de fuentes SQL y prompt v6
 
 - `src/dbagg/database/catalog.json` declara 26 fuentes de clientes, gastos e inventarios
