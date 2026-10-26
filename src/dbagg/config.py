@@ -8,6 +8,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from dotenv import load_dotenv
 from dbagg.paths import project_root
+from dbagg.database.catalog import load_catalog
 from dbagg.database.connection import parse_odbc_options
 from dbagg.llm.config import LLMConfig, load_llm_config
 from dbagg.agent.prompt_files import load_prompt_bundle
@@ -60,6 +61,18 @@ class Settings:
         )
         if not tables:
             raise ValueError("No hay objetos de negocio autorizados.")
+        catalogued = load_catalog().restrict(tables)
+        if len(catalogued) < len(tables):
+            logger.warning(
+                "SQL_ALLOWED_TABLES: %d objetos fuera del catálogo de fuentes se ignoran.",
+                len(tables) - len(catalogued),
+            )
+        if not catalogued:
+            raise ValueError(
+                "SQL_ALLOWED_TABLES no contiene objetos del catálogo de fuentes "
+                "(src/dbagg/database/catalog.json)."
+            )
+        tables = catalogued
         if any(not re.fullmatch(r"[0-9]{7,15}", n) for n in numbers):
             raise ValueError("WHATSAPP_ALLOWED_NUMBERS: usar dígitos internacionales sin +.")
         if any(not re.fullmatch(r"[a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*", t) for t in tables):

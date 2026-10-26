@@ -1,5 +1,23 @@
 # Cambios
 
+## Sin publicar — Catálogo de fuentes SQL y prompt v6
+
+- `src/dbagg/database/catalog.json` declara 26 fuentes de clientes, gastos e inventarios
+  con dominio, estado, acceso y columnas permitidas. `SQL_ALLOWED_TABLES` solo puede
+  acotarlo: los objetos fuera del catálogo se ignoran con advertencia al arrancar.
+- Con catálogo, el validador exige un objeto por consulta (salvo relación declarada),
+  columnas explícitas catalogadas y rechaza `SELECT *`. Direcciones, teléfonos,
+  responsables y choferes no se catalogan; `describir_tablas` los oculta.
+- El modelo recibe fichas por dominio en lugar de la lista de nombres. `last_trace`
+  registra `catalog_version`. Prompt `catalog-domains-v6`; los prompts locales se
+  conservan y deben incorporar el párrafo de exploración a mano.
+- Nueva operación `saldos_coincidencias`: saldo de cada homónimo por separado, sin sumar.
+  `ranking_deuda` solo se acepta si la pregunta pide un ranking («más deben», «top»,
+  «mayores»…); si no, el modelo recibe una indicación y un segundo intento. Corrige que
+  «los saldos de los 3 <nombre>» devolviera el ranking global.
+- Columnas tomadas de metadatos de SQL Server; su significado contable sigue pendiente.
+  Las pruebas usan dobles: no validan SQL Server ni un modelo real.
+
 ## Sin publicar — Mantenimiento del checkout
 
 - Limpieza con vista previa de cachés y restos de la estructura antigua; conserva

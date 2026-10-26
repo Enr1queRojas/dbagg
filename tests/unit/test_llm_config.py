@@ -94,7 +94,7 @@ class LLMConfigurationTests(unittest.TestCase):
             "META_PHONE_NUMBER_ID": "123",
             "META_GRAPH_VERSION": "v25.0",
             "WHATSAPP_ALLOWED_NUMBERS": "5215555555555",
-            "SQL_ALLOWED_TABLES": "proadel.demo",
+            "SQL_ALLOWED_TABLES": "proadel.gastos_data",
             "DB_CONNECTION_STRING": "DRIVER={test};Encrypt=yes;TrustServerCertificate=no;",
         }
         with (

@@ -4,13 +4,14 @@ El agente aplica contratos de consulta en
 `src/dbagg/business/`. El modelo interpreta la intención y propone parámetros; el
 código comprueba permisos, columnas, identidad y resultados, y redacta importes y
 fechas directamente desde las filas. El texto libre del modelo nunca se entrega como
-respuesta financiera. Versión del prompt: `customer-reports-v5:<huella del contenido>`.
+respuesta financiera. Versión del prompt: `catalog-domains-v6:<huella del contenido>`.
 
 ## Operaciones disponibles
 
 | Pregunta | Operación | Fuente y regla |
 | --- | --- | --- |
 | ¿Cuánto debe Ana? | `saldo` | `CATALOGO_CLIENTES_DATA_V.[SALDO ACTUAL]`, sin recalcular acumulados |
+| ¿Cuánto deben los tres Ana Robles? | `saldos_coincidencias` | `[SALDO ACTUAL]` de cada coincidencia por nombre o código, hasta 10, sin sumar; saldo nulo se marca desconocido |
 | ¿Quiénes son los cinco que más deben? | `ranking_deuda` | Saldos positivos, descendentes; empates por código; cantidad de 1 a 10 |
 | ¿Qué pagos hizo Ana esta semana? | `pagos` | Movimientos de `COBRANZA_DATA`, con límite explícito de 1 a 10 |
 | ¿Cuándo pagó Ana por última vez? | `ultimo_pago` | Mayor `FECHA` válida de todo el historial; muestra empates |

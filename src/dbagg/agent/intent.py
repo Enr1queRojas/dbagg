@@ -10,14 +10,36 @@ COMPARISON_CLARIFICATION = (
 )
 
 
-def requests_candidate_comparison(question):
-    """Recognize explicit 'which of these N' requests; this is not a general intent model."""
+RANKING_HINT = (
+    "ranking_deuda es el ranking global de quienes más deben y la pregunta no lo pide. "
+    "Si menciona un cliente o varios con el mismo nombre, usa saldo para uno o "
+    "saldos_coincidencias para listar el saldo de cada coincidencia, con customer tal como "
+    "aparece en la conversación. Si no está claro, usa pedir_aclaracion."
+)
+
+
+def _plain(question):
     text = "".join(
         c
         for c in unicodedata.normalize("NFKD", question.casefold())
         if not unicodedata.combining(c)
     )
-    text = " ".join(text.split())
+    return " ".join(text.split())
+
+
+def requests_ranking(question):
+    """A global debt ranking must be asked for explicitly; a named customer is not enough."""
+    return bool(
+        re.search(
+            r"\b(?:mas|mayor(?:es)?|top|ranking|principales|primeros|deudores|morosos)\b",
+            _plain(question),
+        )
+    )
+
+
+def requests_candidate_comparison(question):
+    """Recognize explicit 'which of these N' requests; this is not a general intent model."""
+    text = _plain(question)
     if not re.search(r"\b(?:saldo|saldos|debe|deben|deuda|deudas)\b", text):
         return False
     return bool(

@@ -16,7 +16,15 @@ from dbagg.business.evidence import (
 CUSTOMERS = "proadel.catalogo_clientes_data_v"
 PAYMENTS = "proadel.cobranza_data"
 PROTECTED_SOURCES = frozenset({CUSTOMERS, PAYMENTS})
-OPERATIONS = ("saldo", "ranking_deuda", "pagos", "ultimo_pago", "total_pagos")
+OPERATIONS = (
+    "saldo",
+    "saldos_coincidencias",
+    "ranking_deuda",
+    "pagos",
+    "ultimo_pago",
+    "total_pagos",
+)
+MATCH_LIMIT = 10
 NUMERIC_TYPES = {
     "decimal",
     "numeric",
@@ -161,7 +169,7 @@ class CustomerQueries:
             raise BusinessError(
                 "Operación o cantidad no soportada; solicita entre uno y diez registros."
             )
-        if operation in {"saldo", "ranking_deuda", "ultimo_pago"} and (
+        if operation in {"saldo", "saldos_coincidencias", "ranking_deuda", "ultimo_pago"} and (
             period != "todo" or start or end
         ):
             raise BusinessError(
@@ -185,6 +193,8 @@ class CustomerQueries:
         self._require(catalog, CUSTOMERS, ["CODIGO", "NOMBRE", "SALDO ACTUAL"], ["SALDO ACTUAL"])
         if operation == "ranking_deuda":
             return self._ranking(limit)
+        if operation == "saldos_coincidencias":
+            return self._matching_balances(customer)
         client = self._resolve(customer)
         if isinstance(client, BusinessAnswer):
             return client
@@ -309,6 +319,52 @@ class CustomerQueries:
             if more or invalid_dates or any(r["importe"] is None for r in rows)
             else "answered",
         )
+
+    def _matching_balances(self, customer):
+        """Each matching customer's current balance, listed separately and never summed."""
+        if not isinstance(customer, str) or not 1 <= len(customer.strip()) <= 100:
+            raise BusinessError("Indica el nombre o código de los clientes que quieres revisar.")
+        customer = customer.strip()
+        base = (
+            f"SELECT TOP {MATCH_LIMIT + 1} [CODIGO] AS codigo, [NOMBRE] AS nombre, "
+            f"[SALDO ACTUAL] AS importe FROM {CUSTOMERS} "
+        )
+        rows, more = self._query(
+            base + "WHERE [CODIGO] = ? OR [NOMBRE] = ? ORDER BY [CODIGO]",
+            (customer, customer),
+            MATCH_LIMIT,
+        )
+        if not rows:
+            pattern = like_literal(customer)
+            rows, more = self._query(
+                base
+                + "WHERE [CODIGO] LIKE ? ESCAPE '!' OR [NOMBRE] LIKE ? ESCAPE '!' ORDER BY [CODIGO]",
+                (pattern, pattern),
+                MATCH_LIMIT,
+            )
+        if not rows:
+            return self._answer(
+                "No encontré clientes con ese nombre o código. ¿Puedes precisarlo?",
+                "needs_clarification",
+            )
+        codes = [r["codigo"] for r in rows]
+        if len(set(codes)) != len(codes):
+            raise BusinessError(
+                "El catálogo repite una clave de cliente; no puedo confirmar su identidad."
+            )
+        lines = [f"Saldo actual de cada cliente que coincide con «{label(customer)}»:"]
+        for i, row in enumerate(rows, 1):
+            name = label(row["nombre"])
+            code = label(row["codigo"])
+            balance = "saldo desconocido" if row["importe"] is None else amount(row["importe"])
+            lines.append(f"{i}. {name} (código {code}): {balance}")
+        unknown = any(r["importe"] is None for r in rows)
+        if more:
+            lines.append(f"Muestro {len(rows)} coincidencias; hay más. Precisa el nombre o código.")
+        if unknown:
+            lines.append("Hay clientes con saldo desconocido; requieren revisión en el catálogo.")
+        lines.append("Saldos individuales; no se suman. Importes sin moneda confirmada.")
+        return self._answer("\n".join(lines), "partial" if more or unknown else "answered")
 
     def _ranking(self, limit):
         duplicates, _ = self._query(

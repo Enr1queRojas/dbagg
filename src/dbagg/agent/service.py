@@ -7,6 +7,7 @@ import unicodedata
 import pyodbc
 import sqlglot
 from sqlglot import exp
+from dbagg.database.catalog import load_catalog
 from dbagg.database.client import Database
 from dbagg.database.validation import validate_sql
 from dbagg.context.loader import load_business_context, context_version
@@ -14,7 +15,12 @@ from dbagg.agent.prompts import build_messages, tool_definitions
 from dbagg.agent.prompt_files import load_prompt_bundle
 from dbagg.llm.config import LLMConfig, ModelProfile
 from dbagg.llm.providers import create_provider
-from dbagg.agent.intent import requests_candidate_comparison, COMPARISON_CLARIFICATION
+from dbagg.agent.intent import (
+    COMPARISON_CLARIFICATION,
+    RANKING_HINT,
+    requests_candidate_comparison,
+    requests_ranking,
+)
 from dbagg.business.calendar import business_today
 from dbagg.business.customers import CustomerQueries, PROTECTED_SOURCES, validate_context
 from dbagg.business.evidence import BusinessError, render_exploratory
@@ -25,13 +31,18 @@ MAX_MODEL_ROUNDS = 9
 MAX_SQL_QUERIES = 4
 MAX_SCHEMA_REQUESTS = 4
 
+
+class ToolHint(Exception):
+    """Rejected tool choice that the model may correct in the next round."""
+
+
 CLARIFICATIONS = {
     "comparacion": COMPARISON_CLARIFICATION,
     "cliente": "¿De qué cliente quieres consultar el saldo o los pagos? Indica su nombre o código.",
     "periodo": "¿Qué período quieres consultar? Puedes indicar esta semana, este mes o un rango de fechas.",
-    "criterio": "Necesito precisar el concepto: ¿quieres saldo actual, pagos, último pago o un ranking de deuda?",
+    "criterio": "Necesito precisar el concepto. De clientes: saldo actual, saldos de varios clientes con un nombre, pagos, último pago o ranking de deuda. También puedo consultar existencias de inventario y gastos registrados. ¿Qué quieres revisar?",
     "escritura": "Solo puedo consultar información; no puedo modificar ni eliminar datos.",
-    "fuera_alcance": "Ese reporte todavía no tiene una definición de negocio verificada. Puedo ayudarte con saldos, pagos y rankings de deuda.",
+    "fuera_alcance": "Ese reporte todavía no tiene una definición de negocio verificada. Puedo ayudarte con saldos, pagos y rankings de deuda, y consultar existencias de inventario y gastos.",
 }
 
 
@@ -70,12 +81,18 @@ class Assistant:
         )
         # Compatibility for tests/extensions that inject an OpenAI-compatible client.
         self.client = client
+        self.catalog = load_catalog()
+
+    @property
+    def tables(self):
+        """Configured objects, never beyond the source catalogue."""
+        return self.catalog.restrict(self.settings.tables)
 
     def close(self):
         self.provider.close()
 
     def answer(self, question, history=None):
-        schema = json.dumps(sorted(self.settings.tables), ensure_ascii=False)
+        schema = json.dumps(self.catalog.cards(self.tables), ensure_ascii=False)
         logger.info("dbagg stage=catalogue_ready")
         context = load_business_context()
         bundle = load_prompt_bundle(self.llm_config)
@@ -83,6 +100,7 @@ class Assistant:
         self.last_trace = {
             "context_version": context_version(context),
             "prompt_version": bundle.version,
+            "catalog_version": self.catalog.version,
             "provider": profile.provider,
             "profile": profile.name,
             "model": profile.model,
@@ -129,16 +147,32 @@ class Assistant:
                         latest_result = result
                     else:
                         raise ValueError("Herramienta no autorizada.")
+                except ToolHint as exc:
+                    result = {"error": str(exc)}
                 except BusinessError as exc:
                     self.last_trace.update(status="unavailable", sources=[])
                     return str(exc)
-                except (ValueError, KeyError, TypeError, sqlglot.errors.ParseError):
-                    logger.info("dbagg stage=sql_rejected")
+                except (ValueError, KeyError, TypeError, sqlglot.errors.ParseError) as exc:
+                    # Validator messages are fixed texts; parser errors may echo SQL, so omit them.
+                    reason = (
+                        str(exc)[:400]
+                        if type(exc) is ValueError
+                        else "SQL no reconocido por el validador."
+                        if isinstance(exc, sqlglot.errors.ParseError)
+                        else "Argumentos inválidos."
+                    )
+                    logger.info(
+                        "dbagg stage=sql_rejected kind=%s reason=%s",
+                        type(exc).__name__,
+                        reason[:80] if type(exc) is ValueError else "-",
+                    )
                     result = {
-                        "error": "Solicitud rechazada. Describe entre uno y cinco objetos autorizados "
-                        "antes de consultar; usa solo SELECT y columnas del catálogo, sin CTE, "
-                        "hints ni funciones no aprobadas. Para catálogo de clientes y cobranza usa consultar_negocio. "
-                        "Máximo cuatro descripciones y cuatro SELECT."
+                        "error": "Solicitud rechazada. Motivo: " + reason + " Reglas: describe "
+                        "entre uno y cinco objetos autorizados antes de consultar; usa solo SELECT "
+                        "de un objeto con columnas explícitas de su descripción, sin SELECT *, "
+                        "JOIN no declarado, CTE ni hints. Para catálogo de clientes y cobranza usa "
+                        "consultar_negocio. Máximo cuatro descripciones y cuatro SELECT. Corrige "
+                        "según el motivo; no repitas la misma consulta."
                     }
                 except pyodbc.ProgrammingError:
                     logger.info("dbagg stage=sql_programming_error")
@@ -158,13 +192,16 @@ class Assistant:
 
     def _consult_business(self, arguments, context, question, history, today):
         validate_context(context, arguments.get("operation"))
+        if arguments.get("operation") == "ranking_deuda" and not requests_ranking(question):
+            logger.info("dbagg stage=ranking_not_requested")
+            raise ToolHint(RANKING_HINT)
         if arguments.get("operation") != "ranking_deuda" and not customer_in_conversation(
             arguments.get("customer"), question, history
         ):
             raise BusinessError(
                 "No pude vincular ese cliente con la conversación. Indica su nombre o código."
             )
-        answer = CustomerQueries(self.db, self.settings.tables, today=today).execute(**arguments)
+        answer = CustomerQueries(self.db, self.tables, today=today).execute(**arguments)
         self.last_trace.update(
             status=answer.status,
             operation=answer.operation,
@@ -180,16 +217,16 @@ class Assistant:
         if any(not isinstance(table, str) for table in selected):
             raise ValueError("Los nombres de objetos deben ser texto.")
         selected = [table.lower() for table in selected]
-        if not set(selected).issubset(self.settings.tables):
+        if not set(selected).issubset(self.tables):
             raise ValueError("Objetos no autorizados.")
         logger.info("dbagg stage=schema_start")
-        result = json.loads(self.db.schema(selected))
+        result = self.catalog.filter_schema(json.loads(self.db.schema(selected)))
         described.update(selected)
         logger.info("dbagg stage=schema_ok")
         return result
 
     def _query_sql(self, statement, described):
-        sql = validate_sql(statement, self.settings.tables)
+        sql = validate_sql(statement, self.tables, self.catalog)
         referenced = {
             f"{table.db}.{table.name}".lower()
             for table in sqlglot.parse_one(sql, read="tsql").find_all(exp.Table)
