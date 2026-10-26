@@ -40,7 +40,7 @@ class Transcriber:
                     "model": self.config.model,
                     "language": self.config.language,
                     "response_format": "json",
-                    "prompt": VOCABULARY_HINT,
+                    "prompt": " ".join(filter(None, (VOCABULARY_HINT, self.config.hint))),
                 },
             )
             response.raise_for_status()

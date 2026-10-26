@@ -17,12 +17,18 @@ from dbagg.llm.config import LLMConfig, ModelProfile
 from dbagg.llm.providers import create_provider
 from dbagg.agent.intent import (
     COMPARISON_CLARIFICATION,
+    NOT_A_CUSTOMER_HINT,
     RANKING_HINT,
     requests_candidate_comparison,
     requests_ranking,
 )
 from dbagg.business.calendar import business_today
-from dbagg.business.customers import CustomerQueries, PROTECTED_SOURCES, validate_context
+from dbagg.business.customers import (
+    NOT_FOUND_ANSWERS,
+    PROTECTED_SOURCES,
+    CustomerQueries,
+    validate_context,
+)
 from dbagg.business.evidence import BusinessError, render_exploratory
 
 logger = logging.getLogger("uvicorn.error")
@@ -93,6 +99,7 @@ class Assistant:
 
     def answer(self, question, history=None):
         schema = json.dumps(self.catalog.cards(self.tables), ensure_ascii=False)
+        self._customer_missed = False
         logger.info("dbagg stage=catalogue_ready")
         context = load_business_context()
         bundle = load_prompt_bundle(self.llm_config)
@@ -132,7 +139,13 @@ class Assistant:
                         return self._consult_business(arguments, context, question, history, today)
                     elif call.name == "pedir_aclaracion":
                         text = CLARIFICATIONS[arguments["reason"]]
-                        self.last_trace.update(status="needs_clarification", sources=[])
+                        self.last_trace.update(
+                            status="needs_clarification",
+                            sources=[],
+                            clarification=arguments["reason"],
+                        )
+                        if arguments["reason"] == "fuera_alcance":
+                            self.last_trace["gap"] = "fuera_alcance"
                         return text
                     elif call.name == "describir_tablas":
                         descriptions += 1
@@ -187,7 +200,7 @@ class Assistant:
                         "content": json.dumps(result, ensure_ascii=False),
                     }
                 )
-        self.last_trace.update(status="needs_clarification", sources=[])
+        self.last_trace.update(status="needs_clarification", sources=[], gap="limite_consultas")
         return "No pude resolver la pregunta dentro del límite de consultas. ¿Puedes precisar el nombre o período?"
 
     def _consult_business(self, arguments, context, question, history, today):
@@ -202,6 +215,11 @@ class Assistant:
                 "No pude vincular ese cliente con la conversación. Indica su nombre o código."
             )
         answer = CustomerQueries(self.db, self.tables, today=today).execute(**arguments)
+        if answer.text in NOT_FOUND_ANSWERS and not self._customer_missed:
+            # One retry: the name may be an expense section, product or warehouse.
+            self._customer_missed = True
+            logger.info("dbagg stage=customer_not_found_retry")
+            raise ToolHint(NOT_A_CUSTOMER_HINT)
         self.last_trace.update(
             status=answer.status,
             operation=answer.operation,
@@ -243,10 +261,11 @@ class Assistant:
     def _finish_exploration(self, result, sources):
         if result is None:
             logger.info("dbagg stage=clarification_no_query")
-            self.last_trace.update(status="needs_clarification", sources=[])
+            self.last_trace.update(status="needs_clarification", sources=[], gap="sin_evidencia")
             return "No obtuve resultados para respaldar una respuesta. ¿Qué cliente o reporte quieres consultar? Puedo consultar saldos, pagos y rankings; no modificar datos."
         logger.info("dbagg stage=answer_ready")
-        self.last_trace.update(status="exploratory", sources=sources)
+        # Answered from unverified SQL: a candidate for a new verified operation.
+        self.last_trace.update(status="exploratory", sources=sources, gap="exploratoria")
         try:
             return render_exploratory(result)
         except BusinessError as exc:

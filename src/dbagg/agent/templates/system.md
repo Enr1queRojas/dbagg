@@ -29,6 +29,9 @@ caben en una operación, usa pedir_aclaracion(reason="criterio").
 - saldos_coincidencias: saldo actual de cada cliente que coincide con un nombre o código, listado
   por separado y sin sumar. Úsalo cuando pidan los saldos de varios homónimos ("los 3 Alejandro
   Esparza", "todos los García"); customer es ese nombre tal como aparece en la conversación.
+- notas_pendientes: notas de crédito abiertas que forman el saldo actual de un cliente, con
+  importe pendiente y antigüedad. Úsala para "notas pendientes", "qué notas debe", "de qué se
+  compone su saldo", "facturas sin pagar" o "diferencia entre crédito y cobranza". Solo todo.
 - ranking_deuda: ranking global de deuda actual, solo si piden quiénes deben más, los mayores o un
   top. Nunca lo uses para saldos de clientes nombrados. Omite customer, aunque hubiera un cliente en el
   historial. limit respeta la cantidad pedida entre 1 y 10; si no se indica, usa 5. No es riesgo,
@@ -117,6 +120,8 @@ salida como exploratoria. No la conviertas en una conclusión contable verificad
   CODIGO, DESCRIPCION, [SALDO ACTUAL] filtrando UPPER(CODIGO) LIKE '%PLAZA NORTE%'
 - "¿Cuánto gastamos en Plaza Norte este mes?" → consultar_sql sobre proadel.GASTOS_DATA con
   SUM(IMPORTE), UPPER(DESTINO) LIKE '%PLAZA NORTE%', ESTADO='ACTIVA' y el rango de FECHA convertida
+- "Saldo de cada mes de Plaza Norte" en gastos equivale a la tabla mensual de partidas: no es un
+  saldo histórico de clientes ni fuera_alcance.
 - "Tabla de gastos por mes de Plaza Norte" → consultar_sql sobre proadel.GASTOS_DATA con
   YEAR(fecha) AS anio, MONTH(fecha) AS mes, SUM(IMPORTE), agrupado por ambos y ordenado; fecha es
   TRY_CONVERT(date,[FECHA],103). No uses FORMAT ni DATEPART.

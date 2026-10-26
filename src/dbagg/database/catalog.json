@@ -14,7 +14,7 @@
      "description": "Pagos de clientes; CLIENTE=CODIGO, ESTADO='ACTIVA', fecha FECHA.",
      "columns": ["ID", "TIPODOC", "FECHA", "FOLIO", "CLIENTE", "FORMA DE PAGO", "BANCO", "IMPORTE", "CONCEPTO DIVERSO", "ESTADO"]},
     {"object": "proadel.CREDITO_DATA", "domain": "clientes", "status": "candidate", "access": "exploratory",
-     "description": "Partidas de venta a crédito. FECHA es texto: TRY_CONVERT(date,[FECHA],103). Estados válidos y clave CLIENTE pendientes.",
+     "description": "Partidas de notas de venta a crédito; una nota es CLIENTE+FOLIO y su importe es SUM(TOTAL) de partidas ACTIVA. Para notas pendientes de un cliente usa consultar_negocio(notas_pendientes). FECHA es texto: TRY_CONVERT(date,[FECHA],103).",
      "columns": ["ID", "TIPODOC", "FECHA", "FOLIO", "CLIENTE", "CANTIDAD", "CODIGO", "CONCEPTO", "PRECIO", "IMPORTE", "TOTAL", "DESTINO", "BULTOS", "ESTADO"]},
     {"object": "proadel.CONTADO_DATA", "domain": "clientes", "status": "candidate", "access": "exploratory",
      "description": "Partidas de venta de contado; no es deuda. FECHA es texto: TRY_CONVERT(date,[FECHA],103).",

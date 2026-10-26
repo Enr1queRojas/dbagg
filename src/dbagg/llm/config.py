@@ -40,6 +40,8 @@ class TranscriptionConfig:
     language: str = "es"
     max_seconds: int = 60
     timeout_seconds: float = 30
+    # Local vocabulary (frequent names, sections); keep real names out of the repository.
+    hint: str = ""
 
 
 @dataclass(frozen=True)
@@ -93,6 +95,8 @@ def _transcription(data):
     _https_url(config.base_url)
     _number(config.max_seconds, 5, 300, "transcription.max_seconds", integer=True)
     _number(config.timeout_seconds, 1, 120, "transcription.timeout_seconds")
+    if not isinstance(config.hint, str) or len(config.hint) > 500:
+        raise ValueError("LLM: transcription.hint debe ser texto de hasta 500 caracteres.")
     return config
 
 

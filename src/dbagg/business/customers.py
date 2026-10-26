@@ -1,7 +1,8 @@
 """Confirmed customer contracts. Model arguments are values, never SQL fragments."""
 
 import json
-from datetime import timedelta
+from datetime import date, timedelta
+from decimal import Decimal, InvalidOperation
 
 from dbagg.business.calendar import business_today, period_bounds
 from dbagg.business.evidence import (
@@ -15,6 +16,8 @@ from dbagg.business.evidence import (
 
 CUSTOMERS = "proadel.catalogo_clientes_data_v"
 PAYMENTS = "proadel.cobranza_data"
+CREDITS = "proadel.credito_data"
+RETURNS = "proadel.dev_venta_data"
 PROTECTED_SOURCES = frozenset({CUSTOMERS, PAYMENTS})
 OPERATIONS = (
     "saldo",
@@ -23,8 +26,13 @@ OPERATIONS = (
     "pagos",
     "ultimo_pago",
     "total_pagos",
+    "notas_pendientes",
 )
+NOTE_LIMIT = 50
 MATCH_LIMIT = 10
+CUSTOMER_NOT_FOUND = "No encontré un cliente con ese nombre o código. ¿Puedes precisarlo?"
+MATCHES_NOT_FOUND = "No encontré clientes con ese nombre o código. ¿Puedes precisarlo?"
+NOT_FOUND_ANSWERS = frozenset({CUSTOMER_NOT_FOUND, MATCHES_NOT_FOUND})
 NUMERIC_TYPES = {
     "decimal",
     "numeric",
@@ -47,6 +55,19 @@ def like_literal(value):
     )
 
 
+def date_expression(column_type, subject):
+    """SQL for FECHA by its real type; text dates are dd/MM/yyyy (style 103)."""
+    if column_type in {"date", "datetime", "datetime2", "smalldatetime"}:
+        return "[FECHA]"
+    if column_type in {"varchar", "nvarchar", "char", "nchar"}:
+        return "TRY_CONVERT(datetime2, NULLIF(LTRIM(RTRIM([FECHA])), ''), 103)"
+    raise BusinessError(f"El tipo de fecha de {subject} requiere una definición verificada.")
+
+
+def decimal_value(value):
+    return Decimal("0") if value is None else Decimal(str(value))
+
+
 def validate_context(context, operation):
     """Local guidance cannot silently change the fixed, reviewed query contracts."""
     topics = json.loads(context).get("topics", {})
@@ -60,7 +81,7 @@ def validate_context(context, operation):
             },
         ),
     }
-    if operation in {"pagos", "ultimo_pago", "total_pagos"}:
+    if operation in {"pagos", "ultimo_pago", "total_pagos", "notas_pendientes"}:
         expected["collections"] = (
             PAYMENTS,
             {
@@ -139,10 +160,7 @@ class CustomerQueries:
                 5,
             )
         if not rows:
-            return self._answer(
-                "No encontré un cliente con ese nombre o código. ¿Puedes precisarlo?",
-                "needs_clarification",
-            )
+            return self._answer(CUSTOMER_NOT_FOUND, "needs_clarification")
         codes = [r["codigo"] for r in rows]
         if len(set(codes)) != len(codes):
             raise BusinessError(
@@ -169,9 +187,13 @@ class CustomerQueries:
             raise BusinessError(
                 "Operación o cantidad no soportada; solicita entre uno y diez registros."
             )
-        if operation in {"saldo", "saldos_coincidencias", "ranking_deuda", "ultimo_pago"} and (
-            period != "todo" or start or end
-        ):
+        if operation in {
+            "saldo",
+            "saldos_coincidencias",
+            "ranking_deuda",
+            "ultimo_pago",
+            "notas_pendientes",
+        } and (period != "todo" or start or end):
             raise BusinessError(
                 "Esta operación no admite ese filtro de fechas; precisa el reporte solicitado."
             )
@@ -181,7 +203,11 @@ class CustomerQueries:
             )
         self.operation = operation
         self.sources = [CUSTOMERS] + (
-            [PAYMENTS] if operation in {"pagos", "ultimo_pago", "total_pagos"} else []
+            [PAYMENTS]
+            if operation in {"pagos", "ultimo_pago", "total_pagos"}
+            else [PAYMENTS, CREDITS, RETURNS]
+            if operation == "notas_pendientes"
+            else []
         )
         try:
             first, until = period_bounds(period, self.today, start, end)
@@ -208,6 +234,8 @@ class CustomerQueries:
             raise BusinessError("No pude confirmar un registro único para ese cliente.")
         client = identity[0]
         heading = f"{label(client['nombre'])} (código {label(client['codigo'])})"
+        if operation == "notas_pendientes":
+            return self._pending_notes(catalog, client, heading)
         if operation == "saldo":
             return self._answer(
                 f"Saldo actual de {heading}: {amount(client['importe'])}.\nImporte sin moneda confirmada."
@@ -215,13 +243,7 @@ class CustomerQueries:
         self._require(
             catalog, PAYMENTS, ["CLIENTE", "ESTADO", "FECHA", "IMPORTE", "ID", "FOLIO"], ["IMPORTE"]
         )
-        date_type = catalog[PAYMENTS]["FECHA"]
-        if date_type in {"date", "datetime", "datetime2", "smalldatetime"}:
-            expression = "[FECHA]"
-        elif date_type in {"varchar", "nvarchar", "char", "nchar"}:
-            expression = "TRY_CONVERT(datetime2, NULLIF(LTRIM(RTRIM([FECHA])), ''), 103)"
-        else:
-            raise BusinessError("El tipo de fecha de pagos requiere una definición verificada.")
+        expression = date_expression(catalog[PAYMENTS]["FECHA"], "pagos")
         where = "[CLIENTE] = ? AND [ESTADO] = 'ACTIVA'"
         params = (client["codigo"],)
         quality, _ = self._query(
@@ -320,6 +342,114 @@ class CustomerQueries:
             else "answered",
         )
 
+    def _pending_notes(self, catalog, client, heading):
+        """Credit notes that make up the current balance, allocating credits FIFO.
+
+        Active payments and returns settle the opening balance first, then notes by date
+        and folio. The remaining amounts must add up to [SALDO ACTUAL]; a mismatch is shown.
+        """
+        self._require(catalog, CUSTOMERS, ["SALDO_INICIAL"], ["SALDO_INICIAL"])
+        self._require(catalog, PAYMENTS, ["CLIENTE", "ESTADO", "IMPORTE"], ["IMPORTE"])
+        self._require(catalog, CREDITS, ["CLIENTE", "ESTADO", "FOLIO", "FECHA", "TOTAL"], ["TOTAL"])
+        self._require(catalog, RETURNS, ["CLIENTE", "ESTADO", "IMPORTE"], ["IMPORTE"])
+        when = date_expression(catalog[CREDITS]["FECHA"], "notas de crédito")
+        code = client["codigo"]
+        active = "[CLIENTE] = ? AND [ESTADO] = 'ACTIVA'"
+        totals, _ = self._query(
+            f"SELECT (SELECT [SALDO_INICIAL] FROM {CUSTOMERS} WHERE [CODIGO] = ?) AS inicial, "
+            f"(SELECT SUM([TOTAL]) FROM {CREDITS} WHERE {active}) AS cargos, "
+            f"(SELECT SUM([IMPORTE]) FROM {PAYMENTS} WHERE {active}) AS pagos, "
+            f"(SELECT SUM([IMPORTE]) FROM {RETURNS} WHERE {active}) AS devoluciones, "
+            f"(SELECT COUNT(*) - COUNT({when}) FROM {CREDITS} WHERE {active}) AS sin_fecha, "
+            f"(SELECT COUNT(*) FROM (SELECT [FOLIO] AS f FROM {CREDITS} WHERE {active} "
+            f"GROUP BY [FOLIO] HAVING SUM([TOTAL]) <= 0) AS n) AS no_positivas",
+            (code,) * 6,
+            1,
+        )
+        if client["importe"] is None:
+            raise BusinessError("El saldo actual del cliente es desconocido; requiere revisión.")
+        try:
+            row = totals[0]
+            balance = Decimal(str(client["importe"]))
+            initial, charges = decimal_value(row["inicial"]), decimal_value(row["cargos"])
+            credits = decimal_value(row["pagos"]) + decimal_value(row["devoluciones"])
+        except (InvalidOperation, ValueError, TypeError, IndexError):
+            raise BusinessError("Los importes del cliente requieren revisión.") from None
+        expected = initial + charges - credits
+        squared = abs(expected - balance) < Decimal("0.01")
+        warnings = []
+        if not squared:
+            warnings.append(
+                f"Los movimientos suman {amount(expected)} y no cuadran con el saldo actual "
+                f"{amount(balance)}; la lista requiere revisión."
+            )
+        if int(row["sin_fecha"] or 0):
+            warnings.append("Hay partidas sin fecha válida; el orden de antigüedad es aproximado.")
+        if int(row["no_positivas"] or 0):
+            warnings.append("Hay notas con importe cero o negativo; la asignación es aproximada.")
+        if balance <= 0:
+            state = "a favor del cliente" if balance < 0 else "en cero"
+            return self._answer(
+                "\n".join(
+                    [
+                        f"{heading} no tiene notas de crédito pendientes: su saldo actual está "
+                        f"{state} ({amount(balance)})."
+                    ]
+                    + warnings
+                ),
+                "partial" if warnings else "answered",
+            )
+        # Credits left after settling the opening balance (negative opening adds credit).
+        applied = credits - initial
+        notes, more = self._query(
+            f"SELECT TOP {NOTE_LIMIT + 1} folio, fecha, importe, acumulado FROM ("
+            f"SELECT [FOLIO] AS folio, MIN({when}) AS fecha, SUM([TOTAL]) AS importe, "
+            f"SUM(SUM([TOTAL])) OVER (ORDER BY MIN({when}), [FOLIO] ROWS UNBOUNDED PRECEDING) "
+            f"AS acumulado FROM {CREDITS} WHERE {active} GROUP BY [FOLIO]) AS notas "
+            f"WHERE acumulado > ? ORDER BY fecha, folio",
+            (code, float(applied)),
+            NOTE_LIMIT,
+        )
+        lines = [f"Notas de crédito pendientes de {heading} (de la más antigua a la más reciente):"]
+        initial_pending = max(Decimal("0"), initial - credits)
+        if initial_pending:
+            lines.append(f"• Saldo inicial pendiente: {amount(initial_pending)}")
+        shown = 0
+        for note in notes:
+            total = decimal_value(note["importe"])
+            pending = min(total, decimal_value(note["acumulado"]) - applied)
+            if pending < Decimal("0.005"):
+                continue
+            noted = str(note["fecha"] or "")[:10]
+            try:
+                age = f" · {(self.today - date.fromisoformat(noted)).days} días"
+            except ValueError:
+                noted, age = "sin fecha", ""
+            partial = " (parcial)" if pending < total else ""
+            line = (
+                f"• {noted} · folio {label(note['folio'])} · nota {amount(total)} · "
+                f"pendiente {amount(pending)}{partial}{age}"
+            )
+            if len("\n".join(lines + [line])) > 2800:
+                more = True
+                break
+            lines.append(line)
+            shown += 1
+        if more:
+            warnings.append(
+                f"Muestro las {shown} notas pendientes más antiguas; hay más. El total sí "
+                "incluye todas."
+            )
+        lines.append(f"Total pendiente: {amount(max(Decimal('0'), expected))}.")
+        if squared:
+            lines.append("Cuadra con el saldo actual.")
+        lines.extend(warnings)
+        lines.append(
+            "Método: pagos y devoluciones activos liquidan primero el saldo inicial y luego "
+            "las notas más antiguas (FIFO). Importes sin moneda confirmada."
+        )
+        return self._answer("\n".join(lines), "partial" if warnings else "answered")
+
     def _matching_balances(self, customer):
         """Each matching customer's current balance, listed separately and never summed."""
         if not isinstance(customer, str) or not 1 <= len(customer.strip()) <= 100:
@@ -343,10 +473,7 @@ class CustomerQueries:
                 MATCH_LIMIT,
             )
         if not rows:
-            return self._answer(
-                "No encontré clientes con ese nombre o código. ¿Puedes precisarlo?",
-                "needs_clarification",
-            )
+            return self._answer(MATCHES_NOT_FOUND, "needs_clarification")
         codes = [r["codigo"] for r in rows]
         if len(set(codes)) != len(codes):
             raise BusinessError(

@@ -76,6 +76,20 @@ class TranscriberTests(unittest.TestCase):
         self.assertIn(b"gpt-4o-mini-transcribe", seen["body"])
         self.assertIn(b'name="language"', seen["body"])
 
+    def test_local_vocabulary_hint_is_sent_with_the_generic_one(self):
+        bodies = []
+
+        def handler(request):
+            bodies.append(request.read())
+            return httpx.Response(200, json={"text": "ok"})
+
+        config = TranscriptionConfig(hint="Nombres: Robles, Plaza Norte.")
+        Transcriber(config, "k", transport=httpx.MockTransport(handler)).transcribe(
+            b"x", "audio/ogg"
+        )
+        self.assertIn("Plaza Norte".encode(), bodies[0])
+        self.assertIn("inventario".encode(), bodies[0])
+
     def test_provider_errors_are_raised(self):
         transcriber = Transcriber(
             TranscriptionConfig(),

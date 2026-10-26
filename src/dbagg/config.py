@@ -33,6 +33,7 @@ class Settings:
     business_timezone: str = "America/Mexico_City"
     llm: LLMConfig | None = None
     transcription_key: str = field(default="", repr=False)
+    gap_log_enabled: bool = False
 
     @classmethod
     def from_env(cls):
@@ -130,4 +131,5 @@ class Settings:
             timezone,
             llm,
             transcription_key,
+            os.getenv("GAP_LOG_ENABLED", "").lower() == "true",
         )

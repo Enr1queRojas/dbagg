@@ -88,6 +88,49 @@ la pregunta/respuesta original por accidente, ni notas privadas, ni datos de rem
 No sobrescribe un archivo existente. No envía el dataset a OpenAI ni entrena un modelo.
 La cuenta de OpenAI no se necesita para usar estos comandos.
 
+## Preguntas sin respuesta: de WhatsApp a CI/CD
+
+Activa el registro en el `.env` local y reinicia Uvicorn:
+
+```dotenv
+GAP_LOG_ENABLED=true
+```
+
+Cada pregunta que el agente no resuelve con una operación verificada se guarda en
+`data/gaps.sqlite3` (local, ignorado por Git) con una categoría:
+
+| Categoría | Cuándo | Qué sugiere |
+| --- | --- | --- |
+| `fuera_alcance` | Respondió «Ese reporte todavía no tiene una definición de negocio verificada…» | Operación o fuente nueva |
+| `sin_evidencia` | «No obtuve resultados para respaldar una respuesta» | Enrutamiento o prompt |
+| `limite_consultas` | Agotó consultas sin resolver | Contrato SQL o catálogo |
+| `exploratoria` | Respondió con SQL no verificado (fuentes registradas) | Candidata a operación verificada |
+
+Se guarda la pregunta, categoría, operación, objetos usados, texto/voz y versiones de
+prompt, contexto y catálogo. No se guarda el teléfono, SQL ni filas.
+
+Ciclo de mejora:
+
+```cmd
+python -m dbagg.evaluation gaps-summary
+python -m dbagg.evaluation gaps-list --category fuera_alcance
+python -m dbagg.evaluation gaps-review ID --decision nuevo_caso --reviewer RESPONSABLE --case data/reviewed/gap.json
+python -m dbagg.evaluation gaps-review ID --decision descartado --reviewer RESPONSABLE --note "fuera del negocio"
+python -m dbagg.evaluation gaps-export --output data/exports/gaps-v1.json
+```
+
+1. `gaps-summary` muestra solo conteos. `gaps-list` agrupa variantes de la misma pregunta
+   (sin acentos ni puntuación) por frecuencia; contiene datos privados, no la compartas.
+2. Revisar un ID marca todo su grupo. `nuevo_caso` exige un archivo con
+   `anonymized: true` y el formato de `evals/cases/intent-routing.json` (`id`, `question`,
+   `history`, `expected_tool`, `expected_arguments`, `criteria`), con datos sintéticos.
+   `resuelto` indica que ya se atendió.
+3. `gaps-export` produce un dataset sintético que no sobrescribe archivos. Copia sus casos
+   a `evals/cases/` tras verificarlos.
+4. Implementa la operación o el ajuste en código con su prueba de regresión y abre un PR.
+   CI (`tests/unit/test_eval_cases.py`) rechaza datasets no sintéticos, IDs repetidos y casos
+   que citen herramientas, operaciones o motivos de aclaración inexistentes.
+
 ## Medir mejoras
 
 Antes de cambiar prompt, contexto o modelo, ejecuta manualmente los casos sintéticos

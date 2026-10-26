@@ -12,6 +12,7 @@ respuesta financiera. Versión del prompt: `catalog-domains-v6:<huella del conte
 | --- | --- | --- |
 | ¿Cuánto debe Ana? | `saldo` | `CATALOGO_CLIENTES_DATA_V.[SALDO ACTUAL]`, sin recalcular acumulados |
 | ¿Cuánto deben los tres Ana Robles? | `saldos_coincidencias` | `[SALDO ACTUAL]` de cada coincidencia por nombre o código, hasta 10, sin sumar; saldo nulo se marca desconocido |
+| ¿Qué notas de crédito tiene pendientes Ana? | `notas_pendientes` | Notas abiertas que forman `[SALDO ACTUAL]`, asignando pagos y devoluciones FIFO; ver abajo |
 | ¿Quiénes son los cinco que más deben? | `ranking_deuda` | Saldos positivos, descendentes; empates por código; cantidad de 1 a 10 |
 | ¿Qué pagos hizo Ana esta semana? | `pagos` | Movimientos de `COBRANZA_DATA`, con límite explícito de 1 a 10 |
 | ¿Cuándo pagó Ana por última vez? | `ultimo_pago` | Mayor `FECHA` válida de todo el historial; muestra empates |
@@ -39,6 +40,25 @@ Comparar el saldo de varios candidatos no está implementado. La pregunta explí
 «cuál de los tres tiene saldo» recibe una aclaración, no el saldo de uno elegido por el
 modelo. Una guarda reconoce esa construcción y el prompt orienta otras variantes;
 no es un clasificador universal de comparaciones. Se pueden consultar los códigos por separado.
+
+## Notas de crédito pendientes
+
+Confirmado con datos (2026-10-26, 423 de 423 clientes):
+`[SALDO ACTUAL] = SALDO_INICIAL + Σ CREDITO_DATA.TOTAL − Σ COBRANZA_DATA.IMPORTE −
+Σ DEV_VENTA_DATA.IMPORTE`, todo con `ESTADO='ACTIVA'` y `CLIENTE=CODIGO`. Una nota es
+`CLIENTE`+`FOLIO` (puede tener varias partidas) y su importe es `SUM(TOTAL)`.
+
+Los pagos no indican qué nota liquidan, así que el responsable eligió asignación FIFO:
+pagos y devoluciones activos liquidan primero el `SALDO_INICIAL` (un saldo inicial negativo
+suma a los abonos) y luego las notas por `FECHA` y `FOLIO`. SQL calcula el acumulado por
+nota (`SUM(SUM(TOTAL)) OVER`) y devuelve solo las notas cuyo acumulado supera lo abonado;
+cada una muestra importe, pendiente (parcial si aplica) y días de antigüedad.
+
+El total pendiente se compara con `[SALDO ACTUAL]`: si no cuadra, la respuesta lo dice y
+queda `partial`. Saldo cero o a favor responde que no hay notas pendientes. Fechas
+inválidas o notas con importe no positivo se advierten. Se muestran hasta 50 notas, las
+más antiguas primero; el total siempre incluye todas. Prueba contra SQL Server de
+2026-10-26: 40 de 40 clientes con saldo positivo cuadraron.
 
 ## Cobranza y períodos
 

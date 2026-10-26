@@ -146,7 +146,12 @@ base_url = "https://api.openai.com/v1"
 language = "es"
 max_seconds = 60                   # 5 a 300
 timeout_seconds = 30
+hint = ""                          # hasta 500 caracteres; solo en el llm.toml local
 ```
+
+`hint` orienta la ortografía de nombres frecuentes (apellidos, apartados de gasto,
+productos) que el modelo de voz confunde. Escríbelo solo en `config/llm.toml`, que no se
+versiona, para no publicar nombres reales.
 
 Si la variable de `api_key_env` no existe, el servicio arranca con una advertencia y
 responde a las notas de voz que escriban su pregunta; los mensajes de texto no cambian.

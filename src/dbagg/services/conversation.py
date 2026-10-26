@@ -7,6 +7,7 @@ from uuid import uuid4
 import httpx
 
 from dbagg.agent.prompts import PROMPT_VERSION
+from dbagg.evaluation.gaps import GapStore
 from dbagg.evaluation.store import FeedbackStore, utc_now
 from dbagg.integrations.meta import meta_error_codes
 from dbagg.paths import project_root
@@ -23,11 +24,16 @@ def command_name(question):
 
 
 class ConversationService:
-    def __init__(self, settings, assistant, deliver, feedback_store=None, voice=None):
+    def __init__(
+        self, settings, assistant, deliver, feedback_store=None, voice=None, gap_store=None
+    ):
         self.settings = settings
         self.assistant = assistant
         self.deliver = deliver
         self.voice = voice
+        self.gaps = gap_store
+        if self.gaps is None and getattr(settings, "gap_log_enabled", False):
+            self.gaps = GapStore(project_root() / "data" / "gaps.sqlite3")
         self.memory = ConversationMemory()
         self.lock = threading.Lock()
         self.feedback = feedback_store
@@ -155,6 +161,12 @@ class ConversationService:
         if save_turn:
             trace = getattr(self.assistant, "last_trace", None)
             trace = trace if isinstance(trace, dict) else {}
+            if self.gaps is not None and trace.get("gap"):
+                try:
+                    self.gaps.record(question, trace, voice=voice)
+                    logger.info("dbagg stage=gap_logged category=%s", trace["gap"])
+                except Exception as exc:  # the answer was already delivered
+                    logger.warning("dbagg stage=gap_log_failed error_type=%s", type(exc).__name__)
             self.memory.remember(
                 sender,
                 question,

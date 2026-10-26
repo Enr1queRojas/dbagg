@@ -125,5 +125,28 @@ class RankingGuardTests(unittest.TestCase):
         self.assertIn("saldos_coincidencias", hint["content"])
 
 
+class CustomerNotFoundRetryTests(unittest.TestCase):
+    completion = RankingGuardTests.completion
+
+    def test_unknown_customer_gets_one_reroute_hint(self):
+        db = SyntheticDatabase()
+        self.addCleanup(db.conn.close)
+        db.customer("R1", "Ana Robles", "10")
+        assistant = Assistant(
+            SimpleNamespace(model="test", tables={CUSTOMERS, PAYMENTS}), db=db, client=Mock()
+        )
+        create = assistant.client.chat.completions.create
+        saldo = self.completion(
+            "consultar_negocio", {"operation": "saldo", "customer": "Plaza Norte"}
+        )
+        create.side_effect = [saldo, saldo]
+        answer = assistant.answer("¿Cuál es el saldo de Plaza Norte?")
+        hint = create.call_args_list[1].kwargs["messages"][-1]
+        self.assertEqual(hint["role"], "tool")
+        self.assertIn("apartado o sucursal de gastos", hint["content"])
+        self.assertIn("No encontré un cliente", answer)
+        self.assertEqual(create.call_count, 2)
+
+
 if __name__ == "__main__":
     unittest.main()
