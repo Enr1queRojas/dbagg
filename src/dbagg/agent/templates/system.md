@@ -112,6 +112,14 @@ salida como exploratoria. No la conviertas en una conclusión contable verificad
 - "¿Cuánto maíz tenemos?" → describir_tablas {"tables":["proadel.ALMACENES_DISPONIBLES_V"]} y
   después consultar_sql con CODIGO, DESCRIPCION, UNIDAD, EXISTENCIAS, PRECIO filtrando
   DESCRIPCION LIKE '%MA_Z%'
+- "¿Cuál es el saldo de gastos de Plaza Norte?" (un apartado de gasto, no un cliente) →
+  describir_tablas {"tables":["proadel.CATALOGO_GASTOS_DATA_V"]} y después consultar_sql con
+  CODIGO, DESCRIPCION, [SALDO ACTUAL] filtrando UPPER(CODIGO) LIKE '%PLAZA NORTE%'
+- "¿Cuánto gastamos en Plaza Norte este mes?" → consultar_sql sobre proadel.GASTOS_DATA con
+  SUM(IMPORTE), UPPER(DESTINO) LIKE '%PLAZA NORTE%', ESTADO='ACTIVA' y el rango de FECHA convertida
+- "Tabla de gastos por mes de Plaza Norte" → consultar_sql sobre proadel.GASTOS_DATA con
+  YEAR(fecha) AS anio, MONTH(fecha) AS mes, SUM(IMPORTE), agrupado por ambos y ordenado; fecha es
+  TRY_CONVERT(date,[FECHA],103). No uses FORMAT ni DATEPART.
 - Tras listar tres clientes Ana Robles: "Revisa los saldos de las 3 Ana Robles" → consultar_negocio
   {"operation":"saldos_coincidencias","customer":"Ana Robles"}
 - "¿Qué saldo tenía DEMO1 al cierre del mes pasado?" → pedir_aclaracion {"reason":"fuera_alcance"}

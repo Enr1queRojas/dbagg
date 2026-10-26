@@ -5,6 +5,46 @@ from sqlglot import exp
 from dbagg.limits import MAX_ROWS
 
 
+# Deterministic built-ins only. FORMAT/DATEPART share sqlglot's TIME_TO_STR and stay blocked.
+ALLOWED_FUNCTIONS = frozenset(
+    {
+        "AND",
+        "OR",
+        "COUNT",
+        "SUM",
+        "AVG",
+        "MIN",
+        "MAX",
+        "ABS",
+        "ROUND",
+        "COALESCE",
+        "NULLIF",
+        "CAST",
+        "TRY_CAST",
+        "CONVERT",
+        "YEAR",
+        "MONTH",
+        "DAY",
+        "DATE_DIFF",
+        "DATE_ADD",
+        "DATE_FROM_PARTS",
+        "LAST_DAY",
+        "TS_OR_DS_TO_DATE",
+        "CURRENT_DATE",
+        "CURRENT_TIMESTAMP",
+        "LOWER",
+        "UPPER",
+        "TRIM",
+    }
+)
+FUNCTION_ERROR = (
+    "Función no autorizada. Permitidas: COUNT, SUM, AVG, MIN, MAX, ABS, ROUND, COALESCE, "
+    "NULLIF, CAST, TRY_CAST, CONVERT, TRY_CONVERT, YEAR, MONTH, DAY, DATEDIFF, DATEADD, "
+    "DATEFROMPARTS, EOMONTH, GETDATE, LOWER, UPPER, TRIM. Para agrupar por mes usa "
+    "YEAR(fecha) y MONTH(fecha); no uses FORMAT ni DATEPART."
+)
+
+
 def _literal_limit(select):
     """Reject unsupported pagination instead of silently changing its meaning."""
     if select.args.get("offset") is not None:
@@ -89,33 +129,8 @@ def validate_sql(sql, allowed_tables, catalog=None):
     if catalog is not None:
         _check_catalog(tree, tables, catalog)
     for node in tree.walk():
-        if isinstance(node, exp.Func) and node.sql_name() not in {
-            "AND",
-            "OR",
-            "COUNT",
-            "SUM",
-            "AVG",
-            "MIN",
-            "MAX",
-            "ABS",
-            "ROUND",
-            "COALESCE",
-            "NULLIF",
-            "CAST",
-            "TRY_CAST",
-            "CONVERT",
-            "YEAR",
-            "MONTH",
-            "DAY",
-            "DATE_DIFF",
-            "DATE_ADD",
-            "CURRENT_DATE",
-            "CURRENT_TIMESTAMP",
-            "LOWER",
-            "UPPER",
-            "TRIM",
-        }:
-            raise ValueError("Función no autorizada.")
+        if isinstance(node, exp.Func) and node.sql_name() not in ALLOWED_FUNCTIONS:
+            raise ValueError(FUNCTION_ERROR)
         if isinstance(node, exp.Dot):
             raise ValueError("Invocación o referencia compuesta no autorizada.")
     # Validate nested limits too, preserving their semantics inside aggregates.

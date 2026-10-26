@@ -152,14 +152,27 @@ class Assistant:
                 except BusinessError as exc:
                     self.last_trace.update(status="unavailable", sources=[])
                     return str(exc)
-                except (ValueError, KeyError, TypeError, sqlglot.errors.ParseError):
-                    logger.info("dbagg stage=sql_rejected")
+                except (ValueError, KeyError, TypeError, sqlglot.errors.ParseError) as exc:
+                    # Validator messages are fixed texts; parser errors may echo SQL, so omit them.
+                    reason = (
+                        str(exc)[:400]
+                        if type(exc) is ValueError
+                        else "SQL no reconocido por el validador."
+                        if isinstance(exc, sqlglot.errors.ParseError)
+                        else "Argumentos inválidos."
+                    )
+                    logger.info(
+                        "dbagg stage=sql_rejected kind=%s reason=%s",
+                        type(exc).__name__,
+                        reason[:80] if type(exc) is ValueError else "-",
+                    )
                     result = {
-                        "error": "Solicitud rechazada. Describe entre uno y cinco objetos autorizados "
-                        "antes de consultar; usa solo SELECT de un objeto con columnas explícitas "
-                        "de su descripción, sin SELECT *, JOIN no declarado, CTE, "
-                        "hints ni funciones no aprobadas. Para catálogo de clientes y cobranza usa consultar_negocio. "
-                        "Máximo cuatro descripciones y cuatro SELECT."
+                        "error": "Solicitud rechazada. Motivo: " + reason + " Reglas: describe "
+                        "entre uno y cinco objetos autorizados antes de consultar; usa solo SELECT "
+                        "de un objeto con columnas explícitas de su descripción, sin SELECT *, "
+                        "JOIN no declarado, CTE ni hints. Para catálogo de clientes y cobranza usa "
+                        "consultar_negocio. Máximo cuatro descripciones y cuatro SELECT. Corrige "
+                        "según el motivo; no repitas la misma consulta."
                     }
                 except pyodbc.ProgrammingError:
                     logger.info("dbagg stage=sql_programming_error")

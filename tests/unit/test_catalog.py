@@ -99,6 +99,47 @@ class CatalogValidationTests(unittest.TestCase):
         self.assertIn("TOP 50", sql)
         self.assertIn("GROUP BY CATEGORIA", sql)
 
+    def test_expense_section_balance_and_period_spend_are_allowed(self):
+        tables = self.catalog.restrict({GASTOS, "proadel.catalogo_gastos_data_v"})
+        validate_sql(
+            "SELECT CODIGO, DESCRIPCION, [SALDO ACTUAL] FROM proadel.CATALOGO_GASTOS_DATA_V "
+            "WHERE UPPER(CODIGO) LIKE '%NORTE%'",
+            tables,
+            self.catalog,
+        )
+        sql = validate_sql(
+            "SELECT SUM(IMPORTE) AS total FROM proadel.GASTOS_DATA "
+            "WHERE UPPER(DESTINO) LIKE '%NORTE%' AND ESTADO = 'ACTIVA' "
+            "AND TRY_CONVERT(date, [FECHA], 103) >= '2026-10-01' "
+            "AND TRY_CONVERT(date, [FECHA], 103) < '2026-11-01'",
+            tables,
+            self.catalog,
+        )
+        self.assertIn("SUM(IMPORTE)", sql)
+
+    def test_monthly_expense_table_shapes(self):
+        tables = self.catalog.restrict({GASTOS})
+        date = "TRY_CONVERT(date, [FECHA], 103)"
+        where = "WHERE UPPER(DESTINO) LIKE '%NORTE%' AND ESTADO = 'ACTIVA'"
+        for sql in (
+            f"SELECT YEAR({date}) AS anio, MONTH({date}) AS mes, SUM(IMPORTE) AS total "
+            f"FROM proadel.GASTOS_DATA {where} GROUP BY YEAR({date}), MONTH({date}) "
+            "ORDER BY anio, mes",
+            f"SELECT EOMONTH({date}) AS cierre, SUM(IMPORTE) AS total "
+            f"FROM proadel.GASTOS_DATA {where} GROUP BY EOMONTH({date})",
+            f"SELECT DATEFROMPARTS(YEAR({date}), MONTH({date}), 1) AS mes, SUM(IMPORTE) AS t "
+            f"FROM proadel.GASTOS_DATA {where} "
+            f"GROUP BY DATEFROMPARTS(YEAR({date}), MONTH({date}), 1)",
+        ):
+            with self.subTest(sql=sql):
+                validate_sql(sql, tables, self.catalog)
+        for sql in (
+            f"SELECT FORMAT({date}, 'yyyy-MM') AS mes FROM proadel.GASTOS_DATA",
+            f"SELECT DATEPART(month, {date}) AS mes FROM proadel.GASTOS_DATA",
+        ):
+            with self.subTest(sql=sql), self.assertRaisesRegex(ValueError, "MONTH"):
+                validate_sql(sql, tables, self.catalog)
+
     def test_inventory_columns_with_spaces_and_count_star_are_allowed(self):
         self.validate(
             "SELECT DESCRIPCION, UNIDAD, EXISTENCIAS, [INVENTARIO INICIAL] "
@@ -221,6 +262,28 @@ class CatalogAgentTests(unittest.TestCase):
         self.assertIn("requiere revisión", answer)
         self.assertIn("TOP 50", assistant.db.query.call_args.args[0])
         self.assertEqual(assistant.last_trace["sources"], [ALMACEN])
+
+    def test_rejection_reason_reaches_the_model_so_it_can_correct(self):
+        assistant = Assistant(
+            SimpleNamespace(model="test", tables={GASTOS}), db=Mock(), client=Mock()
+        )
+        assistant.db.schema.return_value = json.dumps(
+            [{"table": GASTOS, "columns": [{"name": "FECHA", "type": "nvarchar"}]}]
+        )
+        create = assistant.client.chat.completions.create
+        create.side_effect = [
+            self.completion(name="describir_tablas", arguments={"tables": [GASTOS]}),
+            self.completion(
+                name="consultar_sql",
+                arguments={"sql": "SELECT FORMAT(FECHA, 'yyyy-MM') AS m FROM proadel.GASTOS_DATA"},
+            ),
+            self.completion(name="pedir_aclaracion", arguments={"reason": "criterio"}),
+        ]
+        assistant.answer("gastos por mes")
+        feedback = create.call_args_list[2].kwargs["messages"][-1]["content"]
+        self.assertIn("Motivo", feedback)
+        self.assertIn("MONTH(fecha)", feedback)
+        assistant.db.query.assert_not_called()
 
     def test_described_columns_exclude_personal_data(self):
         assistant = Assistant(
