@@ -1,0 +1,49 @@
+{
+  "_comment": "Kg por unidad de CANTIDAD/EXISTENCIAS por CODIGO, revisado con el negocio el 2026-10-28. La columna UNIDAD del ERP no es confiable (AMARILLO dice BULTO y está en kg; los MTY dicen KG y son bultos). Bulto = 45 kg salvo que el producto indique otro peso. Los códigos sin confirmar se dedujeron del precio por unidad (≈$7/kg maíz, ≈$25-30/kg frijol): BOD7BILLZ45 cotiza por kg aunque su nombre diga 45.",
+  "kg_por_unidad": {
+    "MAIZ": 1,
+    "AMARILLO": 1,
+    "AMA-BOD7": 1,
+    "MAIZ 2026": 1,
+    "MAIZ SINALOA": 1,
+    "MAIZ50": 50,
+    "MAIZMTY45": 45,
+    "MAIZMTY|": 45,
+    "AMAMTY": 45,
+    "MAIZ BOD 7": 1,
+    "SALTILLOKG": 1,
+    "SALT9": 1,
+    "SALT25BOD7": 1,
+    "BILZNVO": 1,
+    "SALT 25": 25,
+    "SALT25MTY": 25,
+    "25BILLZ": 25,
+    "BOD7BILLZ25": 25,
+    "GARBANCILLO": 25,
+    "BILLZ45": 45,
+    "BOD7BILLZ45": 1,
+    "REYNA": 1,
+    "REYNA29": 1,
+    "REYNAA": 1,
+    "NEGRO": 1,
+    "BAYO": 1,
+    "PERUANO": 45,
+    "ALUBIA": 45
+  },
+  "familias": {
+    "MAIZ": [
+      "MAIZ", "AMARILLO", "AMA-BOD7", "MAIZ 2026", "MAIZ SINALOA", "MAIZ50", "MAIZMTY45",
+      "MAIZMTY|", "AMAMTY", "MAIZ BOD 7"
+    ],
+    "FRIJOL": [
+      "SALTILLOKG", "SALT9", "SALT25BOD7", "BILZNVO", "SALT 25", "SALT25MTY", "25BILLZ",
+      "BOD7BILLZ25", "GARBANCILLO", "BILLZ45", "BOD7BILLZ45", "REYNA", "REYNA29", "REYNAA",
+      "NEGRO", "BAYO", "PERUANO", "ALUBIA"
+    ]
+  },
+  "no_grano": [
+    "UREA", "UREAA", "FOSFORO", "COSTALES NVO", "ROTOS", "PAPELCA 2", "LAMINA",
+    "GRANZA COM", "GRANZABOD5", "OBSEQUIO", "FAENA", "SEMILLA MAIZ", "SEMILLAN", "CHILES"
+  ],
+  "excluir_de_ventas": ["A"]
+}

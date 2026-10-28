@@ -42,3 +42,15 @@ base_url = "https://api.anthropic.com/v1"
 max_output_tokens = 2000
 timeout_seconds = 30
 max_retries = 1
+
+# Notas de voz de WhatsApp. Independiente del perfil activo: usa una API
+# /audio/transcriptions compatible con OpenAI. Sin la clave, las notas de voz se
+# rechazan con un aviso y los mensajes de texto siguen funcionando.
+[transcription]
+enabled = true
+model = "gpt-4o-mini-transcribe"
+api_key_env = "OPENAI_API_KEY"
+base_url = "https://api.openai.com/v1"
+language = "es"
+max_seconds = 60
+timeout_seconds = 30

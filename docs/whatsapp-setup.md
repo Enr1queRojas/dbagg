@@ -116,6 +116,15 @@ Con la URL HTTPS asignada, registra en Meta:
 - Verify token: el mismo valor de `META_VERIFY_TOKEN`.
 - Suscripción al campo `messages` de WhatsApp y a la cuenta empresarial pertinente.
 
+Meta guarda dos callbacks: el de la app (el del formulario) y un override del número
+que tiene prioridad y no aparece en ese formulario. Si el override apunta a una URL
+vieja, la verificación del panel pasa pero los mensajes reales no llegan. Cada vez que
+cambie la URL del túnel, con Uvicorn y cloudflared en marcha, actualiza ambos con:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\update_webhook_url.py
+```
+
 Conserva abierta la consola del servicio y la del túnel. La PC debe estar encendida
 y conectada. No introduzcas claves en comandos públicos, URLs o capturas.
 
@@ -141,6 +150,25 @@ piloto: requiere ejecutarse por separado o exponerse mediante una integración f
 El agente no debe inventar ese score cuando no esté en las vistas.
 
 ## Límites del piloto
+
+### Notas de voz
+
+Los números autorizados pueden enviar notas de voz de hasta 60 segundos (configurable,
+ver [llm-configuration.md](llm-configuration.md#transcripción-de-notas-de-voz)). El
+servicio descarga el audio de Meta, lo transcribe y lo procesa igual que un mensaje
+escrito. La respuesta empieza con «🎙️ Entendí: …» para que se pueda comprobar la
+transcripción antes de confiar en la cifra, sobre todo con nombres de clientes.
+
+- No requiere suscribir campos nuevos en Meta: el audio llega en `messages`.
+- El audio se procesa en memoria y no se guarda. Los logs registran etapa, tipo de
+  error y número de caracteres, nunca el contenido transcrito. El texto pasa al proveedor
+  de transcripción y, como cualquier pregunta, al modelo configurado.
+- Una nota de voz nunca ejecuta comandos (`/reiniciar`, `/buena`…), aunque se dicten.
+- Notas más largas o de más de 2 MB, audio vacío o fallos del proveedor reciben un
+  aviso para repetir o escribir la pregunta. La duración se lee del formato Ogg Opus de
+  WhatsApp; otros formatos (audios reenviados) solo se limitan por tamaño.
+- Logs útiles: `voice_accepted`, `voice_transcribed chars=N`, `voice_rejected reason=…`,
+  `voice_download_failed` y `voice_transcription_failed http_status=…`.
 
 ### Preguntas naturales y contexto de negocio
 

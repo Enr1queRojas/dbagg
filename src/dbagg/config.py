@@ -32,6 +32,8 @@ class Settings:
     feedback_path: Path | None = None
     business_timezone: str = "America/Mexico_City"
     llm: LLMConfig | None = None
+    transcription_key: str = field(default="", repr=False)
+    gap_log_enabled: bool = False
 
     @classmethod
     def from_env(cls):
@@ -106,6 +108,13 @@ class Settings:
                 "dbagg: modo demo TLS sin verificación de identidad del servidor; "
                 "el cifrado sigue siendo obligatorio."
             )
+        transcription_key = ""
+        if llm.transcription.enabled:
+            transcription_key = os.getenv(llm.transcription.api_key_env, "")
+            if not transcription_key:
+                logger.warning(
+                    "dbagg: notas de voz deshabilitadas; falta %s.", llm.transcription.api_key_env
+                )
         return cls(
             os.environ[llm.profile.api_key_env],
             llm.profile.model,
@@ -121,4 +130,6 @@ class Settings:
             project_root() / "data" / "feedback.sqlite3",
             timezone,
             llm,
+            transcription_key,
+            os.getenv("GAP_LOG_ENABLED", "").lower() == "true",
         )

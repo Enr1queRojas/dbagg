@@ -1,5 +1,26 @@
 # Cambios
 
+## Sin publicar — Notas de voz de WhatsApp
+
+- Los números autorizados pueden enviar notas de voz de hasta 60 s. Se descargan de Meta
+  en memoria, se transcriben con `gpt-4o-mini-transcribe` y siguen el mismo flujo que un
+  texto, con eco «🎙️ Entendí: …» antes de la respuesta.
+- Sección opcional `[transcription]` en `llm.toml`; sin la clave, las notas de voz se
+  rechazan con aviso y el texto sigue funcionando.
+- Operación verificada `notas_pendientes`: notas de crédito abiertas que forman el saldo
+  actual, con asignación FIFO de pagos y devoluciones (saldo inicial primero) y
+  comprobación contra `[SALDO ACTUAL]`. Fórmula del saldo verificada en 423/423 clientes.
+- Si una consulta de cliente no encuentra a nadie, el modelo recibe una pista y un
+  reintento (puede ser un apartado de gastos, producto o almacén). `hint` opcional en
+  `[transcription]` para nombres frecuentes.
+- Registro opcional de preguntas sin respuesta (`GAP_LOG_ENABLED=true`, `data/gaps.sqlite3`):
+  fuera de alcance, sin evidencia, límite de consultas y exploratorias. CLI `gaps-summary`,
+  `gaps-list`, `gaps-review` y `gaps-export` para convertirlas en casos sintéticos; CI valida
+  `evals/cases` contra herramientas, operaciones y motivos vigentes.
+- Una transcripción nunca ejecuta comandos. Audio y transcripciones no se guardan ni
+  aparecen en los logs. Pruebas con audio Ogg sintético y dobles HTTP; no validan Meta
+  ni el modelo de transcripción reales.
+
 ## Sin publicar — Catálogo de fuentes SQL y prompt v6
 
 - `src/dbagg/database/catalog.json` declara 26 fuentes de clientes, gastos e inventarios

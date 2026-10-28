@@ -131,6 +131,33 @@ el modelo, proveedor y perfil seleccionados. La base SQLite existente recibe las
 columnas nuevas sin borrar registros, revisiones ni ejemplos aprobados; las entradas
 anteriores mantienen esos campos vacíos cuando se desconoce el proveedor.
 
+## Transcripción de notas de voz
+
+La sección opcional `[transcription]` configura las notas de voz de WhatsApp. Es
+independiente del perfil activo: siempre usa una API `/audio/transcriptions` compatible
+con OpenAI. Si falta la sección se aplican estos valores:
+
+```toml
+[transcription]
+enabled = true
+model = "gpt-4o-mini-transcribe"   # también whisper-1 o gpt-4o-transcribe
+api_key_env = "OPENAI_API_KEY"
+base_url = "https://api.openai.com/v1"
+language = "es"
+max_seconds = 60                   # 5 a 300
+timeout_seconds = 30
+hint = ""                          # hasta 500 caracteres; solo en el llm.toml local
+```
+
+`hint` orienta la ortografía de nombres frecuentes (apellidos, apartados de gasto,
+productos) que el modelo de voz confunde. Escríbelo solo en `config/llm.toml`, que no se
+versiona, para no publicar nombres reales.
+
+Si la variable de `api_key_env` no existe, el servicio arranca con una advertencia y
+responde a las notas de voz que escriban su pregunta; los mensajes de texto no cambian.
+`enabled = false` las desactiva explícitamente. Confirma que el modelo esté disponible
+en tu cuenta antes de cambiarlo.
+
 ## Prueba de un perfil
 
 1. Ejecuta `check`; confirma perfil/modelo, `api_key_present=true` y huella esperada.

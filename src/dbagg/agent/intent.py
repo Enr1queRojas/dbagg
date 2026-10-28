@@ -18,6 +18,14 @@ RANKING_HINT = (
 )
 
 
+NOT_A_CUSTOMER_HINT = (
+    "No hay clientes con ese nombre o código. Quizá no es un cliente: si es un apartado o "
+    "sucursal de gastos, un producto o un almacén, explora ese dominio con describir_tablas y "
+    "consultar_sql (por ejemplo CODIGO del catálogo de gastos). Si la pregunta sí es sobre un "
+    "cliente, usa pedir_aclaracion(cliente)."
+)
+
+
 def _plain(question):
     text = "".join(
         c
