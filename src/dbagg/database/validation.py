@@ -10,6 +10,8 @@ ALLOWED_FUNCTIONS = frozenset(
     {
         "AND",
         "OR",
+        "CASE",
+        "IF",  # sqlglot's node for each CASE WHEN branch (and T-SQL IIF)
         "COUNT",
         "SUM",
         "AVG",
@@ -38,7 +40,7 @@ ALLOWED_FUNCTIONS = frozenset(
     }
 )
 FUNCTION_ERROR = (
-    "Función no autorizada. Permitidas: COUNT, SUM, AVG, MIN, MAX, ABS, ROUND, COALESCE, "
+    "Función no autorizada. Permitidas: CASE, COUNT, SUM, AVG, MIN, MAX, ABS, ROUND, COALESCE, "
     "NULLIF, CAST, TRY_CAST, CONVERT, TRY_CONVERT, YEAR, MONTH, DAY, DATEDIFF, DATEADD, "
     "DATEFROMPARTS, EOMONTH, GETDATE, LOWER, UPPER, TRIM. Para agrupar por mes usa "
     "YEAR(fecha) y MONTH(fecha); no uses FORMAT ni DATEPART."

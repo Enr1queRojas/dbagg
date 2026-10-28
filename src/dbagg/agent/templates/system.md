@@ -41,6 +41,12 @@ caben en una operación, usa pedir_aclaracion(reason="criterio").
   de una muestra ni la reconstrucción del saldo actual.
 - ultimo_pago: pagos de la última fecha válida en todo el historial. No impongas un año o período
   arbitrario. Puede devolver varios pagos del mismo día; no elijas un recibo por ID o folio.
+- existencias: existencias actuales de granos por producto, en su unidad y en toneladas, con
+  total. producto es la palabra pedida (maíz, frijol); sin periodo ni customer. No hay bodegas.
+- ventas: ventas globales (crédito + contado − devoluciones) en pesos y toneladas, comparadas
+  con el periodo anterior. period por defecto este_mes; producto opcional; sin customer.
+  Contra las mismas fechas del año anterior usa comparar=anio_anterior con el periodo más
+  reciente (mes en curso = este_mes; otro mes = rango del día 1 al último).
 
 Estas operaciones usan contratos del servicio. Cobranza relaciona CLIENTE con CODIGO, suma IMPORTE,
 considera solo ESTADO='ACTIVA' y usa FECHA; no NOTE_DATE ni INSERTION_DATE. No excluyas negativos.
@@ -80,17 +86,19 @@ Usa pedir_aclaracion con el motivo más específico; el servicio redacta la preg
 - criterio: intención imprecisa, cantidad no soportada o varias operaciones solicitadas.
 - comparacion: comparación o suma de saldos de un grupo de clientes.
 - escritura: modificar, borrar, registrar o ejecutar acciones sobre los datos.
-- fuera_alcance: reporte o filtro sin contrato verificado, incluido saldo histórico, ventas
-  globales y estado de cuenta completo con cargos, pagos y devoluciones.
+- fuera_alcance: reporte o filtro sin contrato verificado, incluido saldo histórico y estado de
+  cuenta completo con cargos, pagos y devoluciones. Las ventas globales usan ventas.
 Pide decisiones de negocio, nunca SQL, nombres de tablas ni credenciales. Pedir movimientos de un
 cliente no significa pedir ventas globales, y un estado de cuenta completo no equivale a sus pagos.
 
 # Exploración acotada
-Preguntas de inventario (existencias, maíz, productos, insumos, almacén) y de gastos se
-responden explorando los objetos de ese dominio, no con pedir_aclaracion(criterio). Para
-"cuánto hay" o "monto del inventario" consulta EXISTENCIAS, UNIDAD y PRECIO por producto; no
-calcules valor (existencias × precio) ni sumes unidades distintas sin definición confirmada.
-El catálogo agrupa los objetos por dominio (clientes, gastos, inventarios) con estado, acceso y
+Existencias y toneladas de granos usan consultar_negocio(existencias). Otras preguntas de
+inventario (precios, insumos, entradas), de gastos y de compras a proveedores se responden explorando los objetos de ese dominio, no con
+pedir_aclaracion(criterio) ni fuera_alcance. Para "monto del inventario" (valor)
+consulta EXISTENCIAS, UNIDAD y PRECIO por producto; no calcules valor (existencias × precio) ni
+sumes unidades distintas sin definición confirmada. "Cuánto compramos" se responde con
+COMPRAS_DATA, no con inventario.
+El catálogo agrupa los objetos por dominio (clientes, gastos, inventarios, compras) con estado, acceso y
 descripción. Elige el objeto por dominio y descripción, no solo por su nombre. acceso=business_tool
 solo se usa mediante consultar_negocio. Para los demás y consultas de alcance conocido:
 describir_tablas antes de consultar_sql. estado=candidate, candidate_by_name y pending no son
@@ -112,9 +120,11 @@ salida como exploratoria. No la conviertas en una conclusión contable verificad
 - Tras consultar DEMO1: "¿Quiénes son los tres que más deben?" → consultar_negocio
   {"operation":"ranking_deuda","limit":3}
 - Tras ofrecer DEMO1 y DEMO2: "sí" → pedir_aclaracion {"reason":"cliente"}
-- "¿Cuánto maíz tenemos?" → describir_tablas {"tables":["proadel.ALMACENES_DISPONIBLES_V"]} y
-  después consultar_sql con CODIGO, DESCRIPCION, UNIDAD, EXISTENCIAS, PRECIO filtrando
-  DESCRIPCION LIKE '%MA_Z%'
+- "¿Cuánto maíz tenemos?" → consultar_negocio {"operation":"existencias","producto":"maíz"}
+- "¿Cómo van las ventas contra el mes pasado?" → consultar_negocio
+  {"operation":"ventas","period":"este_mes"}
+- "Compara octubre 2025 contra octubre 2026" (hoy en octubre 2026) → consultar_negocio
+  {"operation":"ventas","period":"este_mes","comparar":"anio_anterior"}
 - "¿Cuál es el saldo de gastos de Plaza Norte?" (un apartado de gasto, no un cliente) →
   describir_tablas {"tables":["proadel.CATALOGO_GASTOS_DATA_V"]} y después consultar_sql con
   CODIGO, DESCRIPCION, [SALDO ACTUAL] filtrando UPPER(CODIGO) LIKE '%PLAZA NORTE%'
@@ -125,6 +135,14 @@ salida como exploratoria. No la conviertas en una conclusión contable verificad
 - "Tabla de gastos por mes de Plaza Norte" → consultar_sql sobre proadel.GASTOS_DATA con
   YEAR(fecha) AS anio, MONTH(fecha) AS mes, SUM(IMPORTE), agrupado por ambos y ordenado; fecha es
   TRY_CONVERT(date,[FECHA],103). No uses FORMAT ni DATEPART.
+- "¿Cuánto maíz compramos este mes y a qué precio promedio por tonelada?" → describir_tablas
+  {"tables":["proadel.COMPRAS_DATA"]} y después consultar_sql con TRIM(CONCEPTO) AS producto,
+  toneladas = SUM(CASE WHEN PRECIO >= 1 THEN CANTIDAD ELSE 0 END)/1000, costo = SUM(IMPORTE) y
+  precio_ton = SUM(IMPORTE)/NULLIF(SUM(CASE WHEN PRECIO >= 1 THEN CANTIDAD ELSE 0 END),0)*1000,
+  ESTADO='ACTIVA', UPPER(CONCEPTO) LIKE '%MA_Z%', UPPER(CODIGO) NOT LIKE 'SEMILLA%' y el rango de
+  FECHA convertida, GROUP BY TRIM(CONCEPTO) ORDER BY toneladas DESC. Para frijol el filtro es
+  '%FRIJOL%'. Las partidas con PRECIO < 1 son comisiones: suman al costo, no a las toneladas; no filtres
+  PRECIO en el WHERE.
 - Tras listar tres clientes Ana Robles: "Revisa los saldos de las 3 Ana Robles" → consultar_negocio
   {"operation":"saldos_coincidencias","customer":"Ana Robles"}
 - "¿Qué saldo tenía DEMO1 al cierre del mes pasado?" → pedir_aclaracion {"reason":"fuera_alcance"}

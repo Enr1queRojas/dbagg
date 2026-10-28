@@ -87,17 +87,23 @@ class GapStore:
         if category not in CATEGORIES:
             raise ValueError("Categoría de pregunta sin respuesta desconocida.")
         gap_id = uuid4().hex
+        key = normalized(question)[:1000]
         with self._connect() as connection:
+            # A question discarded once stays discarded, so repeats never return to review.
+            discarded = connection.execute(
+                "SELECT 1 FROM gaps WHERE normalized=? AND review_status='descartado' LIMIT 1",
+                (key,),
+            ).fetchone()
             connection.execute(
                 """INSERT INTO gaps (id, created_at, category, question, normalized, input,
                 operation, sources_json, model, prompt_version, context_version,
-                catalog_version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                catalog_version, review_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     gap_id,
                     utc_now(),
                     category,
                     question[:1000],
-                    normalized(question)[:1000],
+                    key,
                     "voice" if voice else "text",
                     trace.get("operation"),
                     json.dumps(list(trace.get("sources") or []), ensure_ascii=False),
@@ -105,6 +111,7 @@ class GapStore:
                     trace.get("prompt_version"),
                     trace.get("context_version"),
                     trace.get("catalog_version"),
+                    "descartado" if discarded else "pending",
                 ),
             )
         return gap_id

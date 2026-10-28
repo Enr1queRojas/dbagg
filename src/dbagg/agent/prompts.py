@@ -4,6 +4,7 @@ import json
 from datetime import timedelta
 from dbagg.business.calendar import business_today
 from dbagg.business.customers import OPERATIONS
+from dbagg.business.products import COMPARISONS, PRODUCT_OPERATIONS
 from dbagg.agent.prompt_files import PROMPT_VERSION as PROMPT_VERSION, load_prompt_bundle
 
 
@@ -59,10 +60,15 @@ def tool_definitions(bundle=None):
             "consultar_negocio",
             bundle.descriptions["consultar_negocio"],
             {
-                "operation": {"type": "string", "enum": list(OPERATIONS)},
+                "operation": {"type": "string", "enum": list(OPERATIONS + PRODUCT_OPERATIONS)},
                 "customer": {
                     "type": "string",
                     "description": "Nombre o código presente en la conversación. Omitir en ranking.",
+                },
+                "producto": {
+                    "type": "string",
+                    "description": "Solo existencias y ventas: palabra del producto (maíz, frijol). "
+                    "Omitir si no piden un producto.",
                 },
                 "period": {
                     "type": "string",
@@ -82,6 +88,12 @@ def tool_definitions(bundle=None):
                 "end": {
                     "type": "string",
                     "description": "Fin inclusivo YYYY-MM-DD; solo en rango.",
+                },
+                "comparar": {
+                    "type": "string",
+                    "enum": list(COMPARISONS),
+                    "description": "Solo ventas: anio_anterior para comparar contra las mismas "
+                    "fechas del año anterior; si no, periodo_anterior.",
                 },
                 "limit": {"type": "integer", "minimum": 1, "maximum": 10},
             },

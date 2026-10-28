@@ -57,6 +57,13 @@ class GapStoreTests(unittest.TestCase):
         self.assertEqual(self.store.review(first, "nuevo_caso", "revisor", case=CASE), 2)
         self.assertEqual(self.store.grouped(), [])
 
+    def test_discarded_question_never_returns_to_review(self):
+        gap = self.store.record("¿Cuánto maíz hay en cada bodega?", trace("exploratoria"))
+        self.store.review(gap, "descartado", "revisor", note="Sin dato de bodega")
+        self.store.record("cuanto maiz hay en cada bodega", trace("fuera_alcance"))
+        self.store.record("¿Cuáles notas vencen?", trace("fuera_alcance"))
+        self.assertEqual([g["example"] for g in self.store.grouped()], ["¿Cuáles notas vencen?"])
+
     def test_export_writes_eval_shaped_synthetic_cases_without_overwriting(self):
         gap = self.store.record("¿Cuáles notas vencen?", trace("fuera_alcance"))
         self.store.review(gap, "nuevo_caso", "revisor", case=CASE)

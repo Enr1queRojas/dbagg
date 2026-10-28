@@ -102,10 +102,10 @@
     "suppliers_and_purchases": {
       "questions": ["¿Cuánto debemos a proveedores?", "¿Cuánto compramos este mes?", "¿Cuándo pagamos al proveedor?"],
       "status": "candidate_by_name",
-      "preferred_sources": ["proadel.CATALOGO_PROVEEDORES_DATA_V", "proadel.REP_COMPRAS"],
-      "candidates": ["proadel.COMPRAS_DATA", "proadel.PAGO_PROVEEDOR_DATA", "proadel.TOTAL_COMPRAS_PROVEEDORES_V", "proadel.TOTAL_PAGO_PROVEEDORES_PROVEEDORES_V"],
-      "rule": "Separar compras del período, pagos y saldo pendiente. No derivar saldo de totales históricos sin definir saldo inicial, devoluciones y ajustes.",
-      "pending": ["Saldo oficial del proveedor y clave de relación.", "Importe de compra bruto/neto, fecha y estados que contabilizan."]
+      "preferred_sources": ["proadel.COMPRAS_DATA", "proadel.CATALOGO_PROVEEDORES_DATA_V"],
+      "candidates": ["proadel.REP_COMPRAS", "proadel.PAGO_PROVEEDOR_DATA", "proadel.TOTAL_COMPRAS_PROVEEDORES_V", "proadel.TOTAL_PAGO_PROVEEDORES_PROVEEDORES_V"],
+      "rule": "Compras y costo por tonelada: COMPRAS_DATA según su ficha del catálogo; comisiones (PRECIO < 1) suman al costo, no a toneladas. Separar compras del período, pagos y saldo pendiente. No derivar saldo de totales históricos sin definir saldo inicial, devoluciones y ajustes.",
+      "pending": ["Saldo oficial del proveedor y clave de relación.", "Si IMPORTE incluye impuestos."]
     },
     "risk": {
       "questions": ["¿Qué clientes tienen mayor riesgo?", "¿Qué significa el semáforo?"],

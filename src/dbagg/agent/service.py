@@ -30,6 +30,7 @@ from dbagg.business.customers import (
     validate_context,
 )
 from dbagg.business.evidence import BusinessError, render_exploratory
+from dbagg.business.products import PRODUCT_OPERATIONS, ProductQueries
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -46,9 +47,9 @@ CLARIFICATIONS = {
     "comparacion": COMPARISON_CLARIFICATION,
     "cliente": "¿De qué cliente quieres consultar el saldo o los pagos? Indica su nombre o código.",
     "periodo": "¿Qué período quieres consultar? Puedes indicar esta semana, este mes o un rango de fechas.",
-    "criterio": "Necesito precisar el concepto. De clientes: saldo actual, saldos de varios clientes con un nombre, pagos, último pago o ranking de deuda. También puedo consultar existencias de inventario y gastos registrados. ¿Qué quieres revisar?",
+    "criterio": "Necesito precisar el concepto. De clientes: saldo actual, saldos de varios clientes con un nombre, pagos, último pago o ranking de deuda. También puedo consultar existencias de inventario, gastos registrados y compras a proveedores. ¿Qué quieres revisar?",
     "escritura": "Solo puedo consultar información; no puedo modificar ni eliminar datos.",
-    "fuera_alcance": "Ese reporte todavía no tiene una definición de negocio verificada. Puedo ayudarte con saldos, pagos y rankings de deuda, y consultar existencias de inventario y gastos.",
+    "fuera_alcance": "Ese reporte todavía no tiene una definición de negocio verificada. Puedo ayudarte con saldos, pagos y rankings de deuda, y consultar existencias de inventario, gastos y compras.",
 }
 
 
@@ -67,6 +68,20 @@ def customer_in_conversation(customer, question, history):
         m.get("content", "") for m in (history or []) if m.get("role") in {"user", "assistant"}
     ]
     return any(re.search(pattern, normalize(text)) for text in texts if isinstance(text, str))
+
+
+def _abandons_result(call):
+    """After a successful exploratory query, a generic clarification or a jump to the
+    customer operations discards a valid answer; specific clarifications still apply."""
+    if call.name == "consultar_negocio":
+        return True
+    if call.name != "pedir_aclaracion":
+        return False
+    try:
+        arguments = json.loads(call.arguments)
+    except (TypeError, ValueError):
+        return False
+    return isinstance(arguments, dict) and arguments.get("reason") == "criterio"
 
 
 class Assistant:
@@ -129,6 +144,10 @@ class Assistant:
                 return self._finish_exploration(latest_result, latest_sources)
             messages.append(message.history_message)
             for call in calls:
+                if latest_result is not None and _abandons_result(call):
+                    # Some models keep calling tools after a valid answer; deliver it instead.
+                    logger.info("dbagg stage=exploration_kept")
+                    return self._finish_exploration(latest_result, latest_sources)
                 try:
                     if call.name in {"consultar_negocio", "consultar_sql"}:
                         latest_result, latest_sources = None, []
@@ -204,6 +223,9 @@ class Assistant:
         return "No pude resolver la pregunta dentro del límite de consultas. ¿Puedes precisar el nombre o período?"
 
     def _consult_business(self, arguments, context, question, history, today):
+        if arguments.get("operation") in PRODUCT_OPERATIONS:
+            answer = ProductQueries(self.db, self.tables, today=today).execute(**arguments)
+            return self._business_answer(answer)
         validate_context(context, arguments.get("operation"))
         if arguments.get("operation") == "ranking_deuda" and not requests_ranking(question):
             logger.info("dbagg stage=ranking_not_requested")
@@ -214,12 +236,18 @@ class Assistant:
             raise BusinessError(
                 "No pude vincular ese cliente con la conversación. Indica su nombre o código."
             )
-        answer = CustomerQueries(self.db, self.tables, today=today).execute(**arguments)
+        customer_arguments = {
+            k: v for k, v in arguments.items() if k not in ("producto", "comparar")
+        }
+        answer = CustomerQueries(self.db, self.tables, today=today).execute(**customer_arguments)
         if answer.text in NOT_FOUND_ANSWERS and not self._customer_missed:
             # One retry: the name may be an expense section, product or warehouse.
             self._customer_missed = True
             logger.info("dbagg stage=customer_not_found_retry")
             raise ToolHint(NOT_A_CUSTOMER_HINT)
+        return self._business_answer(answer)
+
+    def _business_answer(self, answer):
         self.last_trace.update(
             status=answer.status,
             operation=answer.operation,

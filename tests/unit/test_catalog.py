@@ -22,7 +22,7 @@ class CatalogTests(unittest.TestCase):
 
     def test_first_domains_are_catalogued(self):
         domains = {s.domain for s in self.catalog.sources.values()}
-        self.assertEqual(domains, {"clientes", "gastos", "inventarios"})
+        self.assertEqual(domains, {"clientes", "gastos", "inventarios", "compras"})
         self.assertTrue(self.catalog.version.startswith("catalog-v1:"))
 
     def test_business_tool_sources_match_verified_contracts(self):
@@ -146,6 +146,27 @@ class CatalogValidationTests(unittest.TestCase):
             "FROM proadel.ALMACENES_DISPONIBLES_V WHERE EXISTENCIAS > 0"
         )
         self.validate("SELECT COUNT(*) AS productos FROM proadel.ALMACENES_DISPONIBLES_V")
+
+    def test_maize_purchases_weighted_price_is_allowed_but_note_total_is_not(self):
+        tables = self.catalog.restrict({"proadel.compras_data"})
+        grain = "SUM(CASE WHEN PRECIO >= 1 THEN CANTIDAD ELSE 0 END)"
+        sql = validate_sql(
+            f"SELECT {grain}/1000 AS toneladas, SUM(IMPORTE) AS costo_total, "
+            f"SUM(IMPORTE)/NULLIF({grain},0)*1000 AS costo_tonelada "
+            "FROM proadel.COMPRAS_DATA WHERE ESTADO = 'ACTIVA' "
+            "AND UPPER(CONCEPTO) LIKE '%MA_Z%' AND UPPER(CODIGO) NOT LIKE 'SEMILLA%' "
+            "AND TRY_CONVERT(date, [FECHA], 103) BETWEEN '2026-10-01' AND '2026-10-28'",
+            tables,
+            self.catalog,
+        )
+        self.assertIn("CASE WHEN PRECIO >= 1", sql)
+        for bad in (
+            "SELECT SUM(TOTAL) AS t FROM proadel.COMPRAS_DATA",
+            "SELECT SUM(CASE WHEN PRECIO >= 1 THEN TOTAL ELSE 0 END) AS t FROM proadel.COMPRAS_DATA",
+            "SELECT CASE WHEN PRECIO > 1 THEN FORMAT(PRECIO, 'N') END AS p FROM proadel.COMPRAS_DATA",
+        ):
+            with self.subTest(sql=bad), self.assertRaises(ValueError):
+                validate_sql(bad, tables, self.catalog)
 
     def test_policy_violations_are_rejected(self):
         for sql in (

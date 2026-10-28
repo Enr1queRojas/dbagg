@@ -4,7 +4,8 @@
   "domains": {
     "clientes": "Saldos, pagos, cargos, contado, devoluciones, pedidos y consumo de clientes. Saldo y cobranza solo mediante consultar_negocio.",
     "gastos": "Gastos capturados, conceptos de gasto y totales por destino o banco de retiro.",
-    "inventarios": "Existencias, entradas y salidas de productos e insumos."
+    "inventarios": "Existencias, entradas y salidas de productos e insumos.",
+    "compras": "Compras de grano y otros productos a proveedores: cantidades, precios e importes por partida."
   },
   "sources": [
     {"object": "proadel.CATALOGO_CLIENTES_DATA_V", "domain": "clientes", "status": "verified", "access": "business_tool",
@@ -84,7 +85,10 @@
      "columns": ["CODIGO", "TOTAL"]},
     {"object": "proadel.TOTAL_PROCESOS_PRODUCTOS_SALIDAS_V", "domain": "inventarios", "status": "candidate", "access": "exploratory",
      "description": "Total acumulado de salidas por proceso por producto.",
-     "columns": ["CODIGO", "TOTAL"]}
+     "columns": ["CODIGO", "TOTAL"]},
+    {"object": "proadel.COMPRAS_DATA", "domain": "compras", "status": "candidate", "access": "exploratory",
+     "description": "Partidas de compra a proveedores. CANTIDAD en kg, PRECIO en pesos por kg, IMPORTE = CANTIDAD × PRECIO: sumar IMPORTE, nunca el total de la nota. ESTADO ACTIVA o CANCELADA; usar ACTIVA. FECHA es texto: TRY_CONVERT(date,[FECHA],103). Incluye productos que no son grano (préstamos, fletes, fertilizante): filtrar por CONCEPTO o CODIGO. Maíz: UPPER(CONCEPTO) LIKE '%MA_Z%' excluyendo CODIGO LIKE 'SEMILLA%'. Las partidas con PRECIO < 1 son comisiones por kg sobre grano ya registrado: suman al costo pero no a las toneladas. Toneladas = SUM(CASE WHEN PRECIO >= 1 THEN CANTIDAD ELSE 0 END)/1000; costo total = SUM(IMPORTE) (grano + comisiones); costo promedio por tonelada = SUM(IMPORTE)/toneladas de grano. Las boletas de entrada son la recepción física de estas compras: no sumarlas también.",
+     "columns": ["ID", "TIPODOC", "FECHA", "FOLIO", "PROVEEDOR", "CANTIDAD", "CODIGO", "CONCEPTO", "PRECIO", "IMPORTE", "ESTADO"]}
   ],
   "joins": []
 }

@@ -116,6 +116,15 @@ Con la URL HTTPS asignada, registra en Meta:
 - Verify token: el mismo valor de `META_VERIFY_TOKEN`.
 - Suscripción al campo `messages` de WhatsApp y a la cuenta empresarial pertinente.
 
+Meta guarda dos callbacks: el de la app (el del formulario) y un override del número
+que tiene prioridad y no aparece en ese formulario. Si el override apunta a una URL
+vieja, la verificación del panel pasa pero los mensajes reales no llegan. Cada vez que
+cambie la URL del túnel, con Uvicorn y cloudflared en marcha, actualiza ambos con:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\update_webhook_url.py
+```
+
 Conserva abierta la consola del servicio y la del túnel. La PC debe estar encendida
 y conectada. No introduzcas claves en comandos públicos, URLs o capturas.
 

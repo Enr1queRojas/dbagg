@@ -332,4 +332,18 @@ class EvidenceAndCalendarTests(unittest.TestCase):
         text = render_exploratory(result(["dato", "saldo"], [["", None]]))
         self.assertIn("requiere revisión", text)
         self.assertIn("sin dato", text)
-        self.assertIn("no sumar", text)
+        self.assertNotIn("no sumar", text)
+        limited = {"columns": ["dato"], "rows": [["a"]], "has_more": True}
+        self.assertIn("no sumar", render_exploratory(limited))
+
+    def test_exploration_renders_aligned_table_with_formatted_decimals(self):
+        text = render_exploratory(
+            result(
+                ["producto", "anio", "toneladas", "costo_tonelada"],
+                [["MAIZ BLANCO", 2026, "1814.430000", "5028.1100"], ["SORGO", 2026, "5.2", "4100"]],
+            )
+        )
+        table = text.split("```")[1].strip("\n").splitlines()
+        self.assertEqual(table[0], "producto     anio  toneladas  costo_tonelada")
+        self.assertEqual(table[2], "MAIZ BLANCO  2026   1,814.43        5,028.11")
+        self.assertEqual(table[3], "SORGO        2026       5.20            4100")

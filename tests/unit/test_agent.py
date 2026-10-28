@@ -51,11 +51,27 @@ class AssistantTests(unittest.TestCase):
             self.completion("Saldo: 999"),
         ]
         answer = self.assistant.answer("saldo total")
-        self.assertIn("saldo: 100", answer)
+        self.assertEqual(answer.split("```")[1].split(), ["saldo", "-----", "100"])
         self.assertNotIn("999", answer)
         self.assertIn("requiere revisión", answer)
         self.assertIn("TOP 50", self.assistant.db.query.call_args.args[0])
         self.assertEqual(self.assistant.client.chat.completions.create.call_count, 3)
+
+    def test_valid_result_survives_a_trailing_generic_tool_call(self):
+        sql = "SELECT SUM(SALDO_PENDIENTE) AS saldo FROM proadel.vw_AlertasCobranza"
+        for trailing, kept in (
+            (self.completion(name="pedir_aclaracion", arguments={"reason": "criterio"}), True),
+            (self.completion(name="consultar_negocio", arguments={"operation": "saldo"}), True),
+            (self.completion(name="pedir_aclaracion", arguments={"reason": "escritura"}), False),
+        ):
+            with self.subTest(trailing=trailing.choices[0].message.tool_calls[0].function):
+                self.assistant.client.chat.completions.create.side_effect = [
+                    self.describe(),
+                    self.query(sql),
+                    trailing,
+                ]
+                answer = self.assistant.answer("saldo total")
+                self.assertEqual("```" in answer, kept)
 
     def test_model_generated_write_never_reaches_database(self):
         self.assistant.client.chat.completions.create.side_effect = [
