@@ -65,6 +65,12 @@ def tool_definitions(bundle=None):
                     "type": "string",
                     "description": "Nombre o código presente en la conversación. Omitir en ranking.",
                 },
+                "codigo_exacto": {
+                    "type": "boolean",
+                    "description": "true solo si customer es un código que el usuario eligió de una "
+                    "lista o ya identificado como «código X» en la conversación. Omitir si es un "
+                    "nombre o apellido.",
+                },
                 "producto": {
                     "type": "string",
                     "description": "Solo existencias y ventas: palabra del producto (maíz, frijol). "

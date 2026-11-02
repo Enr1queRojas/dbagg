@@ -51,6 +51,10 @@ def main(argv=None):
     )
     gaps_export = commands.add_parser("gaps-export")
     gaps_export.add_argument("--output", type=Path, required=True)
+    purge = commands.add_parser(
+        "purge", help="Borra o depura valoraciones y preguntas más antiguas que --days."
+    )
+    purge.add_argument("--days", type=int, required=True)
     args = parser.parse_args(argv)
     store = FeedbackStore(args.db)
     gaps = GapStore(args.gaps_db)
@@ -65,6 +69,8 @@ def main(argv=None):
             result = {"id": args.id, "review_status": args.decision, "rows": updated}
         elif args.command == "gaps-export":
             result = {"exported": gaps.export(args.output)}
+        elif args.command == "purge":
+            result = {"feedback": store.purge(args.days), "gaps": gaps.purge(args.days)}
         elif args.command == "summary":
             result = store.summary()
         elif args.command == "pending":

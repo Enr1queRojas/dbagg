@@ -53,21 +53,32 @@ CLARIFICATIONS = {
 }
 
 
-def customer_in_conversation(customer, question, history):
-    def normalize(value):
-        return "".join(
-            c
-            for c in unicodedata.normalize("NFKD", value.casefold())
-            if not unicodedata.combining(c)
-        )
+def _normalize(value):
+    return "".join(
+        c for c in unicodedata.normalize("NFKD", value.casefold()) if not unicodedata.combining(c)
+    )
 
+
+def customer_in_conversation(customer, question, history):
     if not isinstance(customer, str) or not customer.strip():
         return False
-    pattern = r"(?<!\w)" + re.escape(normalize(customer.strip())) + r"(?!\w)"
+    pattern = r"(?<!\w)" + re.escape(_normalize(customer.strip())) + r"(?!\w)"
     texts = [question] + [
         m.get("content", "") for m in (history or []) if m.get("role") in {"user", "assistant"}
     ]
-    return any(re.search(pattern, normalize(text)) for text in texts if isinstance(text, str))
+    return any(re.search(pattern, _normalize(text)) for text in texts if isinstance(text, str))
+
+
+def code_confirmed(customer, question, history):
+    """A value is a code only if the user called it one or the service already showed it as one;
+    a model's flag alone must not turn a loose surname into a single customer."""
+    if not isinstance(customer, str) or not customer.strip():
+        return False
+    pattern = r"(?<!\w)codigo\s+" + re.escape(_normalize(customer.strip())) + r"(?!\w)"
+    texts = [question] + [
+        m.get("content", "") for m in (history or []) if m.get("role") == "assistant"
+    ]
+    return any(re.search(pattern, _normalize(text)) for text in texts if isinstance(text, str))
 
 
 def _abandons_result(call):
@@ -239,6 +250,9 @@ class Assistant:
         customer_arguments = {
             k: v for k, v in arguments.items() if k not in ("producto", "comparar")
         }
+        customer_arguments["codigo_exacto"] = arguments.get(
+            "codigo_exacto"
+        ) is True and code_confirmed(arguments.get("customer"), question, history)
         answer = CustomerQueries(self.db, self.tables, today=today).execute(**customer_arguments)
         if answer.text in NOT_FOUND_ANSWERS and not self._customer_missed:
             # One retry: the name may be an expense section, product or warehouse.

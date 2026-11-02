@@ -159,7 +159,7 @@ class AssistantTests(unittest.TestCase):
             answer,
             "Saldo actual de Cliente Prueba (código DEMO1): 100.00.\nImporte sin moneda confirmada.",
         )
-        self.assertEqual(len(db.calls), 3)
+        self.assertEqual(len(db.calls), 2)
         self.assertEqual(self.assistant.last_trace["operation"], "saldo")
         self.assertTrue(self.assistant.last_trace["evidence_id"])
         self.assertEqual(self.assistant.client.chat.completions.create.call_count, 1)

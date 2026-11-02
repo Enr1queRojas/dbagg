@@ -4,6 +4,8 @@ import hashlib
 import hmac
 import json
 import logging
+import re
+import time
 from contextlib import asynccontextmanager
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
 from fastapi.responses import PlainTextResponse
@@ -16,6 +18,34 @@ from dbagg.services.voice import build_voice
 from dbagg.limits import MAX_QUESTION_CHARS
 
 logger = logging.getLogger("uvicorn.error")
+
+# Meta signs the body but not the delivery time; a captured payload stays valid forever and
+# the in-memory dedupe is lost on restart. Messages older than this are not answered.
+MAX_MESSAGE_AGE_SECONDS = 900
+VERIFY_TOKEN = re.compile(r"(hub\.verify_token=)[^&\s]*")
+
+
+class RedactVerifyToken(logging.Filter):
+    """uvicorn's access log prints the query string, which carries Meta's verify token."""
+
+    def filter(self, record):
+        if isinstance(record.args, tuple):
+            record.args = tuple(
+                VERIFY_TOKEN.sub(r"\1<redactado>", a) if isinstance(a, str) else a
+                for a in record.args
+            )
+        return True
+
+
+def is_stale(message, now):
+    """Meta always sends the Unix send time; a missing one is accepted, a bad one is not."""
+    timestamp = message.get("timestamp")
+    if timestamp is None:
+        return False
+    try:
+        return now - int(timestamp) > MAX_MESSAGE_AGE_SECONDS
+    except (TypeError, ValueError):
+        return True
 
 
 def create_app(settings=None, assistant=None, send_message=None, feedback_store=None, voice=None):
@@ -31,6 +61,9 @@ def create_app(settings=None, assistant=None, send_message=None, feedback_store=
             if owns_assistant:
                 assistant.close()
 
+    access_log = logging.getLogger("uvicorn.access")
+    if not any(isinstance(f, RedactVerifyToken) for f in access_log.filters):
+        access_log.addFilter(RedactVerifyToken())
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
     gate = MessageGate()
     meta = MetaClient(settings)
@@ -81,6 +114,9 @@ def create_app(settings=None, assistant=None, send_message=None, feedback_store=
                         kind = message.get("type")
                         if sender not in settings.numbers or kind not in {"text", "audio"}:
                             logger.info("dbagg stage=ignored_sender_or_type")
+                            continue
+                        if is_stale(message, time.time()):
+                            logger.info("dbagg stage=ignored_stale")
                             continue
                         message_id = message.get("id", "")
                         if kind == "audio":

@@ -22,6 +22,7 @@ PROTECTED_SOURCES = frozenset({CUSTOMERS, PAYMENTS})
 OPERATIONS = (
     "saldo",
     "saldos_coincidencias",
+    "contar_coincidencias",
     "ranking_deuda",
     "pagos",
     "ultimo_pago",
@@ -143,22 +144,33 @@ class CustomerQueries:
     def _answer(self, text, status="answered"):
         return BusinessAnswer.make(text, status, self.operation, self.sources)
 
-    def _resolve(self, customer):
+    def _matching_rows(self, columns, customer, limit):
+        """Partial matches on name or code; exact ones first so the limit cannot hide them.
+
+        An exact match never stops the search: a code can also be another customer's surname.
+        """
+        pattern = like_literal(customer)
+        return self._query(
+            f"SELECT TOP {limit + 1} {columns} FROM {CUSTOMERS} "
+            "WHERE [CODIGO] LIKE ? ESCAPE '!' OR [NOMBRE] LIKE ? ESCAPE '!' "
+            "ORDER BY CASE WHEN [CODIGO] = ? OR [NOMBRE] = ? THEN 0 ELSE 1 END, [CODIGO]",
+            (pattern, pattern, customer, customer),
+            limit,
+        )
+
+    def _resolve(self, customer, exact_code=False):
         if not isinstance(customer, str) or not 1 <= len(customer.strip()) <= 100:
             raise BusinessError("Indica el nombre o código del cliente que quieres consultar.")
         customer = customer.strip()
-        base = f"SELECT TOP 6 [CODIGO] AS codigo, [NOMBRE] AS nombre FROM {CUSTOMERS} "
-        rows, more = self._query(
-            base + "WHERE [CODIGO] = ? OR [NOMBRE] = ? ORDER BY [CODIGO]", (customer, customer), 5
-        )
-        if not rows:
-            pattern = like_literal(customer)
+        columns = "[CODIGO] AS codigo, [NOMBRE] AS nombre"
+        if exact_code:
             rows, more = self._query(
-                base
-                + "WHERE [CODIGO] LIKE ? ESCAPE '!' OR [NOMBRE] LIKE ? ESCAPE '!' ORDER BY [CODIGO]",
-                (pattern, pattern),
+                f"SELECT TOP 6 {columns} FROM {CUSTOMERS} WHERE [CODIGO] = ? ORDER BY [CODIGO]",
+                (customer,),
                 5,
             )
+        else:
+            rows, more = self._matching_rows(columns, customer, 5)
         if not rows:
             return self._answer(CUSTOMER_NOT_FOUND, "needs_clarification")
         codes = [r["codigo"] for r in rows]
@@ -182,7 +194,16 @@ class CustomerQueries:
         label(rows[0]["nombre"])
         return rows[0]
 
-    def execute(self, operation, customer=None, period="todo", start=None, end=None, limit=5):
+    def execute(
+        self,
+        operation,
+        customer=None,
+        period="todo",
+        start=None,
+        end=None,
+        limit=5,
+        codigo_exacto=False,
+    ):
         if operation not in OPERATIONS or type(limit) is not int or not 1 <= limit <= 10:
             raise BusinessError(
                 "Operación o cantidad no soportada; solicita entre uno y diez registros."
@@ -190,6 +211,7 @@ class CustomerQueries:
         if operation in {
             "saldo",
             "saldos_coincidencias",
+            "contar_coincidencias",
             "ranking_deuda",
             "ultimo_pago",
             "notas_pendientes",
@@ -221,7 +243,9 @@ class CustomerQueries:
             return self._ranking(limit)
         if operation == "saldos_coincidencias":
             return self._matching_balances(customer)
-        client = self._resolve(customer)
+        if operation == "contar_coincidencias":
+            return self._count_matches(customer)
+        client = self._resolve(customer, exact_code=codigo_exacto is True)
         if isinstance(client, BusinessAnswer):
             return client
         # Recheck uniqueness by code; a name match could hide duplicate codes under other names.
@@ -455,23 +479,11 @@ class CustomerQueries:
         if not isinstance(customer, str) or not 1 <= len(customer.strip()) <= 100:
             raise BusinessError("Indica el nombre o código de los clientes que quieres revisar.")
         customer = customer.strip()
-        base = (
-            f"SELECT TOP {MATCH_LIMIT + 1} [CODIGO] AS codigo, [NOMBRE] AS nombre, "
-            f"[SALDO ACTUAL] AS importe FROM {CUSTOMERS} "
-        )
-        rows, more = self._query(
-            base + "WHERE [CODIGO] = ? OR [NOMBRE] = ? ORDER BY [CODIGO]",
-            (customer, customer),
+        rows, more = self._matching_rows(
+            "[CODIGO] AS codigo, [NOMBRE] AS nombre, [SALDO ACTUAL] AS importe",
+            customer,
             MATCH_LIMIT,
         )
-        if not rows:
-            pattern = like_literal(customer)
-            rows, more = self._query(
-                base
-                + "WHERE [CODIGO] LIKE ? ESCAPE '!' OR [NOMBRE] LIKE ? ESCAPE '!' ORDER BY [CODIGO]",
-                (pattern, pattern),
-                MATCH_LIMIT,
-            )
         if not rows:
             return self._answer(MATCHES_NOT_FOUND, "needs_clarification")
         codes = [r["codigo"] for r in rows]
@@ -492,6 +504,36 @@ class CustomerQueries:
             lines.append("Hay clientes con saldo desconocido; requieren revisión en el catálogo.")
         lines.append("Saldos individuales; no se suman. Importes sin moneda confirmada.")
         return self._answer("\n".join(lines), "partial" if more or unknown else "answered")
+
+    def _count_matches(self, customer):
+        """How many customers match, counted in SQL; names identify them, without balances."""
+        if not isinstance(customer, str) or not 1 <= len(customer.strip()) <= 100:
+            raise BusinessError("Indica el nombre o código de los clientes que quieres contar.")
+        customer = customer.strip()
+        pattern = like_literal(customer)
+        totals, _ = self._query(
+            "SELECT COUNT(*) AS cantidad, COUNT(DISTINCT [CODIGO]) AS codigos "
+            f"FROM {CUSTOMERS} WHERE [CODIGO] LIKE ? ESCAPE '!' OR [NOMBRE] LIKE ? ESCAPE '!'",
+            (pattern, pattern),
+            1,
+        )
+        total = int(totals[0]["cantidad"])
+        if not total:
+            return self._answer(MATCHES_NOT_FOUND, "needs_clarification")
+        if int(totals[0]["codigos"]) != total:
+            raise BusinessError(
+                "El catálogo repite una clave de cliente; no puedo confirmar su identidad."
+            )
+        rows, _ = self._matching_rows(
+            "[CODIGO] AS codigo, [NOMBRE] AS nombre", customer, MATCH_LIMIT
+        )
+        subject = "1 cliente que coincide" if total == 1 else f"{total} clientes que coinciden"
+        lines = [f"Hay {subject} con «{label(customer)}» por nombre o código:"]
+        for i, row in enumerate(rows, 1):
+            lines.append(f"{i}. {label(row['nombre'])} (código {label(row['codigo'])})")
+        if total > len(rows):
+            lines.append(f"Muestro {len(rows)} de {total}. Precisa el nombre para ver los demás.")
+        return self._answer("\n".join(lines))
 
     def _ranking(self, limit):
         duplicates, _ = self._query(

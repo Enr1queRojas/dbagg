@@ -93,7 +93,7 @@ class CustomerQueryTests(unittest.TestCase):
         self.assertEqual(answer.status, "answered")
         self.assertEqual(answer.sources, (CUSTOMERS,))
         self.assertTrue(answer.evidence_id)
-        self.assertEqual(self.db.calls[0][1], ("Ana", "Ana"))
+        self.assertEqual(self.db.calls[0][1], ("%Ana%", "%Ana%", "Ana", "Ana"))
         self.assertNotIn("Ana", self.db.calls[0][0])
 
     def test_homonyms_require_selection_and_never_query_payments(self):

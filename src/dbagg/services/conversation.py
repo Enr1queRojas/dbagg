@@ -41,6 +41,20 @@ class ConversationService:
             self.feedback = FeedbackStore(
                 settings.feedback_path or project_root() / "data" / "feedback.sqlite3"
             )
+        self._purge(getattr(settings, "data_retention_days", 90))
+
+    def _purge(self, days):
+        """Apply data retention at startup; a failure must not stop the service."""
+        for name, store in (("gaps", self.gaps), ("feedback", self.feedback)):
+            if not isinstance(store, (GapStore, FeedbackStore)):
+                continue
+            try:
+                rows = store.purge(days)
+                logger.info("dbagg stage=retention store=%s days=%s rows=%s", name, days, rows)
+            except Exception as exc:
+                logger.warning(
+                    "dbagg stage=retention_failed store=%s error_type=%s", name, type(exc).__name__
+                )
 
     def _rate(self, sender, question, command):
         if self.feedback is None:

@@ -5,13 +5,34 @@ import pyodbc
 from dbagg.limits import MAX_ROWS, MAX_CELL_CHARS, MAX_RESULT_CHARS
 
 
+# pyodbc's readonly flag is a hint SQL Server ignores; the login itself must be read-only.
+WRITE_CAPABLE = (
+    "SELECT IS_SRVROLEMEMBER('sysadmin'), IS_MEMBER('db_owner'), "
+    "IS_MEMBER('db_datawriter'), IS_MEMBER('db_ddladmin')"
+)
+
+
 class Database:
     def __init__(self, settings):
         self.settings = settings
+        self._read_only_checked = False
 
     def _connect(self):
         conn = pyodbc.connect(self.settings.connection, readonly=True, timeout=10, autocommit=True)
         conn.timeout = 15
+        if not self._read_only_checked:
+            try:
+                roles = conn.cursor().execute(WRITE_CAPABLE).fetchone()
+            except Exception:
+                conn.close()
+                raise
+            if any(flag == 1 for flag in roles):
+                conn.close()
+                raise PermissionError(
+                    "El usuario SQL puede escribir o administrar; usa un login de solo lectura "
+                    "(scripts/sql/dbagg_readonly.sql)."
+                )
+            self._read_only_checked = True
         return conn
 
     def schema(self, tables=None):

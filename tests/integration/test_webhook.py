@@ -1,12 +1,14 @@
 import hashlib
 import hmac
 import json
+import logging
+import time
 import unittest
 import httpx
 from unittest.mock import Mock, patch
 from fastapi.testclient import TestClient
 from dbagg.config import Settings
-from dbagg.api.app import create_app
+from dbagg.api.app import RedactVerifyToken, create_app
 
 
 class WebhookTests(unittest.TestCase):
@@ -141,6 +143,33 @@ class WebhookTests(unittest.TestCase):
         self.assertIn("http_status=401", output)
         self.assertNotIn("private", output)
         self.assertNotIn("example.test", output)
+
+    def test_replayed_old_or_malformed_timestamp_is_not_answered(self):
+        payload = self.payload()
+        message = payload["entry"][0]["changes"][0]["value"]["messages"][0]
+        for number, timestamp in enumerate((str(int(time.time()) - 3600), "ayer"), start=2):
+            message.update(id=f"msg{number}", timestamp=timestamp)
+            self.assertEqual(self.post(payload).status_code, 200)
+        self.assistant.answer.assert_not_called()
+        message.update(id="msg9", timestamp=str(int(time.time()) - 60))
+        self.post(payload)
+        self.assistant.answer.assert_called_once()
+
+    def test_access_log_never_shows_the_verify_token(self):
+        path = "/webhook?hub.mode=subscribe&hub.verify_token=verify&x=1"
+        record = logging.LogRecord(
+            "uvicorn.access",
+            logging.INFO,
+            "",
+            0,
+            '%s - "%s %s HTTP/%s" %d',
+            ("1.2.3.4", "GET", path, "1.1", 200),
+            None,
+        )
+        RedactVerifyToken().filter(record)
+        self.assertIn("hub.verify_token=<redactado>&x=1", record.getMessage())
+        access = logging.getLogger("uvicorn.access")
+        self.assertTrue(any(isinstance(f, RedactVerifyToken) for f in access.filters))
 
     def test_diagnostic_identifies_local_agent_without_llm(self):
         payload = self.payload()

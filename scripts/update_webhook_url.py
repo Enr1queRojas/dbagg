@@ -36,7 +36,9 @@ def tunnel_host() -> str:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("url", nargs="?", help="URL base del túnel (por defecto, la de cloudflared)")
+    parser.add_argument(
+        "url", nargs="?", help="URL base del túnel (por defecto, la de cloudflared)"
+    )
     args = parser.parse_args()
 
     env = dotenv_values(ROOT / ".env")
@@ -53,9 +55,13 @@ def main() -> None:
     if health.status_code != 200:
         sys.exit(f"/health respondió {health.status_code}; levanta Uvicorn antes de continuar.")
 
-    app_id = httpx.get(
+    token_info = httpx.get(
         f"{graph}/debug_token", params={"input_token": token, "access_token": token}, timeout=20
-    ).json()["data"]["app_id"]
+    ).json()
+    if "data" not in token_info:
+        error = token_info.get("error", {}).get("message", token_info)
+        sys.exit(f"Meta rechazó META_ACCESS_TOKEN: {error}")
+    app_id = token_info["data"]["app_id"]
     app_token = f"{app_id}|{secret}"
 
     app_update = httpx.post(

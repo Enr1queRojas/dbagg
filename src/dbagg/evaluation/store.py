@@ -3,12 +3,21 @@
 import json
 import sqlite3
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+
+PURGED = "[depurado]"
 
 
 def utc_now():
     return datetime.now(timezone.utc).isoformat()
+
+
+def cutoff_iso(days):
+    """ISO UTC instant `days` ago; comparable as text with utc_now() values."""
+    if type(days) is not int or not 1 <= days <= 3650:
+        raise ValueError("La retención debe estar entre 1 y 3650 días.")
+    return (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
 
 
 def validate_training_case(case):
@@ -99,6 +108,21 @@ class FeedbackStore:
                 ),
             )
         return interaction["id"]
+
+    def purge(self, days):
+        """Retention: old ratings are deleted; approved ones keep only the anonymized case."""
+        cutoff = cutoff_iso(days)
+        with self._connect() as connection:
+            deleted = connection.execute(
+                "DELETE FROM feedback WHERE created_at < ? AND review_status <> 'approved'",
+                (cutoff,),
+            ).rowcount
+            redacted = connection.execute(
+                "UPDATE feedback SET question=?, answer=?, history_json='[]', reason='' "
+                "WHERE created_at < ? AND question <> ?",
+                (PURGED, PURGED, cutoff, PURGED),
+            ).rowcount
+        return deleted + redacted
 
     def summary(self):
         with self._connect() as connection:

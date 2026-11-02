@@ -1,6 +1,8 @@
 import json
+import sqlite3
 import tempfile
 import unittest
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
@@ -8,6 +10,7 @@ from unittest.mock import Mock
 from dbagg.agent.service import Assistant
 from dbagg.evaluation.cli import main
 from dbagg.evaluation.gaps import GapStore, normalized
+from dbagg.evaluation.store import FeedbackStore, utc_now
 from dbagg.services.conversation import ConversationService
 
 SENDER = "5215555555555"
@@ -19,6 +22,16 @@ CASE = {
     "expected_tool": "pedir_aclaracion",
     "expected_arguments": {"reason": "fuera_alcance"},
     "criteria": "Sin contrato de vencimientos; no inventar plazos.",
+}
+
+
+APPROVED_CASE = {
+    "anonymized": True,
+    "verified": True,
+    "messages": [
+        {"role": "user", "content": "saldo de Cliente demo"},
+        {"role": "assistant", "content": "Cliente demo debe 1."},
+    ],
 }
 
 
@@ -81,6 +94,64 @@ class GapStoreTests(unittest.TestCase):
         db = ["--gaps-db", str(self.store.path)]
         main(db + ["gaps-review", gap, "--decision", "descartado", "--reviewer", "r"])
         self.assertEqual(self.store.grouped(), [])
+
+
+class RetentionTests(unittest.TestCase):
+    def setUp(self):
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        self.folder = Path(folder.name)
+
+    def age(self, path, table, row_id, days=200):
+        old = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+        connection = sqlite3.connect(path)
+        with connection:
+            connection.execute(f"UPDATE {table} SET created_at=? WHERE id=?", (old, row_id))
+        connection.close()
+
+    def test_old_gaps_are_deleted_and_reviewed_ones_keep_only_what_review_needs(self):
+        store = GapStore(self.folder / "gaps.sqlite3")
+        old = store.record("¿Cuánto debe Ana Demo?", trace("fuera_alcance"))
+        discarded = store.record("¿Cuánto maíz hay en cada bodega?", trace("exploratoria"))
+        store.review(discarded, "descartado", "revisor", note="Ana Demo")
+        recent = store.record("¿Qué notas vencen?", trace("fuera_alcance"))
+        for gap in (old, discarded):
+            self.age(store.path, "gaps", gap)
+        self.assertEqual(store.purge(90), 2)
+        with store._connect() as connection:
+            rows = {r["id"]: dict(r) for r in connection.execute("SELECT * FROM gaps")}
+        self.assertNotIn(old, rows)
+        self.assertEqual(rows[discarded]["question"], "[depurado]")
+        self.assertIsNone(rows[discarded]["note"])
+        self.assertEqual(rows[recent]["question"], "¿Qué notas vencen?")
+        # The discard still applies to repeats after the text was purged.
+        store.record("cuanto maiz hay en cada bodega", trace("exploratoria"))
+        self.assertEqual([g["example"] for g in store.grouped()], ["¿Qué notas vencen?"])
+        with self.assertRaises(ValueError):
+            store.purge(0)
+
+    def test_old_feedback_is_deleted_unless_approved_and_then_only_the_case_remains(self):
+        store = FeedbackStore(self.folder / "feedback.sqlite3")
+        interaction = {
+            "created_at": utc_now(),
+            "question": "saldo de Ana Demo",
+            "answer": "Debe 100",
+            "history": [{"role": "user", "content": "Ana Demo"}],
+            "model": "m",
+            "prompt_version": "p:1",
+        }
+        store.record(dict(interaction, id="old"), "bad", "Ana Demo")
+        store.record(dict(interaction, id="kept"), "good")
+        store.review("kept", "approved", "revisor", case=APPROVED_CASE)
+        for row_id in ("old", "kept"):
+            self.age(store.path, "feedback", row_id)
+        self.assertEqual(store.purge(90), 2)
+        kept = store.get("kept")
+        self.assertEqual((kept["question"], kept["answer"]), ("[depurado]", "[depurado]"))
+        self.assertEqual((kept["history_json"], kept["reason"]), ("[]", ""))
+        self.assertIn("Cliente demo", kept["prepared_case_json"])
+        with self.assertRaises(ValueError):
+            store.get("old")
 
 
 class GapCaptureTests(unittest.TestCase):

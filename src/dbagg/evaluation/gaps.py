@@ -12,7 +12,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from uuid import uuid4
 
-from dbagg.evaluation.store import utc_now
+from dbagg.evaluation.store import PURGED, cutoff_iso, utc_now
 
 CATEGORIES = frozenset({"fuera_alcance", "sin_evidencia", "limite_consultas", "exploratoria"})
 DECISIONS = frozenset({"nuevo_caso", "resuelto", "descartado"})
@@ -115,6 +115,29 @@ class GapStore:
                 ),
             )
         return gap_id
+
+    def purge(self, days):
+        """Retention: old questions are deleted; reviewed ones keep only what review needs.
+
+        A discarded group keeps its normalized text so repeats stay discarded, and a new
+        case keeps its anonymized prepared case for export. Returns rows deleted or redacted.
+        """
+        cutoff = cutoff_iso(days)
+        with self._connect() as connection:
+            deleted = connection.execute(
+                "DELETE FROM gaps WHERE created_at < ? "
+                "AND review_status NOT IN ('descartado', 'nuevo_caso')",
+                (cutoff,),
+            ).rowcount
+            redacted = connection.execute(
+                "UPDATE gaps SET question=?, note=NULL WHERE created_at < ? AND question <> ?",
+                (PURGED, cutoff, PURGED),
+            ).rowcount
+            connection.execute(
+                "UPDATE gaps SET normalized=? WHERE created_at < ? AND review_status='nuevo_caso'",
+                (PURGED, cutoff),
+            )
+        return deleted + redacted
 
     def summary(self):
         """Counts only; never question text."""

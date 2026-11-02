@@ -12,6 +12,7 @@ respuesta financiera. Versión del prompt: `catalog-domains-v6:<huella del conte
 | --- | --- | --- |
 | ¿Cuánto debe Ana? | `saldo` | `CATALOGO_CLIENTES_DATA_V.[SALDO ACTUAL]`, sin recalcular acumulados |
 | ¿Cuánto deben los tres Ana Robles? | `saldos_coincidencias` | `[SALDO ACTUAL]` de cada coincidencia por nombre o código, hasta 10, sin sumar; saldo nulo se marca desconocido |
+| ¿Cuántos clientes hay con el nombre Robles? | `contar_coincidencias` | `COUNT(*)` sobre coincidencias por nombre o código; lista hasta 10 con su código, sin saldos |
 | ¿Qué notas de crédito tiene pendientes Ana? | `notas_pendientes` | Notas abiertas que forman `[SALDO ACTUAL]`, asignando pagos y devoluciones FIFO; ver abajo |
 | ¿Quiénes son los cinco que más deben? | `ranking_deuda` | Saldos positivos, descendentes; empates por código; cantidad de 1 a 10 |
 | ¿Qué pagos hizo Ana esta semana? | `pagos` | Movimientos de `COBRANZA_DATA`, con límite explícito de 1 a 10 |
@@ -23,10 +24,13 @@ Las columnas se comprueban contra metadatos SQL antes de consultar. Los importes
 ser de tipo numérico; un cambio a texto requiere revisar el contrato, no inferir conversiones.
 No se añaden permisos ni se modifica información de negocio.
 
-La búsqueda intenta código o nombre exactos y luego coincidencia parcial literal;
+La búsqueda siempre es por coincidencia parcial literal, con las exactas primero para
+que el límite no las oculte: un código puede ser también el apellido de otros clientes;
 `%`, `_` y `[` del usuario no funcionan como comodines. Los valores van como parámetros
 ODBC. Ante varios clientes se presentan nombres y códigos y se pide elegir, sin sumar
-sus saldos. También se comprueba que el código no esté duplicado. El cliente propuesto
+sus saldos. Un código ya elegido se consulta con `codigo_exacto`, que el servicio solo
+acepta si el usuario lo llamó código o el asistente ya lo mostró como «código X».
+También se comprueba que el código no esté duplicado. El cliente propuesto
 por el modelo debe aparecer en la pregunta o historial; la respuesta identifica nombre
 más código para que se pueda comprobar la selección.
 

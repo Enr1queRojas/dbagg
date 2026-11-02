@@ -3,8 +3,9 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock
 from dbagg.agent.intent import requests_ranking
+from dbagg.agent.prompts import tool_definitions
 from dbagg.agent.service import Assistant
-from dbagg.business.customers import CustomerQueries
+from dbagg.business.customers import MATCHES_NOT_FOUND, CustomerQueries
 from dbagg.business.evidence import BusinessError
 from tests.unit.test_customer_queries import CUSTOMERS, PAYMENTS, TODAY, SyntheticDatabase
 
@@ -31,7 +32,9 @@ class MatchingBalanceTests(unittest.TestCase):
         self.assertIn("no se suman", answer.text)
         self.assertNotIn("130.50", answer.text)
         self.assertNotIn("9,999", answer.text)
-        self.assertEqual(self.db.calls[0][1], ("Ana Robles", "Ana Robles"))
+        self.assertEqual(
+            self.db.calls[0][1], ("%Ana Robles%", "%Ana Robles%", "Ana Robles", "Ana Robles")
+        )
 
     def test_partial_name_uses_literal_search(self):
         self.db.customer("R1", "Ana Robles Uno", "10")
@@ -66,6 +69,104 @@ class MatchingBalanceTests(unittest.TestCase):
         self.db.customer("R1", "Ana Robles", "5")
         with self.assertRaises(BusinessError):
             self.queries.execute("saldos_coincidencias", customer="Ana Robles", period="este_mes")
+
+
+class CodeAlsoMatchingNamesTests(unittest.TestCase):
+    """A customer's code can be the surname of other customers: "SEGURA" / DIEGO SEGURA."""
+
+    def setUp(self):
+        self.db = SyntheticDatabase()
+        self.addCleanup(self.db.conn.close)
+        self.queries = CustomerQueries(self.db, {CUSTOMERS, PAYMENTS}, today=TODAY)
+        self.db.customer("SEGURA", "TORTILLERIA SEGURA", "0")
+        self.db.customer("DIEGO", "DIEGO SEGURA", "2194991.60")
+        self.db.customer("OTRO", "Otra Persona", "9999")
+
+    def test_matching_balances_include_names_beside_the_exact_code(self):
+        answer = self.queries.execute("saldos_coincidencias", customer="SEGURA")
+        self.assertIn("TORTILLERIA SEGURA (código SEGURA): 0.00", answer.text)
+        self.assertIn("DIEGO SEGURA (código DIEGO): 2,194,991.60", answer.text)
+        self.assertNotIn("Otra Persona", answer.text)
+
+    def test_balance_asks_which_customer_without_showing_amounts(self):
+        answer = self.queries.execute("saldo", customer="SEGURA")
+        self.assertEqual(answer.status, "needs_clarification")
+        self.assertIn("TORTILLERIA SEGURA (código SEGURA)", answer.text)
+        self.assertIn("DIEGO SEGURA (código DIEGO)", answer.text)
+        self.assertNotIn("2,194,991.60", answer.text)
+
+    def test_confirmed_code_selects_only_that_customer(self):
+        answer = self.queries.execute("saldo", customer="SEGURA", codigo_exacto=True)
+        self.assertEqual(answer.status, "answered")
+        self.assertIn("TORTILLERIA SEGURA (código SEGURA): 0.00", answer.text)
+        self.assertNotIn("DIEGO", answer.text)
+
+    def test_confirmed_code_never_falls_back_to_a_partial_match(self):
+        answer = self.queries.execute("saldo", customer="SEGUR", codigo_exacto=True)
+        self.assertEqual(answer.status, "needs_clarification")
+        self.assertNotIn("TORTILLERIA", answer.text)
+
+    def test_exact_match_is_listed_even_when_partial_matches_fill_the_limit(self):
+        for i in range(12):
+            self.db.customer(f"A{i:02d}", "SEGURA HERMANOS", "1")
+        balances = self.queries.execute("saldos_coincidencias", customer="SEGURA")
+        self.assertIn("(código SEGURA): 0.00", balances.text)
+        choices = self.queries.execute("saldo", customer="SEGURA")
+        self.assertIn("(código SEGURA)", choices.text)
+
+
+class CountMatchesTests(unittest.TestCase):
+    def setUp(self):
+        self.db = SyntheticDatabase()
+        self.addCleanup(self.db.conn.close)
+        self.queries = CustomerQueries(self.db, {CUSTOMERS, PAYMENTS}, today=TODAY)
+
+    def count(self, customer="SEGURA", **kwargs):
+        return self.queries.execute("contar_coincidencias", customer=customer, **kwargs)
+
+    def test_count_names_each_match_without_balances(self):
+        self.db.customer("SEGURA", "TORTILLERIA SEGURA", "0")
+        self.db.customer("DIEGO", "DIEGO SEGURA", "2194991.60")
+        self.db.customer("OTRO", "Otra Persona", "9999")
+        answer = self.count()
+        self.assertEqual(answer.status, "answered")
+        self.assertEqual(answer.operation, "contar_coincidencias")
+        self.assertIn("Hay 2 clientes", answer.text)
+        self.assertIn("DIEGO SEGURA (código DIEGO)", answer.text)
+        self.assertIn("TORTILLERIA SEGURA (código SEGURA)", answer.text)
+        self.assertNotIn("Otra Persona", answer.text)
+        self.assertNotIn("2,194,991.60", answer.text)
+        self.assertNotIn("Saldo", answer.text)
+
+    def test_one_match_reads_in_singular(self):
+        self.db.customer("R1", "Ana Robles", "5")
+        self.assertIn("Hay 1 cliente ", self.count("Robles").text)
+
+    def test_count_is_the_real_total_beyond_the_names_listed(self):
+        for i in range(12):
+            self.db.customer(f"R{i:02d}", "Ana Robles", "1")
+        answer = self.count("Robles")
+        self.assertIn("Hay 12 clientes", answer.text)
+        self.assertEqual(answer.text.count("(código R"), 10)
+        self.assertIn("Muestro 10", answer.text)
+
+    def test_no_matches_asks_to_refine(self):
+        self.db.customer("R1", "Ana Robles", "5")
+        self.assertEqual(self.count("Plaza").text, MATCHES_NOT_FOUND)
+
+    def test_duplicate_codes_are_rejected(self):
+        self.db.customer("R1", "Ana Robles", "5")
+        self.db.customer("R1", "Ana Robles", "7")
+        with self.assertRaisesRegex(BusinessError, "repite"):
+            self.count("Robles")
+
+    def test_wildcards_are_literals(self):
+        self.db.customer("R1", "Ana Robles", "5")
+        self.assertEqual(self.count("%").text, MATCHES_NOT_FOUND)
+
+    def test_dates_are_not_accepted(self):
+        with self.assertRaises(BusinessError):
+            self.count(period="este_mes")
 
 
 class RankingGuardTests(unittest.TestCase):
@@ -146,6 +247,53 @@ class CustomerNotFoundRetryTests(unittest.TestCase):
         self.assertIn("apartado o sucursal de gastos", hint["content"])
         self.assertIn("No encontré un cliente", answer)
         self.assertEqual(create.call_count, 2)
+
+
+class ConfirmedCodeTests(unittest.TestCase):
+    completion = RankingGuardTests.completion
+    OFFERED = [
+        {"role": "user", "content": "Cuál es el saldo de Segura?"},
+        {
+            "role": "assistant",
+            "content": "Encontré varios clientes:\n"
+            "• DIEGO SEGURA (código DIEGO)\n"
+            "• TORTILLERIA SEGURA (código SEGURA)\n"
+            "¿Cuál quieres consultar?",
+        },
+    ]
+
+    def ask(self, question, history=None):
+        db = SyntheticDatabase()
+        self.addCleanup(db.conn.close)
+        db.customer("SEGURA", "TORTILLERIA SEGURA", "0")
+        db.customer("DIEGO", "DIEGO SEGURA", "2194991.60")
+        assistant = Assistant(
+            SimpleNamespace(model="test", tables={CUSTOMERS, PAYMENTS}), db=db, client=Mock()
+        )
+        assistant.client.chat.completions.create.return_value = self.completion(
+            "consultar_negocio",
+            {"operation": "saldo", "customer": "SEGURA", "codigo_exacto": True},
+        )
+        return assistant.answer(question, history)
+
+    def test_code_offered_by_the_assistant_resolves_the_pending_choice(self):
+        answer = self.ask("SEGURA", self.OFFERED)
+        self.assertIn("TORTILLERIA SEGURA (código SEGURA): 0.00", answer)
+
+    def test_code_the_user_states_as_a_code_is_honoured(self):
+        answer = self.ask("Saldo del código SEGURA")
+        self.assertIn("TORTILLERIA SEGURA (código SEGURA): 0.00", answer)
+
+    def test_model_cannot_claim_a_code_for_a_loose_surname(self):
+        answer = self.ask("Cuál es el saldo de Segura?")
+        self.assertIn("Encontré varios clientes", answer)
+        self.assertIn("DIEGO SEGURA (código DIEGO)", answer)
+        self.assertNotIn("0.00", answer)
+
+    def test_tool_schema_exposes_the_new_operation_and_flag(self):
+        schema = tool_definitions()[0]["function"]["parameters"]["properties"]
+        self.assertEqual(schema["codigo_exacto"]["type"], "boolean")
+        self.assertIn("contar_coincidencias", schema["operation"]["enum"])
 
 
 if __name__ == "__main__":

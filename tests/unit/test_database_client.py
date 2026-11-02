@@ -45,6 +45,25 @@ class DatabaseAdapterTests(unittest.TestCase):
             self.db.query("SELECT dato")
         self.conn.close.assert_called_once()
 
+    def test_write_capable_login_is_refused_once_and_read_only_login_checked_once(self):
+        patch.stopall()
+        for roles, allowed in (((0, 0, 0, 0), True), ((0, 0, 1, 0), False), ((1, 0, 0, 0), False)):
+            with (
+                self.subTest(roles=roles),
+                patch("dbagg.database.client.pyodbc.connect") as connect,
+            ):
+                conn = connect.return_value
+                conn.cursor.return_value.execute.return_value.fetchone.return_value = roles
+                db = Database(SimpleNamespace(connection="synthetic"))
+                if allowed:
+                    db._connect()
+                    db._connect()
+                    conn.cursor.return_value.execute.assert_called_once()
+                else:
+                    with self.assertRaises(PermissionError):
+                        db._connect()
+                    conn.close.assert_called_once()
+
     def test_invalid_limits_do_not_connect(self):
         for limit in (0, 51, True, 1.5):
             with self.assertRaises(ValueError):

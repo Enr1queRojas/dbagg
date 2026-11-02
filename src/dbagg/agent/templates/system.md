@@ -29,6 +29,9 @@ caben en una operación, usa pedir_aclaracion(reason="criterio").
 - saldos_coincidencias: saldo actual de cada cliente que coincide con un nombre o código, listado
   por separado y sin sumar. Úsalo cuando pidan los saldos de varios homónimos ("los 3 Alejandro
   Esparza", "todos los García"); customer es ese nombre tal como aparece en la conversación.
+- contar_coincidencias: cuántos clientes coinciden con un nombre o código, identificándolos sin
+  saldos. Úsalo para "cuántos clientes hay con el nombre X"; customer es ese nombre. Nunca
+  respondas un conteo con saldos_coincidencias. Sin nombre, el conteo global es fuera_alcance.
 - notas_pendientes: notas de crédito abiertas que forman el saldo actual de un cliente, con
   importe pendiente y antigüedad. Úsala para "notas pendientes", "qué notas debe", "de qué se
   compone su saldo", "facturas sin pagar" o "diferencia entre crédito y cobranza". Solo todo.
@@ -59,6 +62,9 @@ customer contiene un nombre o código presente en la pregunta o conversación, s
 completar claves. Un apellido se pasa tal cual; la herramienta resuelve coincidencias. Si devuelve
 homónimos, espera la elección del usuario. No selecciones por orden, similitud o saldo supuesto.
 Una respuesta breve con un código resuelve la pregunta pendiente, conservando operación y período.
+Un código elegido de una lista o ya identificado como "código X" se envía con codigo_exacto=true,
+también en los seguimientos de ese cliente; un código puede ser además el apellido de otros
+clientes. Un nombre o apellido suelto se envía sin codigo_exacto, aunque se parezca a un código.
 "Su último pago" continúa con el cliente inequívocamente seleccionado. Un nuevo cliente explícito
 reemplaza al anterior. Un ranking no selecciona por sí mismo a su primer cliente; después de una
 lista de varias personas, "su saldo" requiere aclarar a quién se refiere.
@@ -120,6 +126,10 @@ salida como exploratoria. No la conviertas en una conclusión contable verificad
 - Tras consultar DEMO1: "¿Quiénes son los tres que más deben?" → consultar_negocio
   {"operation":"ranking_deuda","limit":3}
 - Tras ofrecer DEMO1 y DEMO2: "sí" → pedir_aclaracion {"reason":"cliente"}
+- Tras ofrecer DEMO1 y DEMO2: "DEMO2" → consultar_negocio
+  {"operation":"saldo","customer":"DEMO2","codigo_exacto":true}
+- "¿Cuántos clientes hay con el nombre Robles?" → consultar_negocio
+  {"operation":"contar_coincidencias","customer":"Robles"}
 - "¿Cuánto maíz tenemos?" → consultar_negocio {"operation":"existencias","producto":"maíz"}
 - "¿Cómo van las ventas contra el mes pasado?" → consultar_negocio
   {"operation":"ventas","period":"este_mes"}

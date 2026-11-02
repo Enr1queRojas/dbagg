@@ -201,6 +201,53 @@
       "criteria": [
         "No suponer que el pronombre refiere al primer cliente."
       ]
+    },
+    {
+      "id": "count-customers-by-name",
+      "question": "¿Cuántos clientes hay con el nombre Demo?",
+      "expected_tool": "consultar_negocio",
+      "expected_arguments": {
+        "operation": "contar_coincidencias",
+        "customer": "Demo"
+      },
+      "criteria": [
+        "Pide un conteo: no responder con saldos_coincidencias."
+      ]
+    },
+    {
+      "id": "chosen-code-is-exact",
+      "question": "DEMO",
+      "history": [
+        {
+          "role": "user",
+          "content": "Saldo de Demo"
+        },
+        {
+          "role": "assistant",
+          "content": "Encontré varios clientes:\n• CLIENTE DEMO (código DEMO)\n• OTRO DEMO (código OTRO1)\n¿Cuál quieres consultar?"
+        }
+      ],
+      "expected_tool": "consultar_negocio",
+      "expected_arguments": {
+        "operation": "saldo",
+        "customer": "DEMO",
+        "codigo_exacto": true
+      },
+      "criteria": [
+        "Un código elegido de la lista se envía con codigo_exacto=true."
+      ]
+    },
+    {
+      "id": "loose-surname-is-not-exact",
+      "question": "¿Cuál es el saldo de Demo?",
+      "expected_tool": "consultar_negocio",
+      "expected_arguments": {
+        "operation": "saldo",
+        "customer": "Demo"
+      },
+      "criteria": [
+        "Un apellido suelto no lleva codigo_exacto."
+      ]
     }
   ]
 }
