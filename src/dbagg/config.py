@@ -34,6 +34,7 @@ class Settings:
     llm: LLMConfig | None = None
     transcription_key: str = field(default="", repr=False)
     gap_log_enabled: bool = False
+    data_retention_days: int = 90
 
     @classmethod
     def from_env(cls):
@@ -108,6 +109,9 @@ class Settings:
                 "dbagg: modo demo TLS sin verificación de identidad del servidor; "
                 "el cifrado sigue siendo obligatorio."
             )
+        retention = os.getenv("DATA_RETENTION_DAYS", "90")
+        if not retention.isdigit() or not 1 <= int(retention) <= 3650:
+            raise ValueError("DATA_RETENTION_DAYS debe ser un entero entre 1 y 3650.")
         transcription_key = ""
         if llm.transcription.enabled:
             transcription_key = os.getenv(llm.transcription.api_key_env, "")
@@ -132,4 +136,5 @@ class Settings:
             llm,
             transcription_key,
             os.getenv("GAP_LOG_ENABLED", "").lower() == "true",
+            int(retention),
         )

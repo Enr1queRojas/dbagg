@@ -36,7 +36,9 @@ def tunnel_host() -> str:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("url", nargs="?", help="URL base del túnel (por defecto, la de cloudflared)")
+    parser.add_argument(
+        "url", nargs="?", help="URL base del túnel (por defecto, la de cloudflared)"
+    )
     args = parser.parse_args()
 
     env = dotenv_values(ROOT / ".env")

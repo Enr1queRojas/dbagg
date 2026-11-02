@@ -183,6 +183,33 @@ class CatalogValidationTests(unittest.TestCase):
             with self.subTest(sql=sql), self.assertRaises((ValueError, ParseError)):
                 self.validate(sql)
 
+    def test_aliases_cannot_whitelist_uncatalogued_columns(self):
+        self.validate(
+            "SELECT d.total FROM (SELECT SUM(IMPORTE) AS total FROM proadel.GASTOS_DATA) AS d"
+        )
+        for sql in (
+            # RESPONSABLE is a real, uncatalogued column: the alias must not unlock it.
+            "SELECT 1 AS RESPONSABLE, RESPONSABLE FROM proadel.GASTOS_DATA",
+            "SELECT IMPORTE AS RESPONSABLE FROM proadel.GASTOS_DATA WHERE RESPONSABLE > 0",
+            "SELECT TOP 1 1 AS RESPONSABLE, IMPORTE FROM proadel.GASTOS_DATA "
+            "ORDER BY RESPONSABLE + 0",
+        ):
+            with self.subTest(sql=sql), self.assertRaisesRegex(ValueError, "Columna"):
+                self.validate(sql)
+
+    def test_server_variables_and_cartesian_products_are_rejected(self):
+        for sql in (
+            "SELECT @@VERSION AS v FROM proadel.GASTOS_DATA",
+            "SELECT IMPORTE FROM proadel.GASTOS_DATA WHERE IMPORTE > @x",
+            "SELECT COUNT(*) AS n FROM proadel.GASTOS_DATA a, proadel.GASTOS_DATA b",
+            "SELECT COUNT(*) AS n FROM proadel.GASTOS_DATA a CROSS JOIN proadel.GASTOS_DATA b",
+            "SELECT COUNT(*) AS n FROM proadel.GASTOS_DATA a JOIN proadel.GASTOS_DATA b ON 1 = 1",
+            "SELECT COUNT(*) AS n FROM proadel.GASTOS_DATA a "
+            "JOIN proadel.GASTOS_DATA b ON a.ID = a.ID",
+        ):
+            with self.subTest(sql=sql), self.assertRaises(ValueError):
+                self.validate(sql)
+
     def test_declared_join_is_the_only_way_to_combine_objects(self):
         text = json.dumps(
             {

@@ -8,9 +8,12 @@ version = "0.3.1"
 description = "Asistente interno de WhatsApp y reportes sobre SQL Server"
 requires-python = ">=3.11"
 dependencies = [
-  "fastapi==0.115.12",
+  "fastapi==0.162.0",
+  # FastAPI only requires starlette>=0.46; pinned so the audited version is installed.
+  "starlette==1.10.0",
   "uvicorn==0.34.2",
   "httpx==0.28.1",
+  "certifi>=2026.10.19",
   "openai==1.78.1",
   "pyodbc==5.3.0",
   "python-dotenv==1.2.4",
@@ -21,7 +24,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["ruff==0.16.10", "build==1.6.1"]
+dev = ["ruff==0.16.10", "build==1.6.1", "pip-audit==2.10.1"]
 
 [project.scripts]
 dbagg-report = "dbagg.reporting.cli:main"

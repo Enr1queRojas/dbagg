@@ -1,6 +1,22 @@
 """Meta delivery and privacy-preserving error metadata."""
 
+from urllib.parse import urlsplit
+
 import httpx
+
+# The media download carries the access token, so it only goes to Meta's own hosts.
+MEDIA_HOSTS = ("fbsbx.com", "facebook.com", "fbcdn.net", "whatsapp.net")
+
+
+def is_meta_media_url(url):
+    try:
+        parts = urlsplit(str(url))
+    except ValueError:
+        return False
+    host = (parts.hostname or "").lower()
+    return parts.scheme == "https" and any(
+        host == domain or host.endswith("." + domain) for domain in MEDIA_HOSTS
+    )
 
 
 def meta_error_codes(response):
@@ -40,6 +56,8 @@ class MetaClient:
             declared = meta.get("file_size")
             if type(declared) is int and declared > max_bytes:
                 raise MediaTooLarge()
+            if not is_meta_media_url(meta["url"]):
+                raise ValueError("URL de medio fuera de los dominios de Meta.")
             chunks, size = [], 0
             with client.stream("GET", meta["url"], headers=headers) as response:
                 response.raise_for_status()

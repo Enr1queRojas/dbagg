@@ -1,5 +1,22 @@
 # Cambios
 
+## Sin publicar — Endurecimiento de seguridad
+
+Detalle en [docs/security.md](docs/security.md).
+
+- `validate_sql`: un alias ya no habilita columnas fuera del catálogo; se rechazan
+  variables (`@x`, `@@VERSION`), `JOIN` sin `ON a.col = b.col` entre objetos distintos y
+  más de tres referencias a objetos.
+- Webhook: mensajes con `timestamp` de más de 15 minutos o inválido no se responden;
+  `hub.verify_token` se redacta en el log de acceso; las notas de voz solo se descargan
+  de hosts HTTPS de Meta.
+- La primera conexión SQL rechaza logins con permisos de escritura o administración.
+  `scripts/sql/dbagg_readonly.sql` crea un login con `SELECT` solo sobre el catálogo.
+- Retención `DATA_RETENTION_DAYS` (90 días) para preguntas sin respuesta y valoraciones,
+  y comando `purge --days`.
+- Dependencias: FastAPI 0.162.0, starlette 1.10.0 (13 avisos de seguridad en 0.46.2) y
+  certifi ≥ 2026.10.19; `pip-audit` en `dev`.
+
 ## Sin publicar — Notas de voz de WhatsApp
 
 - Los números autorizados pueden enviar notas de voz de hasta 60 s. Se descargan de Meta

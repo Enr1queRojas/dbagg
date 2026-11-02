@@ -70,6 +70,50 @@ def _literal_limit(select):
     return count
 
 
+def _projected(select):
+    return {e.alias_or_name.lower() for e in select.expressions if e.alias_or_name}
+
+
+def _alias_reference(column):
+    """T-SQL resolves a select alias only as a whole ORDER BY key or from a derived table.
+
+    Anywhere else the name binds to a base column, so `SELECT 1 AS x, x` must not
+    whitelist a column x that the catalogue excludes.
+    """
+    name = column.name.lower()
+    select = column.find_ancestor(exp.Select)
+    if select is None:
+        return False
+    if isinstance(column.parent, exp.Ordered) and name in _projected(select):
+        return True
+    sources = [select.args.get("from"), *select.args.get("joins", [])]
+    return any(
+        source is not None
+        and isinstance(source.this, exp.Subquery)
+        and isinstance(source.this.this, exp.Select)
+        and name in _projected(source.this.this)
+        for source in sources
+    )
+
+
+def _joins_on_columns(tree):
+    """Every join needs ON a = b between columns of different objects: no Cartesian products."""
+    for join in tree.find_all(exp.Join):
+        condition = join.args.get("on")
+        if condition is None or not any(
+            isinstance(eq.left, exp.Column)
+            and isinstance(eq.right, exp.Column)
+            and eq.left.table
+            and eq.right.table
+            and eq.left.table.lower() != eq.right.table.lower()
+            for eq in condition.find_all(exp.EQ)
+        ):
+            raise ValueError(
+                "Cada JOIN necesita ON a.columna = b.columna entre objetos distintos; "
+                "no se permiten productos cruzados."
+            )
+
+
 def _check_catalog(tree, tables, catalog):
     """Column and join policy from the source catalogue."""
     referenced = {f"{t.db}.{t.name}".lower() for t in tables}
@@ -80,11 +124,9 @@ def _check_catalog(tree, tables, catalog):
     for node in tree.walk():
         if isinstance(node, exp.Star) and not isinstance(node.parent, exp.Count):
             raise ValueError("Indica columnas explícitas; SELECT * no está permitido.")
-    aliases = {a.alias.lower() for a in tree.find_all(exp.Alias) if a.alias}
     allowed = catalog.allowed_columns(referenced)
     for column in tree.find_all(exp.Column):
-        name = column.name.lower()
-        if name not in allowed and name not in aliases:
+        if column.name.lower() not in allowed and not _alias_reference(column):
             raise ValueError("Columna no autorizada para este objeto.")
 
 
@@ -117,9 +159,14 @@ def validate_sql(sql, allowed_tables, catalog=None):
         raise ValueError("Operación no permitida.")
     if tree.args.get("with") or any(isinstance(n, (exp.CTE, exp.Lock)) for n in tree.walk()):
         raise ValueError("CTE y bloqueos no permitidos.")
+    if any(isinstance(n, (exp.Parameter, exp.Placeholder)) for n in tree.walk()):
+        raise ValueError("Variables (@x, @@VERSION) y parámetros no permitidos.")
     tables = list(tree.find_all(exp.Table))
     if not tables:
         raise ValueError("La consulta debe usar una vista o tabla autorizada.")
+    if len(tables) > 3:
+        raise ValueError("Usa como máximo tres referencias a objetos por consulta.")
+    _joins_on_columns(tree)
     for table in tables:
         if (
             table.catalog

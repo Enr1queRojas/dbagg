@@ -101,11 +101,11 @@ class TranscriberTests(unittest.TestCase):
 
 
 class MediaDownloadTests(unittest.TestCase):
-    def client(self, size=None, body=b"audio-bytes"):
+    def client(self, size=None, body=b"audio-bytes", url="https://lookaside.fbsbx.com/file"):
         def handler(request):
             if request.url.host == "graph.facebook.com":
                 self.assertEqual(request.headers["authorization"], "Bearer meta-token")
-                info = {"url": "https://media.example/file", "mime_type": "audio/ogg"}
+                info = {"url": url, "mime_type": "audio/ogg"}
                 if size is not None:
                     info["file_size"] = size
                 return httpx.Response(200, json=info)
@@ -122,6 +122,16 @@ class MediaDownloadTests(unittest.TestCase):
             self.client(size=5000).download_media("987", 1000)
         with self.assertRaises(MediaTooLarge):
             self.client(body=b"x" * 2000).download_media("987", 1000)
+
+    def test_token_is_never_sent_outside_meta_media_hosts(self):
+        for url in (
+            "https://media.example/file",
+            "http://lookaside.fbsbx.com/file",
+            "https://fbsbx.com.evil.example/file",
+            "https://evilfbsbx.com/file",
+        ):
+            with self.subTest(url=url), self.assertRaises(ValueError):
+                self.client(url=url).download_media("987", 1000)
 
 
 class VoiceNotesTests(unittest.TestCase):
