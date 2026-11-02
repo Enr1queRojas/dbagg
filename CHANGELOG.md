@@ -1,5 +1,13 @@
 # Cambios
 
+## Sin publicar — Coincidencias de clientes
+
+- Una coincidencia exacta ya no detiene la búsqueda: si «Segura» es el código de un cliente
+  y el apellido de otro, se listan ambos y `saldo` pide elegir en lugar de responder con uno.
+- `codigo_exacto` selecciona un código ya elegido; el servicio lo ignora si ese valor no
+  aparece como código en la pregunta o en una respuesta previa.
+- Nueva operación `contar_coincidencias`: total real por `COUNT` e identificación sin saldos.
+
 ## Sin publicar — Endurecimiento de seguridad
 
 Detalle en [docs/security.md](docs/security.md).
