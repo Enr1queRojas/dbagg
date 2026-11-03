@@ -1,5 +1,23 @@
 # Cambios
 
+## Sin publicar — Selección tras una lista y plantilla del prompt
+
+- Tras un ranking o una lista de varios clientes, una operación por cliente que no nombra ni
+  elige a uno (`el segundo`, un nombre o código) pide aclarar el cliente; antes el modelo podía
+  continuar con la primera fila y responder sobre otra persona.
+- `templates/system.md`: comprobaciones previas a `consultar_negocio` (estado de cuenta, pedidos
+  compuestos, días sin mes, más de 10 registros, listas sin elegir, código identificado). En
+  `evaluation.routing` con `gpt-4.1-mini` pasa de 30/42 a 41/42 casos estables.
+- Los prompts locales no cambian al actualizar: ver [diseño del prompt](docs/prompt-design.md).
+
+## Sin publicar — Evaluación de enrutamiento
+
+- `python -m dbagg.evaluation.routing` mide la elección de herramienta del modelo real con
+  casos sintéticos, sin consultar la base.
+- `intent-routing.json` pasa de 15 a 42 casos; CI exige que cubra todas las operaciones y
+  motivos de aclaración.
+- Las pruebas pasan en Windows: E/S explícita en UTF-8 y conexión SQLite cerrada.
+
 ## Sin publicar — Coincidencias de clientes
 
 - Una coincidencia exacta ya no detiene la búsqueda: si «Segura» es el código de un cliente

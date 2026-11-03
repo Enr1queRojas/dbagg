@@ -65,7 +65,7 @@ class ReportTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / "empty.html"
             generar_html(pd.DataFrame(columns=COLUMNS), path)
-            self.assertIn('"rows": []', path.read_text())
+            self.assertIn('"rows": []', path.read_text(encoding="utf-8"))
             frame = pd.DataFrame(
                 [
                     [
@@ -87,7 +87,7 @@ class ReportTests(unittest.TestCase):
                 columns=COLUMNS,
             )
             generar_html(frame, path)
-            self.assertIn('"dias": null', path.read_text())
+            self.assertIn('"dias": null', path.read_text(encoding="utf-8"))
             self.assertEqual(semaforo(float("nan")), "sin_datos")
 
     def test_missing_balance_and_reason_survive_html_without_placeholder_expansion(self):

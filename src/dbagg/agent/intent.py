@@ -58,3 +58,21 @@ def requests_candidate_comparison(question):
             text,
         )
     )
+
+
+def lists_several_customers(answer):
+    """Ranking rows are «1. NOMBRE (CODIGO): importe»; the other lists say «(código X)»."""
+    text = _plain(answer)
+    rows = re.findall(r"\b\d+\.\s[^()]*\([^()]+\):", text)
+    return max(len(rows), len(re.findall(r"\(codigo\s", text))) >= 2
+
+
+def chooses_from_list(question):
+    """«El segundo» points at a row; «su primer pago» or «el primero de octubre» do not."""
+    return bool(
+        re.search(
+            r"\b(?:(?:el|la|al|del)\s+(?:primer|segund|tercer|cuart|quint|sext|septim|octav|noven)[oa]"
+            r"|(?:el|la)\s+(?:numero\s+)?\d{1,2}|numero\s+\d{1,2})\b(?!\s+de\b)",
+            _plain(question),
+        )
+    )

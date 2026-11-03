@@ -19,7 +19,7 @@ class CleanGeneratedTests(unittest.TestCase):
     def put(self, name):
         path = self.root / name
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text("synthetic")
+        path.write_text("synthetic", encoding="utf-8")
         return path
 
     def run_clean(self, apply=False):
