@@ -23,7 +23,9 @@ class ModelReply:
 
 
 class ModelProvider(Protocol):
-    def complete(self, messages: list[dict], tools: list[dict]) -> ModelReply: ...
+    def complete(
+        self, messages: list[dict], tools: list[dict], require_tool: bool = False
+    ) -> ModelReply: ...
     def close(self) -> None: ...
 
 

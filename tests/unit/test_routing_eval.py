@@ -26,7 +26,7 @@ class FakeProvider:
         self.replies = list(replies)
         self.calls = []
 
-    def complete(self, messages, tools):
+    def complete(self, messages, tools, require_tool=False):
         self.calls.append(messages)
         next_reply = self.replies.pop(0)
         if isinstance(next_reply, Exception):
@@ -152,7 +152,7 @@ class ObserveTests(unittest.TestCase):
         self.assertTrue(arguments["codigo_exacto"])
 
     def test_a_reply_without_tools_is_observed_as_no_tool(self):
-        provider = FakeProvider(ModelReply("Debe 999.", (), {}))
+        provider = FakeProvider(ModelReply("Debe 999.", (), {}), ModelReply("Debe 999.", (), {}))
         self.assertEqual(observe(assistant(provider), case(), date(2026, 10, 8)), (None, {}))
 
     def test_comparison_answered_by_the_service_never_reaches_the_model(self):

@@ -640,6 +640,51 @@
       "criteria": [
         "Es un apartado de gasto, no un cliente: se explora su catálogo."
       ]
+    },
+    {
+      "id": "compound-in-long-conversation",
+      "question": "Dame el saldo y el último pago de DEMO2",
+      "history": [
+        {
+          "role": "user",
+          "content": "Saldo de Tres"
+        },
+        {
+          "role": "assistant",
+          "content": "Encontré varios clientes:\n• Ana Tres (código A.TRES)\n• ANA TRES (código A.TRES2)\n• ANA TRES (código A.TRES3)\n• LUIS TRES DE LEON (código LUIS)\nHay más coincidencias; precisa el nombre o código."
+        },
+        {
+          "role": "user",
+          "content": "A.Tres3"
+        },
+        {
+          "role": "assistant",
+          "content": "Saldo actual de ANA TRES (código A.TRES3): 500.60.\nImporte sin moneda confirmada."
+        },
+        {
+          "role": "user",
+          "content": "¿Y su último pago?"
+        },
+        {
+          "role": "assistant",
+          "content": "Pagos de la última fecha registrada de ANA TRES (código A.TRES3):\n• 2026-10-01 00:00:00 · 100.32 · folio 1 · ID 2\nImportes sin moneda confirmada."
+        },
+        {
+          "role": "user",
+          "content": "¿Cuánto pagó el mes pasado?"
+        },
+        {
+          "role": "assistant",
+          "content": "Total de pagos activos de ANA TRES (código A.TRES3): 100.32. Del 01/09/2026 al 30/09/2026.\nImporte sin moneda confirmada."
+        }
+      ],
+      "expected_tool": "pedir_aclaracion",
+      "expected_arguments": {
+        "reason": "criterio"
+      },
+      "criteria": [
+        "Regresión: tras varios turnos el modelo dejaba de llamar herramientas."
+      ]
     }
   ]
 }

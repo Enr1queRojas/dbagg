@@ -26,6 +26,28 @@ NOT_A_CUSTOMER_HINT = (
 )
 
 
+PERIOD_HINT = (
+    "La pregunta ya indica el mes y el año: el período no es ambiguo. Usa period=rango con start "
+    "y end en formato YYYY-MM-DD; si solo nombra el mes, va del día 1 al último."
+)
+
+ORDINALS = {
+    "primer": 1,
+    "segund": 2,
+    "tercer": 3,
+    "cuart": 4,
+    "quint": 5,
+    "sext": 6,
+    "septim": 7,
+    "octav": 8,
+    "noven": 9,
+}
+MONTHS = (
+    r"\b(?:enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre"
+    r"|noviembre|diciembre)\b"
+)
+
+
 def _plain(question):
     text = "".join(
         c
@@ -60,19 +82,30 @@ def requests_candidate_comparison(question):
     )
 
 
-def lists_several_customers(answer):
-    """Ranking rows are «1. NOMBRE (CODIGO): importe»; the other lists say «(código X)»."""
-    text = _plain(answer)
-    rows = re.findall(r"\b\d+\.\s[^()]*\([^()]+\):", text)
-    return max(len(rows), len(re.findall(r"\(codigo\s", text))) >= 2
-
-
-def chooses_from_list(question):
-    """«El segundo» points at a row; «su primer pago» or «el primero de octubre» do not."""
-    return bool(
-        re.search(
-            r"\b(?:(?:el|la|al|del)\s+(?:primer|segund|tercer|cuart|quint|sext|septim|octav|noven)[oa]"
-            r"|(?:el|la)\s+(?:numero\s+)?\d{1,2}|numero\s+\d{1,2})\b(?!\s+de\b)",
-            _plain(question),
-        )
+def listed_codes(answer):
+    """Codes of the rows of a customer list, in order; movements carry « · » and never match."""
+    codes = re.findall(
+        r"^\s*(?:\d+\.|[•*])\s[^·\n]*\((?:c[oó]digo\s+)?([^()\n]+)\)(?::[^·\n]*)?\s*$",
+        answer,
+        flags=re.MULTILINE,
     )
+    return [code.strip() for code in codes]
+
+
+def list_position(question):
+    """«El segundo» points at a row; «su primer pago» or «el segundo pago» do not."""
+    match = re.search(
+        r"\b(?:(?:el|la|al|del)\s+(primer|segund|tercer|cuart|quint|sext|septim|octav|noven)[oa]"
+        r"|(?:(?:el|la)\s+(?:numero\s+)?|numero\s+)(\d{1,2}))\b"
+        r"(?=\s*(?:$|[,.?!]|cliente\b|de\s+la\s+lista\b|por\s+favor\b))",
+        _plain(question),
+    )
+    if not match:
+        return None
+    return ORDINALS[match[1]] if match[1] else int(match[2])
+
+
+def names_month_and_year(question):
+    """A named month with its year leaves nothing to ask about the period."""
+    text = _plain(question)
+    return bool(re.search(MONTHS, text) and re.search(r"\b20\d{2}\b", text))

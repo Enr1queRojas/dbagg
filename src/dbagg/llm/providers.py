@@ -29,13 +29,13 @@ class OpenAICompatibleProvider:
         if self.owns_client:
             self.client.close()
 
-    def complete(self, messages, tools):
+    def complete(self, messages, tools, require_tool=False):
         profile = self.profile
         options = {
             "model": profile.model,
             "messages": copy.deepcopy(messages),
             "tools": tools,
-            "tool_choice": "auto",
+            "tool_choice": "required" if require_tool else "auto",
             "parallel_tool_calls": False,
             profile.token_parameter: profile.max_output_tokens,
         }
@@ -132,7 +132,7 @@ class AnthropicProvider:
         if self.owns_client:
             self.client.close()
 
-    def complete(self, messages, tools):
+    def complete(self, messages, tools, require_tool=False):
         system, converted = anthropic_messages(messages)
         profile = self.profile
         payload = {
@@ -148,7 +148,10 @@ class AnthropicProvider:
                 }
                 for t in tools
             ],
-            "tool_choice": {"type": "auto", "disable_parallel_tool_use": True},
+            "tool_choice": {
+                "type": "any" if require_tool else "auto",
+                "disable_parallel_tool_use": True,
+            },
         }
         if profile.temperature is not None:
             payload["temperature"] = profile.temperature
