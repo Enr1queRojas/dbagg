@@ -1,7 +1,6 @@
 """Coordinate one authorized conversation independently of HTTP transport."""
 
 import logging
-import threading
 from uuid import uuid4
 
 import httpx
@@ -25,17 +24,18 @@ def command_name(question):
 
 class ConversationService:
     def __init__(
-        self, settings, assistant, deliver, feedback_store=None, voice=None, gap_store=None
+        self, settings, assistant, deliver, feedback_store=None, voice=None, gap_store=None,
+        outbox=None
     ):
         self.settings = settings
         self.assistant = assistant
         self.deliver = deliver
         self.voice = voice
         self.gaps = gap_store
+        self.outbox = outbox
         if self.gaps is None and getattr(settings, "gap_log_enabled", False):
             self.gaps = GapStore(project_root() / "data" / "gaps.sqlite3")
         self.memory = ConversationMemory()
-        self.lock = threading.Lock()
         self.feedback = feedback_store
         if self.feedback is None and settings.feedback_enabled:
             self.feedback = FeedbackStore(
@@ -70,35 +70,26 @@ class ConversationService:
         return f"Valoración guardada para revisión. Referencia: {reference}"
 
     def process(self, sender, question):
-        if not self.lock.acquire(blocking=False):
-            logger.info("dbagg stage=ignored_busy")
-            return
-        try:
-            self._handle(sender, question)
-        finally:
-            self.lock.release()
+        self._handle(sender, question)
 
     def process_voice(self, sender, media_id):
         """Transcribe a voice note, then answer it like text with an echo of what was heard."""
-        if not self.lock.acquire(blocking=False):
-            logger.info("dbagg stage=ignored_busy")
+        if self.voice is None:
+            self._send(sender, VOICE_DISABLED)
             return
         try:
-            if self.voice is None:
-                self._send(sender, VOICE_DISABLED)
-                return
-            try:
-                question = self.voice.text(media_id)
-            except VoiceError as exc:
-                self._send(sender, str(exc))
-                return
-            self._handle(sender, question, voice=True)
-        finally:
-            self.lock.release()
+            question = self.voice.text(media_id)
+        except VoiceError as exc:
+            self._send(sender, str(exc))
+            return
+        self._handle(sender, question, voice=True)
 
     def _send(self, sender, text):
         try:
-            self.deliver(sender, text)
+            if self.outbox is not None:
+                self.deliver(sender, text, outbox=self.outbox)
+            else:
+                self.deliver(sender, text)
             logger.info("dbagg stage=send_ok")
             return True
         except httpx.HTTPStatusError as exc:
@@ -113,6 +104,15 @@ class ConversationService:
         except Exception as exc:
             logger.warning("dbagg stage=send_failed error_type=%s", type(exc).__name__)
         return False
+
+    def recover_pending(self):
+        """Reencola mensajes pendientes al arrancar. No-op si no hay outbox."""
+        if self.outbox is None:
+            return
+        rows = self.outbox.pending()
+        for row in rows:
+            self._send(row["sender"], row["body"])
+        logger.info("dbagg stage=outbox_recovered rows=%s", len(rows))
 
     def _handle(self, sender, question, voice=False):
         save_turn = False

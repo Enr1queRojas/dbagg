@@ -12,10 +12,12 @@ from fastapi.responses import PlainTextResponse
 from dbagg.config import Settings
 from dbagg.agent.service import Assistant
 from dbagg.services.memory import MessageGate
+from dbagg.services.outbox import OutboxStore, PersistentMessageGate
 from dbagg.services.conversation import ConversationService, CONTROL_COMMANDS, command_name
 from dbagg.integrations.meta import MetaClient
 from dbagg.services.voice import build_voice
 from dbagg.limits import MAX_QUESTION_CHARS
+from dbagg.paths import project_root
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -53,8 +55,26 @@ def create_app(settings=None, assistant=None, send_message=None, feedback_store=
     owns_assistant = assistant is None
     assistant = assistant if assistant is not None else Assistant(settings)
 
+    # When a custom send_message is provided (e.g. in tests), use an in-memory gate and
+    # no outbox so existing tests continue working unmodified. In production (no override),
+    # use the persistent SQLite outbox and gate.
+    if send_message is not None:
+        outbox = None
+        gate = MessageGate()
+    else:
+        outbox = OutboxStore(project_root() / "data" / "outbox.sqlite3")
+        gate = PersistentMessageGate(outbox)
+
+    meta = MetaClient(settings)
+    deliver = send_message or meta.send
+    voice = voice if voice is not None else build_voice(settings, meta)
+    conversation = ConversationService(
+        settings, assistant, deliver, feedback_store, voice, outbox=outbox
+    )
+
     @asynccontextmanager
     async def lifespan(app):
+        conversation.recover_pending()
         try:
             yield
         finally:
@@ -65,11 +85,6 @@ def create_app(settings=None, assistant=None, send_message=None, feedback_store=
     if not any(isinstance(f, RedactVerifyToken) for f in access_log.filters):
         access_log.addFilter(RedactVerifyToken())
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
-    gate = MessageGate()
-    meta = MetaClient(settings)
-    deliver = send_message or meta.send
-    voice = voice if voice is not None else build_voice(settings, meta)
-    conversation = ConversationService(settings, assistant, deliver, feedback_store, voice)
 
     @app.get("/health")
     def health():
