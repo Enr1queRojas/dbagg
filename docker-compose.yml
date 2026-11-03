@@ -26,6 +26,29 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  # Started with --profile tunnel; the hostname is configured in the Cloudflare dashboard.
+  cloudflared:
+    image: cloudflare/cloudflared:2026.10.7
+    profiles:
+      - tunnel
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:-}
+    depends_on:
+      dbagg:
+        condition: service_healthy
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
 volumes:
   dbagg-data:
     name: dbagg-data

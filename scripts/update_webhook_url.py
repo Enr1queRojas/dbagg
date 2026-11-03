@@ -51,9 +51,15 @@ def main() -> None:
     callback = (args.url or tunnel_host()).rstrip("/").removesuffix("/webhook") + "/webhook"
     print(f"Callback: {callback}")
 
-    health = httpx.get(callback.removesuffix("/webhook") + "/health", timeout=15)
-    if health.status_code != 200:
-        sys.exit(f"/health respondió {health.status_code}; levanta Uvicorn antes de continuar.")
+    # The same handshake Meta runs; a route may publish only /webhook, so /health can be a 404.
+    challenge = "1234567"
+    check = httpx.get(
+        callback,
+        params={"hub.mode": "subscribe", "hub.verify_token": verify, "hub.challenge": challenge},
+        timeout=15,
+    )
+    if check.status_code != 200 or check.text != challenge:
+        sys.exit(f"/webhook respondió {check.status_code}; levanta Uvicorn antes de continuar.")
 
     token_info = httpx.get(
         f"{graph}/debug_token", params={"input_token": token, "access_token": token}, timeout=20

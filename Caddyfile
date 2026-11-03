@@ -1,0 +1,32 @@
+# Behind Cloudflare Tunnel: TLS ends at Cloudflare, so this serves plain HTTP on the private network.
+{
+	auto_https off
+	admin off
+	# Failed requests are logged with their URL, and Meta's verification carries its token there.
+	log {
+		format filter {
+			fields {
+				request>uri query {
+					delete hub.verify_token
+				}
+			}
+		}
+	}
+}
+
+:8080 {
+	header -Server
+
+	handle /webhook {
+		request_body {
+			max_size 256KB
+		}
+		reverse_proxy dbagg:8000 {
+			header_down -Server
+		}
+	}
+
+	handle {
+		respond 404
+	}
+}
