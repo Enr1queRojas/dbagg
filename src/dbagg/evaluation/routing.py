@@ -43,7 +43,11 @@ def observe(assistant, case, today):
     messages = build_messages(
         schema, load_business_context(), question, case.get("history"), today=today, bundle=bundle
     )
-    calls = assistant.provider.complete(messages, tool_definitions(bundle)).tool_calls
+    tools = tool_definitions(bundle)
+    calls = assistant.provider.complete(messages, tools).tool_calls
+    if not calls:
+        # The service asks once more before giving up; that second reply is what it acts on.
+        calls = assistant.provider.complete(messages, tools, require_tool=True).tool_calls
     if not calls:
         return None, {}
     arguments = json.loads(calls[0].arguments)

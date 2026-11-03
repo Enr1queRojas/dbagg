@@ -18,9 +18,11 @@ from dbagg.llm.providers import create_provider
 from dbagg.agent.intent import (
     COMPARISON_CLARIFICATION,
     NOT_A_CUSTOMER_HINT,
+    PERIOD_HINT,
     RANKING_HINT,
-    chooses_from_list,
-    lists_several_customers,
+    list_position,
+    listed_codes,
+    names_month_and_year,
     requests_candidate_comparison,
     requests_ranking,
 )
@@ -54,6 +56,11 @@ CLARIFICATIONS = {
     "fuera_alcance": "Ese reporte todavía no tiene una definición de negocio verificada. Puedo ayudarte con saldos, pagos y rankings de deuda, y consultar existencias de inventario, gastos y compras.",
 }
 
+NO_EVIDENCE = (
+    "No obtuve resultados para respaldar una respuesta. ¿Qué cliente o reporte quieres "
+    "consultar? Puedo consultar saldos, pagos y rankings; no modificar datos."
+)
+
 
 def _normalize(value):
     return "".join(
@@ -83,18 +90,37 @@ def code_confirmed(customer, question, history):
     return any(re.search(pattern, _normalize(text)) for text in texts if isinstance(text, str))
 
 
+def _open_list(history):
+    """Codes still awaiting a choice; asking who they meant does not close the list."""
+    for message in reversed(history or []):
+        content = message.get("content")
+        if message.get("role") != "assistant" or not isinstance(content, str):
+            continue
+        if content not in (CLARIFICATIONS["cliente"], NO_EVIDENCE):
+            codes = listed_codes(content)
+            return codes if len(codes) >= 2 else []
+    return []
+
+
 def customer_left_unselected(customer, question, history):
     """A list of customers identifies none: the customer must be named or pointed at, because
     the model tends to continue with the first row and would answer about the wrong person."""
-    latest = next(
-        (m.get("content") for m in reversed(history or []) if m.get("role") == "assistant"), None
-    )
+    codes = _open_list(history)
+    position = list_position(question)
     return (
-        isinstance(latest, str)
-        and lists_several_customers(latest)
+        bool(codes)
         and not customer_in_conversation(customer, question, None)
-        and not chooses_from_list(question)
+        and (position is None or not 1 <= position <= len(codes))
     )
+
+
+def chosen_customer(customer, question, history):
+    """«El segundo» is resolved from the list itself; the model may pick another row."""
+    codes = _open_list(history)
+    position = list_position(question)
+    if not position or not 1 <= position <= len(codes):
+        return None
+    return None if customer_in_conversation(customer, question, None) else codes[position - 1]
 
 
 def _abandons_result(call):
@@ -164,9 +190,19 @@ class Assistant:
         described = set()
         latest_result = None
         latest_sources = []
-        for _ in range(MAX_MODEL_ROUNDS):
+        period_hinted = False
+        for round_number in range(MAX_MODEL_ROUNDS):
             message = self.provider.complete(messages, tools)
             calls = message.tool_calls
+            if not calls and round_number == 0:
+                # Long conversations can make a model reply in prose; its text never reaches the
+                # user, so ask once for the decision. Providers may not support forcing a tool.
+                logger.info("dbagg stage=model_skipped_tools")
+                try:
+                    message = self.provider.complete(messages, tools, require_tool=True)
+                    calls = message.tool_calls
+                except Exception as exc:
+                    logger.info("dbagg stage=require_tool_failed error_type=%s", type(exc).__name__)
             if not calls:
                 return self._finish_exploration(latest_result, latest_sources)
             messages.append(message.history_message)
@@ -184,6 +220,13 @@ class Assistant:
                     if call.name == "consultar_negocio":
                         return self._consult_business(arguments, context, question, history, today)
                     elif call.name == "pedir_aclaracion":
+                        if (
+                            arguments["reason"] == "periodo"
+                            and not period_hinted
+                            and names_month_and_year(question)
+                        ):
+                            period_hinted = True
+                            raise ToolHint(PERIOD_HINT)
                         text = CLARIFICATIONS[arguments["reason"]]
                         self.last_trace.update(
                             status="needs_clarification",
@@ -257,17 +300,27 @@ class Assistant:
         if arguments.get("operation") == "ranking_deuda" and not requests_ranking(question):
             logger.info("dbagg stage=ranking_not_requested")
             raise ToolHint(RANKING_HINT)
+        single_customer = arguments.get("operation") not in (
+            "ranking_deuda",
+            "saldos_coincidencias",
+            "contar_coincidencias",
+        )
+        chosen = (
+            chosen_customer(arguments.get("customer"), question, history)
+            if single_customer
+            else None
+        )
+        if chosen:
+            arguments = {**arguments, "customer": chosen, "codigo_exacto": True}
         if arguments.get("operation") != "ranking_deuda" and not customer_in_conversation(
             arguments.get("customer"), question, history
         ):
             raise BusinessError(
                 "No pude vincular ese cliente con la conversación. Indica su nombre o código."
             )
-        if arguments.get("operation") not in (
-            "ranking_deuda",
-            "saldos_coincidencias",
-            "contar_coincidencias",
-        ) and customer_left_unselected(arguments.get("customer"), question, history):
+        if single_customer and customer_left_unselected(
+            arguments.get("customer"), question, history
+        ):
             logger.info("dbagg stage=customer_not_selected")
             self.last_trace.update(
                 status="needs_clarification", sources=[], clarification="cliente"
@@ -276,9 +329,9 @@ class Assistant:
         customer_arguments = {
             k: v for k, v in arguments.items() if k not in ("producto", "comparar")
         }
-        customer_arguments["codigo_exacto"] = arguments.get(
-            "codigo_exacto"
-        ) is True and code_confirmed(arguments.get("customer"), question, history)
+        customer_arguments["codigo_exacto"] = arguments.get("codigo_exacto") is True and bool(
+            chosen or code_confirmed(arguments.get("customer"), question, history)
+        )
         answer = CustomerQueries(self.db, self.tables, today=today).execute(**customer_arguments)
         if answer.text in NOT_FOUND_ANSWERS and not self._customer_missed:
             # One retry: the name may be an expense section, product or warehouse.
@@ -330,7 +383,7 @@ class Assistant:
         if result is None:
             logger.info("dbagg stage=clarification_no_query")
             self.last_trace.update(status="needs_clarification", sources=[], gap="sin_evidencia")
-            return "No obtuve resultados para respaldar una respuesta. ¿Qué cliente o reporte quieres consultar? Puedo consultar saldos, pagos y rankings; no modificar datos."
+            return NO_EVIDENCE
         logger.info("dbagg stage=answer_ready")
         # Answered from unverified SQL: a candidate for a new verified operation.
         self.last_trace.update(status="exploratory", sources=sources, gap="exploratoria")

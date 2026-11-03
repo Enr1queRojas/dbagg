@@ -9,6 +9,10 @@
   compuestos, días sin mes, más de 10 registros, listas sin elegir, código identificado). En
   `evaluation.routing` con `gpt-4.1-mini` pasa de 30/42 a 41/42 casos estables.
 - Los prompts locales no cambian al actualizar: ver [diseño del prompt](docs/prompt-design.md).
+- «El segundo» se resuelve con el código de esa fila, sin depender del modelo ni de homónimos, y
+  una aclaración de cliente no cierra la lista pendiente.
+- Si el modelo no llama herramientas en el primer turno, se le pide una decisión una vez más.
+- Pedir aclarar el período cuando la pregunta ya trae mes y año recibe una corrección.
 
 ## Sin publicar — Evaluación de enrutamiento
 
