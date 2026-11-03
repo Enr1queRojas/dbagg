@@ -133,6 +133,20 @@ python -m dbagg.evaluation gaps-export --output data/exports/gaps-v1.json
 
 ## Medir mejoras
 
+La elección de herramienta se mide contra el modelo configurado, sin consultar la base:
+
+```cmd
+python -m dbagg.evaluation.routing --repeat 3
+python -m dbagg.evaluation.routing --only ambiguous-date compound-request
+```
+
+Ejecuta los casos de `evals/cases/intent-routing.json`, puntúa la primera decisión del modelo
+y termina con código 1 si alguno falla. Consume la API del proveedor, así que no corre en CI;
+CI solo exige que el dataset cubra cada operación y cada motivo de aclaración. Omitir un
+argumento o enviar su valor por defecto cuenta igual, y `codigo_exacto` solo cuenta si el
+servicio lo aceptaría. No evalúa la respuesta final: los controles posteriores del servicio
+pueden frenar una mala decisión, que aun así se cuenta como fallo.
+
 Antes de cambiar prompt, contexto o modelo, ejecuta manualmente los casos sintéticos
 de [evals/cases/customer-reports.json](../evals/cases/customer-reports.json) en una
 base de pruebas o con servicios simulados. Estos casos no se ejecutan contra producción

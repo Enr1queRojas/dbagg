@@ -33,7 +33,10 @@ class LLMConfigurationTests(unittest.TestCase):
     def test_file_wins_over_legacy_model_and_explicit_profile_wins_over_default(self):
         path = self.initialize()
         path.write_text(
-            path.read_text().replace('active_profile = "openai"', 'active_profile = "glm"')
+            path.read_text(encoding="utf-8").replace(
+                'active_profile = "openai"', 'active_profile = "glm"'
+            ),
+            encoding="utf-8",
         )
         config = load_llm_config(self.root, {"OPENAI_MODEL": "ignored"})
         self.assertEqual(config.profile.provider, "glm")
@@ -47,10 +50,10 @@ class LLMConfigurationTests(unittest.TestCase):
             initialize(self.root)
         self.assertEqual(load_llm_config(self.root, {}).profile.model, "my-model")
         target = self.root / "config/prompts/agent.md"
-        target.write_text("Custom instructions")
+        target.write_text("Custom instructions", encoding="utf-8")
         with self.assertRaisesRegex(ValueError, "conservaron"):
             initialize(self.root)
-        self.assertEqual(target.read_text(), "Custom instructions")
+        self.assertEqual(target.read_text(encoding="utf-8"), "Custom instructions")
 
     def test_explicit_missing_config_does_not_fall_back(self):
         with self.assertRaisesRegex(ValueError, "LLM_CONFIG"):
@@ -63,7 +66,7 @@ class LLMConfigurationTests(unittest.TestCase):
 
     def test_invalid_config_and_unknown_keys_fail_without_exposing_values(self):
         path = self.initialize()
-        original = path.read_text()
+        original = path.read_text(encoding="utf-8")
         cases = [
             original + '\napi_key = "private-value"\n',
             original.replace('provider = "openai"', 'provider = "unsupported"'),
@@ -78,7 +81,7 @@ class LLMConfigurationTests(unittest.TestCase):
             "[ invalid private-value",
         ]
         for value in cases:
-            path.write_text(value)
+            path.write_text(value, encoding="utf-8")
             with self.subTest(case=cases.index(value)), self.assertRaises(ValueError) as exc:
                 load_llm_config(self.root, {})
             self.assertNotIn("private-value", str(exc.exception))
@@ -127,9 +130,9 @@ class LLMConfigurationTests(unittest.TestCase):
         self.initialize()
         config = load_llm_config(self.root, {})
         before = tool_definitions(load_prompt_bundle(config))
-        descriptions = json.loads(config.tool_descriptions.read_text())
+        descriptions = json.loads(config.tool_descriptions.read_text(encoding="utf-8"))
         descriptions["consultar_sql"] = "Explica esta herramienta con otra redacción."
-        config.tool_descriptions.write_text(json.dumps(descriptions))
+        config.tool_descriptions.write_text(json.dumps(descriptions), encoding="utf-8")
         after = tool_definitions(load_prompt_bundle(config))
         self.assertEqual(
             [t["function"]["parameters"] for t in before],
@@ -139,7 +142,7 @@ class LLMConfigurationTests(unittest.TestCase):
             before[-1]["function"]["description"], after[-1]["function"]["description"]
         )
         descriptions["borrar_tabla"] = "Una herramienta inventada"
-        config.tool_descriptions.write_text(json.dumps(descriptions))
+        config.tool_descriptions.write_text(json.dumps(descriptions), encoding="utf-8")
         with self.assertRaises(ValueError):
             load_prompt_bundle(config)
 
@@ -147,7 +150,7 @@ class LLMConfigurationTests(unittest.TestCase):
         self.initialize()
         config = load_llm_config(self.root, {})
         for content in ("", "x" * 24001):
-            config.system_prompt.write_text(content)
+            config.system_prompt.write_text(content, encoding="utf-8")
             with self.assertRaises(ValueError):
                 load_prompt_bundle(config)
         with self.assertRaises(ValueError):

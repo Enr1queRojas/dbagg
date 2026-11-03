@@ -7,6 +7,7 @@ from pathlib import Path
 from dbagg.agent.prompt_files import TOOL_NAMES
 from dbagg.agent.service import CLARIFICATIONS
 from dbagg.business.customers import OPERATIONS
+from dbagg.business.products import PRODUCT_OPERATIONS
 
 CASES = Path(__file__).resolve().parents[2] / "evals" / "cases"
 
@@ -37,9 +38,17 @@ class EvalCaseTests(unittest.TestCase):
                     self.assertIn(case["expected_tool"], TOOL_NAMES)
                     arguments = case.get("expected_arguments", {})
                     if case["expected_tool"] == "consultar_negocio":
-                        self.assertIn(arguments.get("operation"), OPERATIONS)
+                        self.assertIn(arguments.get("operation"), OPERATIONS + PRODUCT_OPERATIONS)
                     if case["expected_tool"] == "pedir_aclaracion":
                         self.assertIn(arguments.get("reason"), CLARIFICATIONS)
+
+    def test_routing_dataset_covers_every_operation_and_clarification(self):
+        cases = dict(self.datasets())["intent-routing.json"]["cases"]
+        arguments = [case.get("expected_arguments", {}) for case in cases]
+        operations = {a.get("operation") for a in arguments}
+        reasons = {a.get("reason") for a in arguments}
+        self.assertEqual(set(OPERATIONS + PRODUCT_OPERATIONS) - operations, set())
+        self.assertEqual(set(CLARIFICATIONS) - reasons, set())
 
 
 if __name__ == "__main__":

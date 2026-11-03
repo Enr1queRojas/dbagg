@@ -39,7 +39,7 @@ class BusinessContextTests(unittest.TestCase):
             self.assertEqual(merged["topics"]["sales"]["pending"], [])
             self.assertEqual(merged["topics"]["sales"]["columns"]["amount"], "IMPORTE_REAL")
             self.assertEqual(merged["topics"]["inventory"], {"status": "pending"})
-            self.assertEqual(json.loads(default.read_text()), base)
+            self.assertEqual(json.loads(default.read_text(encoding="utf-8")), base)
             self.assertEqual(json.loads(local.read_text(encoding="utf-8-sig")), override)
 
     def test_invalid_local_data_does_not_fall_back_silently(self):

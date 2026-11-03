@@ -19,6 +19,8 @@ from dbagg.agent.intent import (
     COMPARISON_CLARIFICATION,
     NOT_A_CUSTOMER_HINT,
     RANKING_HINT,
+    chooses_from_list,
+    lists_several_customers,
     requests_candidate_comparison,
     requests_ranking,
 )
@@ -79,6 +81,20 @@ def code_confirmed(customer, question, history):
         m.get("content", "") for m in (history or []) if m.get("role") == "assistant"
     ]
     return any(re.search(pattern, _normalize(text)) for text in texts if isinstance(text, str))
+
+
+def customer_left_unselected(customer, question, history):
+    """A list of customers identifies none: the customer must be named or pointed at, because
+    the model tends to continue with the first row and would answer about the wrong person."""
+    latest = next(
+        (m.get("content") for m in reversed(history or []) if m.get("role") == "assistant"), None
+    )
+    return (
+        isinstance(latest, str)
+        and lists_several_customers(latest)
+        and not customer_in_conversation(customer, question, None)
+        and not chooses_from_list(question)
+    )
 
 
 def _abandons_result(call):
@@ -247,6 +263,16 @@ class Assistant:
             raise BusinessError(
                 "No pude vincular ese cliente con la conversación. Indica su nombre o código."
             )
+        if arguments.get("operation") not in (
+            "ranking_deuda",
+            "saldos_coincidencias",
+            "contar_coincidencias",
+        ) and customer_left_unselected(arguments.get("customer"), question, history):
+            logger.info("dbagg stage=customer_not_selected")
+            self.last_trace.update(
+                status="needs_clarification", sources=[], clarification="cliente"
+            )
+            return CLARIFICATIONS["cliente"]
         customer_arguments = {
             k: v for k, v in arguments.items() if k not in ("producto", "comparar")
         }

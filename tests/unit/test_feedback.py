@@ -90,9 +90,11 @@ class FeedbackTests(unittest.TestCase):
     def test_old_database_migrates_without_losing_reviewed_examples(self):
         self.store.record(self.interaction, "good")
         self.store.review("case-1", "approved", "reviewer", self.prepared)
-        with sqlite3.connect(self.store.path) as connection:
+        connection = sqlite3.connect(self.store.path)
+        with connection:
             connection.execute("ALTER TABLE feedback DROP COLUMN provider")
             connection.execute("ALTER TABLE feedback DROP COLUMN profile")
+        connection.close()
         original = self.store.get("case-1")
         self.assertEqual(original["review_status"], "approved")
         self.assertIsNone(original["provider"])
