@@ -26,7 +26,35 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  # Started with --profile tunnel; the hostname is configured in the Cloudflare dashboard.
+  # Public traffic path, started with --profile tunnel: cloudflared -> caddy -> dbagg.
+  caddy:
+    image: caddy:2.11.7-alpine
+    profiles:
+      - tunnel
+    restart: unless-stopped
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+    depends_on:
+      dbagg:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /data
+      - /config
+    # The image's binary carries this file capability and cannot start without it.
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # The Cloudflare dashboard routes the hostname to http://caddy:8080.
   cloudflared:
     image: cloudflare/cloudflared:2026.10.7
     profiles:
@@ -36,8 +64,7 @@ services:
     environment:
       TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:-}
     depends_on:
-      dbagg:
-        condition: service_healthy
+      - caddy
     read_only: true
     cap_drop:
       - ALL

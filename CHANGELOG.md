@@ -1,5 +1,13 @@
 # Cambios
 
+## Sin publicar — Despliegue con contenedores
+
+- `Dockerfile`, `docker-compose.yml` y `Caddyfile`: bot, Caddy y Cloudflare Tunnel, sin root,
+  con sistema de solo lectura y sin abrir puertos de entrada.
+- `scripts/package_deploy.py` genera un paquete para otra máquina, sin `.env` ni `data/`;
+  guía en [docs/deploy-vm.md](docs/deploy-vm.md).
+- `scripts/update_webhook_url.py` comprueba `/webhook` en vez de `/health`, que puede no ser público.
+
 ## Sin publicar — Aviso a números no autorizados
 
 - Un número fuera de `WHATSAPP_ALLOWED_NUMBERS` recibe un texto fijo que le pide contactar a

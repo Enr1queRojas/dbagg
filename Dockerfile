@@ -32,7 +32,8 @@ ENV PATH="/opt/venv/bin:$PATH" \
 
 # Fail the build, not the first query, if pyodbc cannot see the driver.
 RUN python -c "import pyodbc; assert 'ODBC Driver 18 for SQL Server' in pyodbc.drivers()" \
-    && useradd --system --uid 10001 --home-dir /srv/dbagg --no-create-home dbagg \
+    && groupadd --system --gid 10001 dbagg \
+    && useradd --system --uid 10001 --gid 10001 --home-dir /srv/dbagg --no-create-home dbagg \
     && install -d -o dbagg -g dbagg /srv/dbagg /srv/dbagg/data
 
 WORKDIR /srv/dbagg
