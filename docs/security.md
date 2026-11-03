@@ -7,7 +7,9 @@ Defensas del piloto, de afuera hacia adentro, y lo que queda a cargo de quien lo
 - Firma `X-Hub-Signature-256` (HMAC con `META_APP_SECRET`) en cada POST; sin firma válida,
   403 y el cuerpo no se interpreta. Cuerpo limitado a 256 KB mientras se lee.
 - Solo se atienden `META_PHONE_NUMBER_ID` y los números de `WHATSAPP_ALLOWED_NUMBERS`;
-  el resto se ignora sin respuesta.
+  ningún otro número llega al modelo, al ERP, al historial ni a los registros. Quien no esté
+  autorizado recibe un texto fijo que le pide contactar a soporte, una vez al día por número y
+  hasta 30 avisos por hora en total; esa cuenta vive en memoria para no guardar su número.
 - Un mensaje se procesa una vez (deduplicación por ID durante 24 h) y cada número puede
   preguntar cada 10 s.
 - Reenvío: Meta firma el cuerpo pero no la hora de entrega, y la deduplicación vive en
@@ -42,7 +44,7 @@ Defensas del piloto, de afuera hacia adentro, y lo que queda a cargo de quien lo
 - `data/gaps.sqlite3` (`GAP_LOG_ENABLED`) y `data/feedback.sqlite3` (`FEEDBACK_ENABLED`)
   guardan el texto de preguntas y, en valoraciones, la respuesta: pueden contener nombres
   y saldos. Están fuera de Git.
-- Retención: al arrancar se aplica `DATA_RETENTION_DAYS` (90 por defecto, 1–3650). Lo más
+- Retención: al arrancar se aplica `DATA_RETENTION_DAYS` (90 por defecto, 1–3650), también al outbox. Lo más
   antiguo se borra; un grupo descartado conserva solo su texto normalizado para que no
   vuelva a revisión, y una valoración aprobada conserva solo su caso anonimizado. A mano:
   `python -m dbagg.evaluation purge --days 30`.

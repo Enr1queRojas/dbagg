@@ -55,6 +55,12 @@ class OutboxStore:
                 )
             """)
             conn.execute("""
+                CREATE TABLE IF NOT EXISTS sender_rate (
+                    sender  TEXT PRIMARY KEY,
+                    last_at REAL NOT NULL
+                )
+            """)
+            conn.execute("""
                 CREATE TABLE IF NOT EXISTS seen_messages (
                     message_id TEXT PRIMARY KEY,
                     sender     TEXT NOT NULL,
@@ -107,10 +113,25 @@ class OutboxStore:
                 "SELECT * FROM outbox WHERE status='pendiente' ORDER BY id"
             ).fetchall()
 
+    def fail_stale(self, hours: int) -> int:
+        """Cierra pendientes antiguas: un saldo de hace horas no debe llegar como actual."""
+        with self._connect() as conn:
+            return conn.execute(
+                "UPDATE outbox SET status='fallido', updated_at=? "
+                "WHERE status='pendiente' AND created_at < ?",
+                (utc_now(), _cutoff_hours(hours)),
+            ).rowcount
+
     def purge(self, days: int) -> int:
-        """Borra filas enviadas/fallidas más antiguas de `days` días. Devuelve el nº borrado."""
+        """Borra filas enviadas/fallidas más antiguas de `days` días. Devuelve el nº borrado.
+
+        También olvida el rate-limit de más de 24 h y la deduplicación de más de 8 días: un
+        reintento tardío del webhook no debe procesarse como una pregunta nueva.
+        """
         cutoff = _cutoff_days(days)
         with self._connect() as conn:
+            conn.execute("DELETE FROM seen_messages WHERE seen_at < ?", (_cutoff_days(8),))
+            conn.execute("DELETE FROM sender_rate WHERE last_at < ?", (time.time() - 86400,))
             deleted = conn.execute(
                 "DELETE FROM outbox WHERE status IN ('enviado', 'fallido') AND created_at < ?",
                 (cutoff,),
@@ -131,50 +152,27 @@ class PersistentMessageGate:
         Intenta reclamar un message_id. Devuelve True si el mensaje puede procesarse.
 
         - Deduplica: si ya fue visto, devuelve False.
-        - Rate-limit (solo mensajes no-control): rechaza si el mismo sender envió
-          otro mensaje no-control en los últimos 10 s.
+        - Rate-limit (solo mensajes no-control): rechaza si el mismo sender tuvo otra pregunta
+          aceptada en los últimos 10 s. Ni los comandos ni los rechazos reinician la espera.
         """
-        now_iso = utc_now()
-        # Usamos el timestamp ISO para comparar en SQLite; para el rate-limit necesitamos
-        # también el instante en epoch para comparar con seen_at del último registro.
-        now_epoch = time.time()
-        cutoff_rate = (
-            datetime.now(timezone.utc) - timedelta(seconds=self.RATE_LIMIT_SECONDS)
-        ).isoformat()
-
+        now = time.time()
         with self.store._connect() as conn:
-            # 1. Deduplicación
-            existing = conn.execute(
-                "SELECT 1 FROM seen_messages WHERE message_id=?", (message_id,)
-            ).fetchone()
-            if existing is not None:
-                return False
-
-            # 2. Rate-limit (sólo para mensajes normales)
-            if not control:
-                last_row = conn.execute(
-                    "SELECT seen_at FROM seen_messages WHERE sender=? ORDER BY seen_at DESC LIMIT 1",
-                    (sender,),
-                ).fetchone()
-                if last_row is not None and last_row["seen_at"] >= cutoff_rate:
-                    # Aún registramos el message_id para deduplicar futuros reintentos
-                    conn.execute(
-                        "INSERT OR IGNORE INTO seen_messages (message_id, sender, seen_at) VALUES (?, ?, ?)",
-                        (message_id, sender, now_iso),
-                    )
-                    return False
-
-            # 3. Registrar
-            conn.execute(
+            inserted = conn.execute(
                 "INSERT OR IGNORE INTO seen_messages (message_id, sender, seen_at) VALUES (?, ?, ?)",
-                (message_id, sender, now_iso),
+                (message_id, sender, utc_now()),
+            ).rowcount
+            if not inserted:
+                return False
+            if control:
+                return True
+            last = conn.execute(
+                "SELECT last_at FROM sender_rate WHERE sender=?", (sender,)
+            ).fetchone()
+            if last is not None and now - last["last_at"] < self.RATE_LIMIT_SECONDS:
+                return False
+            conn.execute(
+                "INSERT INTO sender_rate (sender, last_at) VALUES (?, ?) "
+                "ON CONFLICT(sender) DO UPDATE SET last_at=excluded.last_at",
+                (sender, now),
             )
             return True
-
-    def purge_old(self, hours: int = 24):
-        """Borra registros de seen_messages más viejos que `hours` horas."""
-        cutoff = _cutoff_hours(hours)
-        with self.store._connect() as conn:
-            conn.execute(
-                "DELETE FROM seen_messages WHERE seen_at < ?", (cutoff,)
-            )

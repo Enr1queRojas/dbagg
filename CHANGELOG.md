@@ -1,5 +1,20 @@
 # Cambios
 
+## Sin publicar — Aviso a números no autorizados
+
+- Un número fuera de `WHATSAPP_ALLOWED_NUMBERS` recibe un texto fijo que le pide contactar a
+  soporte, sin pasar por el modelo ni el ERP. Una vez al día por número, máximo 30 por hora.
+
+## Sin publicar — Correcciones del outbox
+
+- La recuperación al arrancar reenvía la misma fila y la cierra; antes creaba otra y repetía la
+  respuesta en cada reinicio. Una pendiente de más de 1 hora se cierra sin enviarse, para que un
+  saldo antiguo no llegue como actual.
+- Un 4xx de Meta marca la fila como fallida en lugar de dejarla pendiente.
+- `DATA_RETENTION_DAYS` también limpia el outbox, y la deduplicación se olvida a los 8 días.
+- Límite de frecuencia persistente igual al de memoria: los comandos y los mensajes rechazados no
+  alargan la espera.
+
 ## Sin publicar — Selección tras una lista y plantilla del prompt
 
 - Tras un ranking o una lista de varios clientes, una operación por cliente que no nombra ni

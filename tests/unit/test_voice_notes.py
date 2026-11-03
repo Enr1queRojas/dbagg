@@ -11,6 +11,7 @@ import httpx
 from fastapi.testclient import TestClient
 
 from dbagg.api.app import create_app
+from dbagg.services.conversation import UNAUTHORIZED_NOTICE
 from dbagg.config import Settings
 from dbagg.integrations.meta import MediaTooLarge, MetaClient
 from dbagg.llm.config import TranscriptionConfig, load_llm_config
@@ -245,7 +246,8 @@ class VoiceWebhookTests(unittest.TestCase):
             with self.subTest(message=message["id"]):
                 self.assertEqual(self.post(client, message).status_code, 200)
         voice.text.assert_not_called()
-        send.assert_not_called()
+        assistant.answer.assert_not_called()
+        send.assert_called_once_with("5210000000000", UNAUTHORIZED_NOTICE)
 
 
 class TranscriptionConfigTests(unittest.TestCase):

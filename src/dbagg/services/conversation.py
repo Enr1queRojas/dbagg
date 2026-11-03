@@ -11,11 +11,17 @@ from dbagg.evaluation.store import FeedbackStore, utc_now
 from dbagg.integrations.meta import meta_error_codes
 from dbagg.paths import project_root
 from dbagg.services.memory import ConversationMemory
+from dbagg.services.outbox import OutboxStore
 from dbagg.services.voice import DISABLED as VOICE_DISABLED, VoiceError
 
 logger = logging.getLogger("uvicorn.error")
 
 CONTROL_COMMANDS = frozenset({"/diagnostico", "/reiniciar", "/buena", "/mala", "/ayuda"})
+RECOVERY_MAX_HOURS = 1
+UNAUTHORIZED_NOTICE = (
+    "Este número no está autorizado para usar este asistente. "
+    "Si necesitas acceso, contacta a soporte."
+)
 
 
 def command_name(question):
@@ -24,8 +30,14 @@ def command_name(question):
 
 class ConversationService:
     def __init__(
-        self, settings, assistant, deliver, feedback_store=None, voice=None, gap_store=None,
-        outbox=None
+        self,
+        settings,
+        assistant,
+        deliver,
+        feedback_store=None,
+        voice=None,
+        gap_store=None,
+        outbox=None,
     ):
         self.settings = settings
         self.assistant = assistant
@@ -45,8 +57,9 @@ class ConversationService:
 
     def _purge(self, days):
         """Apply data retention at startup; a failure must not stop the service."""
-        for name, store in (("gaps", self.gaps), ("feedback", self.feedback)):
-            if not isinstance(store, (GapStore, FeedbackStore)):
+        stores = (("gaps", self.gaps), ("feedback", self.feedback), ("outbox", self.outbox))
+        for name, store in stores:
+            if not isinstance(store, (GapStore, FeedbackStore, OutboxStore)):
                 continue
             try:
                 rows = store.purge(days)
@@ -69,6 +82,30 @@ class ConversationService:
         )
         return f"Valoración guardada para revisión. Referencia: {reference}"
 
+    def notify_unauthorized(self, sender, release=None):
+        """Fixed text only: no model, data, history or outbox, whatever the stranger wrote."""
+        try:
+            self.deliver(sender, UNAUTHORIZED_NOTICE)
+            logger.info("dbagg stage=unauthorized_notified")
+        except httpx.HTTPStatusError as exc:
+            code, subcode = meta_error_codes(exc.response)
+            logger.warning(
+                "dbagg stage=unauthorized_notice_failed error_type=HTTPStatusError "
+                "http_status=%s meta_code=%s meta_subcode=%s",
+                exc.response.status_code,
+                code,
+                subcode,
+            )
+            # Another 4xx will fail the same way; retrying on every message only adds calls.
+            if release and (exc.response.status_code == 429 or exc.response.status_code >= 500):
+                release(sender)
+        except Exception as exc:
+            logger.warning(
+                "dbagg stage=unauthorized_notice_failed error_type=%s", type(exc).__name__
+            )
+            if release:
+                release(sender)
+
     def process(self, sender, question):
         self._handle(sender, question)
 
@@ -84,10 +121,10 @@ class ConversationService:
             return
         self._handle(sender, question, voice=True)
 
-    def _send(self, sender, text):
+    def _send(self, sender, text, row_id=None):
         try:
             if self.outbox is not None:
-                self.deliver(sender, text, outbox=self.outbox)
+                self.deliver(sender, text, outbox=self.outbox, row_id=row_id)
             else:
                 self.deliver(sender, text)
             logger.info("dbagg stage=send_ok")
@@ -109,10 +146,11 @@ class ConversationService:
         """Reencola mensajes pendientes al arrancar. No-op si no hay outbox."""
         if self.outbox is None:
             return
+        stale = self.outbox.fail_stale(RECOVERY_MAX_HOURS)
         rows = self.outbox.pending()
         for row in rows:
-            self._send(row["sender"], row["body"])
-        logger.info("dbagg stage=outbox_recovered rows=%s", len(rows))
+            self._send(row["sender"], row["body"], row_id=row["id"])
+        logger.info("dbagg stage=outbox_recovered rows=%s stale=%s", len(rows), stale)
 
     def _handle(self, sender, question, voice=False):
         save_turn = False

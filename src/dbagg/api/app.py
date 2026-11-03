@@ -11,7 +11,7 @@ from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
 from fastapi.responses import PlainTextResponse
 from dbagg.config import Settings
 from dbagg.agent.service import Assistant
-from dbagg.services.memory import MessageGate
+from dbagg.services.memory import MessageGate, UnauthorizedNotices
 from dbagg.services.outbox import OutboxStore, PersistentMessageGate
 from dbagg.services.conversation import ConversationService, CONTROL_COMMANDS, command_name
 from dbagg.integrations.meta import MetaClient
@@ -65,6 +65,7 @@ def create_app(settings=None, assistant=None, send_message=None, feedback_store=
         outbox = OutboxStore(project_root() / "data" / "outbox.sqlite3")
         gate = PersistentMessageGate(outbox)
 
+    notices = UnauthorizedNotices()
     meta = MetaClient(settings)
     deliver = send_message or meta.send
     voice = voice if voice is not None else build_voice(settings, meta)
@@ -127,7 +128,20 @@ def create_app(settings=None, assistant=None, send_message=None, feedback_store=
                     for message in value.get("messages", []):
                         sender = message.get("from", "")
                         kind = message.get("type")
-                        if sender not in settings.numbers or kind not in {"text", "audio"}:
+                        if sender not in settings.numbers:
+                            if (
+                                isinstance(sender, str)
+                                and sender.isdigit()
+                                and not is_stale(message, time.time())
+                                and notices.claim(sender)
+                            ):
+                                background.add_task(
+                                    conversation.notify_unauthorized, sender, notices.release
+                                )
+                            else:
+                                logger.info("dbagg stage=ignored_unauthorized")
+                            continue
+                        if kind not in {"text", "audio"}:
                             logger.info("dbagg stage=ignored_sender_or_type")
                             continue
                         if is_stale(message, time.time()):

@@ -74,14 +74,13 @@ class MetaClient:
                     chunks.append(chunk)
         return b"".join(chunks), str(meta.get("mime_type", "audio/ogg"))
 
-    def send(self, sender, text, outbox=None):
+    def send(self, sender, text, outbox=None, row_id=None):
         """Envía un mensaje de texto por WhatsApp.
 
         Si se proporciona `outbox`, encola el mensaje antes de intentar el envío
         y aplica reintentos con backoff exponencial para 429, 5xx y timeouts.
         """
-        row_id = None
-        if outbox is not None:
+        if outbox is not None and row_id is None:
             row_id = outbox.enqueue(sender, text)
 
         last_exc = None
@@ -109,9 +108,14 @@ class MetaClient:
                     )
                     if response.status_code == 429 or response.status_code >= 500:
                         last_exc = httpx.HTTPStatusError(
-                            f"HTTP {response.status_code}", request=response.request, response=response
+                            f"HTTP {response.status_code}",
+                            request=response.request,
+                            response=response,
                         )
                         continue
+                    if response.is_error and outbox is not None:
+                        # Otro 4xx no se resuelve reintentando, tampoco al reiniciar.
+                        outbox.mark_failed(row_id)
                     response.raise_for_status()
                     # Éxito
                     if outbox is not None and row_id is not None:

@@ -45,6 +45,36 @@ class ConversationMemory:
         self.interactions.pop(sender, None)
 
 
+class UnauthorizedNotices:
+    """Who may receive the support notice; in memory so strangers' numbers never reach disk.
+
+    Once a day per number, with a global cap so nobody can make the service send in bulk.
+    """
+
+    MAX_PER_HOUR = 30
+
+    def __init__(self):
+        self.notified = {}
+        self.recent = []
+        self.lock = threading.Lock()
+
+    def claim(self, sender):
+        now = time.monotonic()
+        with self.lock:
+            self.notified = {k: v for k, v in self.notified.items() if now - v < 86400}
+            self.recent = [v for v in self.recent if now - v < 3600]
+            if sender in self.notified or len(self.recent) >= self.MAX_PER_HOUR:
+                return False
+            self.notified[sender] = now
+            self.recent.append(now)
+            return True
+
+    def release(self, sender):
+        """A transient failure must not spend the day's notice; the hourly cap still counts."""
+        with self.lock:
+            self.notified.pop(sender, None)
+
+
 class MessageGate:
     """In-memory deduplication/rate limiting for a single-process local pilot."""
 

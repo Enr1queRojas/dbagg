@@ -9,6 +9,8 @@ from unittest.mock import Mock, patch
 from fastapi.testclient import TestClient
 from dbagg.config import Settings
 from dbagg.api.app import RedactVerifyToken, create_app
+from dbagg.services.conversation import UNAUTHORIZED_NOTICE, ConversationService
+from dbagg.services.memory import UnauthorizedNotices
 
 
 class WebhookTests(unittest.TestCase):
@@ -80,10 +82,102 @@ class WebhookTests(unittest.TestCase):
 
     def test_unsigned_or_unauthorized_messages_never_reach_llm(self):
         self.assertEqual(self.post(self.payload(), signed=False).status_code, 403)
-        self.assertEqual(self.post(self.payload(sender="9999999999")).status_code, 200)
+        self.assertEqual(
+            self.post(self.payload(sender="9999999999"), signed=False).status_code, 403
+        )
         self.assertEqual(self.post(self.payload(phone="999")).status_code, 200)
+        self.assertEqual(self.post(self.payload(sender="9999999999", phone="999")).status_code, 200)
         self.assistant.answer.assert_not_called()
         self.send.assert_not_called()
+
+    def stranger(self, kind="text", **message):
+        payload = self.payload(sender="9999999999")
+        original = payload["entry"][0]["changes"][0]["value"]["messages"][0]
+        original.update(type=kind, **message)
+        return payload
+
+    def test_a_stranger_only_receives_the_fixed_support_notice(self):
+        self.assertEqual(self.post(self.stranger()).status_code, 200)
+        self.send.assert_called_once_with("9999999999", UNAUTHORIZED_NOTICE)
+        self.assistant.answer.assert_not_called()
+        self.assertIn("soporte", UNAUTHORIZED_NOTICE)
+
+    def test_any_message_type_from_a_stranger_gets_the_notice_without_processing(self):
+        voice = Mock()
+        self.client = TestClient(create_app(self.settings, self.assistant, self.send, voice=voice))
+        self.assertEqual(self.post(self.stranger("audio", audio={"id": "123"})).status_code, 200)
+        voice.text.assert_not_called()
+        self.assistant.answer.assert_not_called()
+        self.send.assert_called_once_with("9999999999", UNAUTHORIZED_NOTICE)
+
+    def test_a_stranger_cannot_use_control_commands(self):
+        payload = self.stranger(text={"body": "/diagnostico"})
+        self.assertEqual(self.post(payload).status_code, 200)
+        self.send.assert_called_once_with("9999999999", UNAUTHORIZED_NOTICE)
+
+    def test_a_stranger_is_answered_only_once_a_day(self):
+        for number in range(3):
+            self.post(self.stranger(id=f"m{number}"))
+        self.send.assert_called_once_with("9999999999", UNAUTHORIZED_NOTICE)
+
+    def test_an_old_or_unsigned_message_from_a_stranger_gets_no_reply(self):
+        self.post(self.stranger(timestamp=str(int(time.time()) - 3600)))
+        self.post(self.stranger(id="other"), signed=False)
+        self.send.assert_not_called()
+
+    def test_notices_have_a_global_hourly_cap(self):
+        notices = UnauthorizedNotices()
+        claims = [notices.claim(str(n)) for n in range(UnauthorizedNotices.MAX_PER_HOUR + 5)]
+        self.assertEqual(sum(claims), UnauthorizedNotices.MAX_PER_HOUR)
+
+    def test_the_notice_never_touches_stored_data(self):
+        deliver, outbox = Mock(), Mock()
+        service = ConversationService(self.settings, self.assistant, deliver, outbox=outbox)
+        service.notify_unauthorized("9999999999")
+        deliver.assert_called_once_with("9999999999", UNAUTHORIZED_NOTICE)
+        self.assertEqual(outbox.mock_calls, [])
+        self.assertEqual(self.assistant.mock_calls, [])
+
+    def test_a_notice_rejected_by_meta_logs_its_code_but_not_the_number(self):
+        request = httpx.Request("POST", "https://graph.facebook.com")
+        response = httpx.Response(400, json={"error": {"code": 131030}}, request=request)
+        self.send.side_effect = httpx.HTTPStatusError("x", request=request, response=response)
+        with self.assertLogs("uvicorn.error", level="WARNING") as logs:
+            self.post(self.stranger())
+        self.assertIn("meta_code=131030", logs.output[0])
+        self.assertNotIn("9999999999", logs.output[0])
+
+    def test_a_transient_failure_does_not_spend_the_notice(self):
+        self.send.side_effect = [httpx.ConnectError("sin red"), None]
+        self.post(self.stranger(id="m1"))
+        self.post(self.stranger(id="m2"))
+        self.assertEqual(self.send.call_count, 2)
+
+    def test_a_definitive_rejection_is_not_retried_on_every_message(self):
+        request = httpx.Request("POST", "https://graph.facebook.com")
+        response = httpx.Response(400, json={"error": {"code": 131030}}, request=request)
+        self.send.side_effect = httpx.HTTPStatusError("x", request=request, response=response)
+        self.post(self.stranger(id="m1"))
+        self.post(self.stranger(id="m2"))
+        self.assertEqual(self.send.call_count, 1)
+
+    def test_released_notices_still_count_for_the_hourly_cap(self):
+        notices = UnauthorizedNotices()
+        for _ in range(UnauthorizedNotices.MAX_PER_HOUR):
+            self.assertTrue(notices.claim("1"))
+            notices.release("1")
+        self.assertFalse(notices.claim("1"))
+
+    def test_a_failed_notice_does_not_break_the_service(self):
+        self.send.side_effect = RuntimeError("token=secret")
+        self.assertEqual(self.post(self.stranger()).status_code, 200)
+
+    def test_an_authorized_number_is_unaffected_by_strangers(self):
+        self.post(self.stranger())
+        self.send.reset_mock()
+        self.post(self.payload())
+        self.assistant.answer.assert_called_once_with("saldo del cliente A")
+        self.send.assert_called_once_with("5215555555555", "Respuesta de prueba")
 
     def test_authorized_message_processed_once(self):
         self.assertEqual(self.post(self.payload()).status_code, 200)
