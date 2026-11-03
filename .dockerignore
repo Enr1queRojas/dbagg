@@ -1,0 +1,8 @@
+# Allow-list: anything new (.env, data/, customer exports) stays out of the build by default.
+*
+!pyproject.toml
+!requirements.txt
+!src/
+**/__pycache__/
+**/*.py[cod]
+**/*.egg-info/
