@@ -1,11 +1,17 @@
 """Meta delivery and privacy-preserving error metadata."""
 
+import logging
+import time
 from urllib.parse import urlsplit
 
 import httpx
 
+logger = logging.getLogger("uvicorn.error")
+
 # The media download carries the access token, so it only goes to Meta's own hosts.
 MEDIA_HOSTS = ("fbsbx.com", "facebook.com", "fbcdn.net", "whatsapp.net")
+
+_MAX_ATTEMPTS = 3
 
 
 def is_meta_media_url(url):
@@ -68,16 +74,58 @@ class MetaClient:
                     chunks.append(chunk)
         return b"".join(chunks), str(meta.get("mime_type", "audio/ogg"))
 
-    def send(self, sender, text):
-        with httpx.Client(timeout=15, transport=self.transport) as client:
-            response = client.post(
-                f"https://graph.facebook.com/{self.settings.graph_version}/{self.settings.phone_id}/messages",
-                headers={"Authorization": "Bearer " + self.settings.meta_token},
-                json={
-                    "messaging_product": "whatsapp",
-                    "to": sender,
-                    "type": "text",
-                    "text": {"body": text, "preview_url": False},
-                },
-            )
-            response.raise_for_status()
+    def send(self, sender, text, outbox=None):
+        """Envía un mensaje de texto por WhatsApp.
+
+        Si se proporciona `outbox`, encola el mensaje antes de intentar el envío
+        y aplica reintentos con backoff exponencial para 429, 5xx y timeouts.
+        """
+        row_id = None
+        if outbox is not None:
+            row_id = outbox.enqueue(sender, text)
+
+        last_exc = None
+        for attempt in range(_MAX_ATTEMPTS):
+            if attempt > 0:
+                sleep_secs = 2 ** (attempt - 1)  # 1 s, 2 s
+                logger.info(
+                    "dbagg stage=send_retry attempt=%s backoff_secs=%s", attempt, sleep_secs
+                )
+                time.sleep(sleep_secs)
+            if outbox is not None:
+                outbox.increment_attempts(row_id)
+            try:
+                with httpx.Client(timeout=15, transport=self.transport) as client:
+                    response = client.post(
+                        f"https://graph.facebook.com/{self.settings.graph_version}"
+                        f"/{self.settings.phone_id}/messages",
+                        headers={"Authorization": "Bearer " + self.settings.meta_token},
+                        json={
+                            "messaging_product": "whatsapp",
+                            "to": sender,
+                            "type": "text",
+                            "text": {"body": text, "preview_url": False},
+                        },
+                    )
+                    if response.status_code == 429 or response.status_code >= 500:
+                        last_exc = httpx.HTTPStatusError(
+                            f"HTTP {response.status_code}", request=response.request, response=response
+                        )
+                        continue
+                    response.raise_for_status()
+                    # Éxito
+                    if outbox is not None and row_id is not None:
+                        try:
+                            wamid = response.json()["messages"][0]["id"]
+                        except (KeyError, IndexError, ValueError, TypeError):
+                            wamid = None
+                        outbox.mark_sent(row_id, wamid)
+                    return
+            except httpx.TimeoutException as exc:
+                last_exc = exc
+                continue
+
+        # Intentos agotados
+        if outbox is not None and row_id is not None:
+            outbox.mark_failed(row_id)
+        raise last_exc
