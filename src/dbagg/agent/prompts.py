@@ -5,6 +5,7 @@ from datetime import timedelta
 from dbagg.business.calendar import business_today
 from dbagg.business.customers import OPERATIONS
 from dbagg.business.products import COMPARISONS, PRODUCT_OPERATIONS
+from dbagg.business.suppliers import SUPPLIER_ONLY_OPERATIONS
 from dbagg.agent.prompt_files import PROMPT_VERSION as PROMPT_VERSION, load_prompt_bundle
 
 
@@ -60,10 +61,19 @@ def tool_definitions(bundle=None):
             "consultar_negocio",
             bundle.descriptions["consultar_negocio"],
             {
-                "operation": {"type": "string", "enum": list(OPERATIONS + PRODUCT_OPERATIONS)},
+                "operation": {
+                    "type": "string",
+                    "enum": list(OPERATIONS + SUPPLIER_ONLY_OPERATIONS + PRODUCT_OPERATIONS),
+                },
                 "customer": {
                     "type": "string",
-                    "description": "Nombre o código presente en la conversación. Omitir en ranking.",
+                    "description": "Nombre o código del cliente o proveedor presente en la conversación. "
+                    "Omitir en ranking.",
+                },
+                "entidad": {
+                    "type": "string",
+                    "enum": ["cliente", "proveedor"],
+                    "description": "Solo si la pregunta indica si es cliente o proveedor; si no, omitir.",
                 },
                 "codigo_exacto": {
                     "type": "boolean",

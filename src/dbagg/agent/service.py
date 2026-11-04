@@ -67,9 +67,9 @@ class ToolHint(Exception):
 
 CLARIFICATIONS = {
     "comparacion": COMPARISON_CLARIFICATION,
-    "cliente": "¿De qué cliente quieres consultar el saldo o los pagos? Indica su nombre o código.",
+    "cliente": "¿De qué cliente o proveedor quieres consultar el saldo o los pagos? Indica su nombre o código.",
     "periodo": "¿Qué período quieres consultar? Puedes indicar esta semana, este mes o un rango de fechas.",
-    "criterio": "Necesito precisar el concepto. De clientes: saldo actual, saldos de varios clientes con un nombre, pagos, último pago o ranking de deuda. También puedo consultar existencias de inventario, gastos registrados y compras a proveedores. ¿Qué quieres revisar?",
+    "criterio": "Necesito precisar el concepto. De clientes y proveedores: saldo actual, saldos de varios con un nombre, pagos, último pago o ranking de deuda. De proveedores, también última nota y movimientos. También puedo consultar existencias de inventario, gastos registrados y compras a proveedores. ¿Qué quieres revisar?",
     "escritura": "Solo puedo consultar información; no puedo modificar ni eliminar datos.",
     "fuera_alcance": "Ese reporte todavía no tiene una definición de negocio verificada. Puedo ayudarte con saldos, pagos y rankings de deuda, y consultar existencias de inventario, gastos y compras.",
 }
