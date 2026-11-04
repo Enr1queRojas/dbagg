@@ -13,6 +13,8 @@ from dbagg.agent.service import Assistant
 from dbagg.api.app import create_app
 from dbagg.config import Settings
 from tests.unit.test_customer_queries import CUSTOMERS, PAYMENTS, SyntheticDatabase
+from tests.unit.test_supplier_queries import PURCHASES, SUPPLIER_PAYMENTS, SUPPLIERS
+from tests.unit.test_supplier_routing import RoutingDatabase
 
 
 class BusinessWebhookTests(unittest.TestCase):
@@ -100,3 +102,66 @@ class BusinessWebhookTests(unittest.TestCase):
         self.assertNotIn("999", balance + payment)
         messages = model.chat.completions.create.call_args.kwargs["messages"]
         self.assertEqual(messages[2]["content"], balance)
+
+    def test_supplier_context_survives_two_webhook_turns(self):
+        db = RoutingDatabase(check_same_thread=False)
+        self.addCleanup(db.conn.close)
+        db.purchase(1, 7, "C1", "2026-01-25", 300)
+        model = Mock()
+
+        def completion(arguments):
+            call = SimpleNamespace(
+                id="call",
+                function=SimpleNamespace(name="consultar_negocio", arguments=json.dumps(arguments)),
+            )
+            message = SimpleNamespace(content="Importe inventado: 999", tool_calls=[call])
+            return SimpleNamespace(
+                choices=[SimpleNamespace(finish_reason="tool_calls", message=message)]
+            )
+
+        model.chat.completions.create.side_effect = [
+            completion({"operation": "saldo", "customer": "Cuervo"}),
+            completion({"operation": "ultima_nota", "customer": "C1", "codigo_exacto": True}),
+        ]
+        settings = Settings(
+            "dummy",
+            "dummy",
+            "dummy",
+            "test-secret",
+            "verify",
+            "123",
+            "v25.0",
+            frozenset({"5215555555555"}),
+            frozenset({CUSTOMERS, PAYMENTS, SUPPLIERS, SUPPLIER_PAYMENTS, PURCHASES}),
+            "unused",
+        )
+        assistant = Assistant(settings, db=db, client=model)
+        deliver = Mock()
+        questions = ("¿Cuál es el saldo de Cuervo?", "¿Y su última nota?")
+        with TestClient(create_app(settings, assistant, deliver)) as client:
+            for i, question in enumerate(questions):
+                message = {
+                    "id": f"sup{i}",
+                    "from": "5215555555555",
+                    "type": "text",
+                    "text": {"body": question},
+                }
+                value = {"metadata": {"phone_number_id": "123"}, "messages": [message]}
+                body = json.dumps(
+                    {
+                        "object": "whatsapp_business_account",
+                        "entry": [{"changes": [{"value": value}]}],
+                    }
+                ).encode()
+                signature = "sha256=" + hmac.new(b"test-secret", body, hashlib.sha256).hexdigest()
+                with patch("dbagg.services.memory.time.monotonic", return_value=100 + i * 11):
+                    response = client.post(
+                        "/webhook", content=body, headers={"x-hub-signature-256": signature}
+                    )
+                self.assertEqual(response.status_code, 200)
+        balance, note = [call.args[1] for call in deliver.call_args_list]
+        self.assertTrue(balance.startswith("Proveedor Cuervo"))
+        self.assertIn("Le debemos: 44.00", balance)
+        self.assertTrue(note.startswith("Proveedor Cuervo"))
+        self.assertIn("folio 7", note)
+        self.assertNotIn("999", balance + note)

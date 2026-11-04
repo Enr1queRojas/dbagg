@@ -1,5 +1,14 @@
 # Cambios
 
+## Sin publicar — Consultas de proveedores
+
+- Saldo, coincidencias, ranking, pagos, notas pendientes, última nota y movimientos de proveedores.
+- El servicio decide si un nombre es de un cliente o de un proveedor, conserva ese contexto y pregunta
+  si existe en ambos.
+- Migración en producción: aplicar los `GRANT` nuevos de `scripts/sql/dbagg_readonly.sql` si el servidor
+  usa ese script; confirmar que `SQL_ALLOWED_TABLES` incluye `proadel.CATALOGO_PROVEEDORES_DATA_V` y
+  `proadel.PAGO_PROVEEDOR_DATA`; publicar con el paquete los prompts de `config/prompts`.
+
 ## Sin publicar — Despliegue con contenedores
 
 - `Dockerfile`, `docker-compose.yml` y `Caddyfile`: bot, Caddy y Cloudflare Tunnel, sin root,

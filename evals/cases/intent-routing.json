@@ -685,6 +685,102 @@
       "criteria": [
         "Regresión: tras varios turnos el modelo dejaba de llamar herramientas."
       ]
+    },
+    {
+      "id": "supplier-balance-without-entity",
+      "question": "¿Cuál es el saldo de Cuervo?",
+      "expected_tool": "consultar_negocio",
+      "expected_arguments": {
+        "operation": "saldo",
+        "customer": "Cuervo"
+      },
+      "criteria": [
+        "Un saldo por nombre va a consultar_negocio; el servicio decide si es cliente o proveedor."
+      ]
+    },
+    {
+      "id": "supplier-balance-explicit",
+      "question": "¿Cuánto le debemos a Cuervo?",
+      "expected_tool": "consultar_negocio",
+      "expected_arguments": {
+        "operation": "saldo",
+        "customer": "Cuervo",
+        "entidad": "proveedor"
+      },
+      "criteria": [
+        "«Le debemos» indica proveedor."
+      ]
+    },
+    {
+      "id": "supplier-last-note-followup",
+      "question": "¿Y su última nota?",
+      "history": [
+        {
+          "role": "user",
+          "content": "¿Cuánto le debemos a DEMOP?"
+        },
+        {
+          "role": "assistant",
+          "content": "Proveedor Demo SA (código DEMOP)\nLe debemos: 100.00.\nImporte sin moneda confirmada."
+        }
+      ],
+      "expected_tool": "consultar_negocio",
+      "expected_arguments": {
+        "operation": "ultima_nota",
+        "customer": "DEMOP",
+        "codigo_exacto": true
+      },
+      "criteria": [
+        "La continuidad usa el código mostrado."
+      ]
+    },
+    {
+      "id": "supplier-movements-followup",
+      "question": "¿Y sus movimientos?",
+      "history": [
+        {
+          "role": "user",
+          "content": "¿Cuánto le debemos a DEMOP?"
+        },
+        {
+          "role": "assistant",
+          "content": "Proveedor Demo SA (código DEMOP)\nLe debemos: 100.00.\nImporte sin moneda confirmada."
+        }
+      ],
+      "expected_tool": "consultar_negocio",
+      "expected_arguments": {
+        "operation": "movimientos",
+        "customer": "DEMOP",
+        "codigo_exacto": true
+      },
+      "criteria": [
+        "Movimientos del mismo proveedor."
+      ]
+    },
+    {
+      "id": "supplier-ranking",
+      "question": "¿A quién le debemos más?",
+      "expected_tool": "consultar_negocio",
+      "expected_arguments": {
+        "operation": "ranking_deuda",
+        "entidad": "proveedor"
+      },
+      "criteria": [
+        "Ranking de proveedores, no de clientes."
+      ]
+    },
+    {
+      "id": "purchases-stay-exploratory",
+      "question": "¿Cuánto compramos de maíz este mes?",
+      "expected_tool": "describir_tablas",
+      "expected_arguments": {
+        "tables": [
+          "proadel.COMPRAS_DATA"
+        ]
+      },
+      "criteria": [
+        "Sin un proveedor nombrado sigue siendo exploración de compras."
+      ]
     }
   ]
 }

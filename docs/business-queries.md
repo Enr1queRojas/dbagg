@@ -45,6 +45,33 @@ Comparar el saldo de varios candidatos no está implementado. La pregunta explí
 modelo. Una guarda reconoce esa construcción y el prompt orienta otras variantes;
 no es un clasificador universal de comparaciones. Se pueden consultar los códigos por separado.
 
+## Proveedores
+
+Mismas operaciones de saldo, coincidencias, ranking, pagos y notas pendientes, más `ultima_nota` y
+`movimientos`, que todavía solo existen para proveedores.
+
+| Pregunta | Operación | Fuente y regla |
+| --- | --- | --- |
+| ¿Cuánto le debemos a Cuervo? | `saldo` | `CATALOGO_PROVEEDORES_DATA_V.[SALDO ACTUAL]`: positivo, le debemos; negativo, a nuestro favor |
+| ¿Cuál fue su última nota? | `ultima_nota` | `COMPRAS_DATA` activa; importe = `SUM([IMPORTE])` por `FOLIO`, nunca `TOTAL` |
+| ¿Y sus movimientos? | `movimientos` | Compras por folio y pagos activos de `PAGO_PROVEEDOR_DATA`, del más reciente al más antiguo |
+| ¿Qué notas le debemos? | `notas_pendientes` | Pagos activos aplicados FIFO; debe cuadrar con `[SALDO ACTUAL]` |
+
+`[SALDO ACTUAL]` = `SALDO_INICIAL` + compras activas − pagos activos, comprobado en todo el catálogo
+el 2026-11-04. Un proveedor inactivo se puede consultar y aparece marcado; nunca se elige solo por
+estar activo.
+
+### Cliente o proveedor
+
+Un código puede pertenecer a dos personas distintas. El servicio decide, en este orden:
+
+1. La fila elegida de una lista («el segundo»).
+2. Palabras de la pregunta: «le debemos» o «proveedor»; «nos debe» o «cliente». «Cuánto debe X» no decide.
+3. La respuesta más reciente del asistente que mencione ese nombre o código.
+4. Los dos catálogos: si está en uno, ese; si está en ambos, pregunta cuál.
+
+Sin las fuentes de proveedores en `SQL_ALLOWED_TABLES`, todo se comporta como antes.
+
 ## Notas de crédito pendientes
 
 Confirmado con datos (2026-10-26, 423 de 423 clientes):

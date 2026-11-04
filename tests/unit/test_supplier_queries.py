@@ -52,8 +52,8 @@ DEFINITIONS = {
 
 
 class SupplierDatabase:
-    def __init__(self):
-        self.conn = sqlite3.connect(":memory:")
+    def __init__(self, check_same_thread=True):
+        self.conn = sqlite3.connect(":memory:", check_same_thread=check_same_thread)
         self.conn.execute("ATTACH DATABASE ':memory:' AS proadel")
         for table, columns in DEFINITIONS.items():
             names = ", ".join(

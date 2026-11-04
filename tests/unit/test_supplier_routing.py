@@ -27,8 +27,8 @@ ROBLES_TEXT = "Saldo actual de Robles (código R1): 5.00.\nImporte sin moneda co
 
 
 class RoutingDatabase(SupplierDatabase):
-    def __init__(self):
-        super().__init__()
+    def __init__(self, check_same_thread=True):
+        super().__init__(check_same_thread)
         self.conn.execute(f'CREATE TABLE {CUSTOMERS} (CODIGO, NOMBRE, "SALDO ACTUAL" NUMERIC)')
         self.conn.execute(f"CREATE TABLE {PAYMENTS} (ID, FOLIO, CLIENTE, FECHA, IMPORTE, ESTADO)")
         self.statements = []
