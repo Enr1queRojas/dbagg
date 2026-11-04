@@ -39,6 +39,8 @@ Los comandos `dbagg-report`, `dbagg-context` y `dbagg-eval` también se instalan
 wheel. `whatsapp_agent.py` es el adaptador del checkout; no es necesario distribuirlo
 junto al paquete instalado. `/health` comprueba el proceso, no servicios externos.
 
+Para desplegar con contenedores en una VM, sigue [deploy-vm.md](deploy-vm.md).
+
 ## Requisitos antes de habilitar uso habitual
 
 - Contrastar saldos/pagos con consultas de referencia aprobadas. Confirmar el mapeo
