@@ -82,14 +82,20 @@ def requests_candidate_comparison(question):
     )
 
 
-def listed_codes(answer):
-    """Codes of the rows of a customer list, in order; movements carry « · » and never match."""
-    codes = re.findall(
-        r"^\s*(?:\d+\.|[•*])\s[^·\n]*\((?:c[oó]digo\s+)?([^()\n]+)\)(?::[^·\n]*)?\s*$",
+def listed_rows(answer):
+    """(entity mark, code) of a party list's rows, in order; movements carry « · » and never match."""
+    rows = re.findall(
+        r"^\s*(?:\d+\.|[•*])\s[^·\n]*\((?:(cliente|proveedor),\s*)?(?:c[oó]digo\s+)?([^()\n]+)\)"
+        r"(?::[^·\n]*)?(?:\s·\sinactivo)?\s*$",
         answer,
         flags=re.MULTILINE,
     )
-    return [code.strip() for code in codes]
+    return [(mark or None, code.strip()) for mark, code in rows]
+
+
+def listed_codes(answer):
+    """Codes of the rows of a party list, in order."""
+    return [code for _, code in listed_rows(answer)]
 
 
 def list_position(question):
