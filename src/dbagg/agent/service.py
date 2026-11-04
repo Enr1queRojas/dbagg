@@ -396,6 +396,7 @@ class Assistant:
         if (
             single_customer
             and not picked
+            and not named
             and customer_left_unselected(arguments.get("customer"), question, history)
         ):
             logger.info("dbagg stage=customer_not_selected")
