@@ -7,6 +7,7 @@ from datetime import date
 
 import sqlglot
 
+from dbagg.agent.intent import listed_codes
 from dbagg.business.evidence import BusinessError
 from dbagg.business.suppliers import (
     PURCHASES,
@@ -56,7 +57,8 @@ class SupplierDatabase:
         self.conn.execute("ATTACH DATABASE ':memory:' AS proadel")
         for table, columns in DEFINITIONS.items():
             names = ", ".join(
-                f'"{c}" NUMERIC' if kind == "decimal" else f'"{c}"' for c, kind in columns.items()
+                f'"{c}" NUMERIC' if kind in {"decimal", "bigint"} else f'"{c}"'
+                for c, kind in columns.items()
             )
             self.conn.execute(f"CREATE TABLE {table} ({names})")
 
@@ -227,6 +229,95 @@ class SupplierPaymentTests(SupplierCase):
     def test_last_payment_rejects_a_period(self):
         with self.assertRaisesRegex(BusinessError, "filtro de fechas"):
             self.run_op("ultimo_pago", "ACME", period="este_mes")
+
+
+class SupplierNoteTests(SupplierCase):
+    def test_last_note_sums_lines_not_total(self):
+        self.db.purchase(1, 7, "ACME", "2026-10-01", "100", total="150")
+        self.db.purchase(2, 7, "ACME", "2026-10-01", "100", total="200")
+        text = self.run_op("ultima_nota", "ACME").text
+        self.assertTrue(text.startswith("Proveedor Acme SA (código ACME)"))
+        self.assertIn("folio 7", text)
+        self.assertIn("Importe de la nota: 200.00", text)
+        self.assertIn("Maíz", text)
+
+    def test_last_note_ignores_cancelled(self):
+        self.db.purchase(1, 7, "ACME", "2026-10-01", "100")
+        self.db.purchase(2, 9, "ACME", "2026-10-05", "500", state="CANCELADA")
+        self.assertNotIn("folio 9", self.run_op("ultima_nota", "ACME").text)
+
+    def test_last_note_without_purchases_is_empty(self):
+        self.assertEqual(self.run_op("ultima_nota", "ACME").status, "empty")
+
+    def test_same_date_notes_warn_about_order(self):
+        self.db.purchase(1, 7, "ACME", "2026-10-01", "100")
+        self.db.purchase(2, 8, "ACME", "2026-10-01", "100")
+        text = self.run_op("ultima_nota", "ACME").text
+        self.assertIn("folio 8", text)
+        self.assertIn("Comparten fecha", text)
+
+    def test_movements_merge_purchases_and_payments_newest_first(self):
+        self.db.purchase(1, 7, "ACME", "2026-10-05", "100")
+        self.db.purchase(2, 7, "ACME", "2026-10-05", "50")
+        self.db.payment(3, "ACME", "2026-10-03", "40")
+        self.db.purchase(4, 6, "ACME", "2026-10-01", "10")
+        lines = self.run_op("movimientos", "ACME", limit=3).text.splitlines()
+        self.assertIn("compra · folio 7 · +150.00", lines[1])
+        self.assertIn("pago · folio 3 · −40.00", lines[2])
+        self.assertIn("compra · folio 6", lines[3])
+
+    def test_movements_never_look_like_a_party_list(self):
+        self.db.purchase(1, 7, "ACME", "2026-10-05", "100")
+        self.db.payment(2, "ACME", "2026-10-03", "40")
+        self.assertEqual(listed_codes(self.run_op("movimientos", "ACME").text), [])
+
+    def test_movements_beyond_limit_are_partial(self):
+        self.db.purchase(1, 7, "ACME", "2026-10-05", "100")
+        self.db.payment(2, "ACME", "2026-10-03", "40")
+        answer = self.run_op("movimientos", "ACME", limit=1)
+        self.assertEqual(answer.status, "partial")
+        self.assertIn("No es un estado de cuenta completo.", answer.text)
+
+    def test_movements_respect_period_and_exclude_cancelled(self):
+        self.db.purchase(1, 7, "ACME", "2026-09-05", "100")
+        self.db.payment(2, "ACME", "2026-10-03", "40", state="CANCELADA")
+        answer = self.run_op("movimientos", "ACME", period="este_mes")
+        self.assertEqual(answer.status, "empty")
+
+    def test_movements_report_current_balance(self):
+        self.db.purchase(1, 7, "ACME", "2026-10-05", "100")
+        self.assertIn("Saldo actual: 1,500.00", self.run_op("movimientos", "ACME").text)
+
+    def test_pending_notes_square_with_balance(self):
+        self.db.supplier("CUA", "Cuadra SA", "150", opening="0")
+        self.db.purchase(1, 1, "CUA", "2026-09-01", "100")
+        self.db.purchase(2, 2, "CUA", "2026-09-10", "100")
+        self.db.payment(3, "CUA", "2026-09-20", "50")
+        text = self.run_op("notas_pendientes", "CUA").text
+        self.assertIn("folio 1", text)
+        self.assertIn("pendiente 50.00 (parcial)", text)
+        self.assertIn("Cuadra con el saldo actual", text)
+
+    def test_paid_notes_are_not_listed(self):
+        self.db.supplier("PAG", "Pagado SA", "100", opening="0")
+        self.db.purchase(1, 1, "PAG", "2026-09-01", "100")
+        self.db.purchase(2, 2, "PAG", "2026-09-10", "100")
+        self.db.payment(3, "PAG", "2026-09-20", "100")
+        text = self.run_op("notas_pendientes", "PAG").text
+        self.assertNotIn("folio 1 ", text)
+        self.assertIn("folio 2", text)
+
+    def test_pending_notes_mismatch_is_reported(self):
+        self.db.supplier("DES", "Descuadre SA", "999", opening="0")
+        self.db.purchase(1, 1, "DES", "2026-09-01", "100")
+        answer = self.run_op("notas_pendientes", "DES")
+        self.assertEqual(answer.status, "partial")
+        self.assertIn("no cuadran", answer.text)
+
+    def test_favor_balance_has_no_pending_notes(self):
+        self.db.supplier("FAV", "Favor SA", "-20", opening="0")
+        self.db.payment(1, "FAV", "2026-09-20", "20")
+        self.assertIn("a nuestro favor", self.run_op("notas_pendientes", "FAV").text)
 
 
 class SupplierContractTests(unittest.TestCase):

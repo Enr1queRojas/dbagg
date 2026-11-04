@@ -1,11 +1,11 @@
 """Confirmed supplier contracts. Model arguments are values, never SQL fragments."""
 
 import json
-from datetime import timedelta
-from decimal import Decimal
+from datetime import date, timedelta
+from decimal import Decimal, InvalidOperation
 
 from dbagg.business.calendar import business_today, period_bounds
-from dbagg.business.customers import CatalogQueries, date_expression, like_literal
+from dbagg.business.customers import CatalogQueries, date_expression, decimal_value, like_literal
 from dbagg.business.evidence import BusinessAnswer, BusinessError, amount, display_label, label
 
 SUPPLIERS = "proadel.catalogo_proveedores_data_v"
@@ -28,6 +28,8 @@ SUPPLIER_ONLY_OPERATIONS = ("ultima_nota", "movimientos")
 PERIOD_OPERATIONS = frozenset({"pagos", "total_pagos", "movimientos"})
 MATCH_LIMIT = 10
 MAX_ANSWER_CHARS = 2800
+NOTE_LIMIT = 50
+NOTE_ITEM_LIMIT = 10
 SUPPLIER_NOT_FOUND = "No encontré un proveedor con ese nombre o código. ¿Puedes precisarlo?"
 SUPPLIER_MATCHES_NOT_FOUND = "No encontré proveedores con ese nombre o código. ¿Puedes precisarlo?"
 DUPLICATE_KEY = "El catálogo repite una clave de proveedor; no puedo confirmar su identidad."
@@ -85,6 +87,14 @@ def _heading(row):
 def _list_row(row):
     suffix = " · inactivo" if _inactive(row) else ""
     return f"{label(row['nombre'])} (código {label(row['codigo'])}){suffix}"
+
+
+def _day(value):
+    return str(value or "sin fecha")[:10]
+
+
+def _number(value):
+    return "no disponible" if value is None else amount(value)
 
 
 def _balance_phrase(value):
@@ -207,7 +217,220 @@ class SupplierQueries(CatalogQueries):
             return self._balance(row)
         if operation in {"pagos", "ultimo_pago", "total_pagos"}:
             return self._payments(catalog, row, first, until, limit)
-        raise BusinessError("Operación no soportada.")
+        self._require(
+            catalog,
+            PURCHASES,
+            ["PROVEEDOR", "ESTADO", "FECHA", "FOLIO", "IMPORTE", "CONCEPTO", "CANTIDAD", "PRECIO"],
+            ["IMPORTE"],
+        )
+        if operation == "ultima_nota":
+            return self._last_note(catalog, row)
+        if operation == "movimientos":
+            return self._movements(catalog, row, first, until, limit)
+        return self._pending_notes(catalog, row)
+
+    def _last_note(self, catalog, row):
+        when = date_expression(catalog[PURCHASES]["FECHA"], "compras")
+        code = row["codigo"]
+        active = "[PROVEEDOR] = ? AND [ESTADO] = 'ACTIVA'"
+        lines = self._opening_lines(row)
+        notes, _ = self._query(
+            f"SELECT TOP 2 [FOLIO] AS folio, {when} AS fecha, SUM([IMPORTE]) AS importe "
+            f"FROM {PURCHASES} WHERE {active} AND {when} IS NOT NULL "
+            f"GROUP BY [FOLIO], {when} ORDER BY {when} DESC, [FOLIO] DESC",
+            (code,),
+            2,
+        )
+        if not notes:
+            lines.append("No encontré notas de compra activas con fecha válida.")
+            return self._answer("\n".join(lines), "empty")
+        note = notes[0]
+        items, more = self._query(
+            f"SELECT TOP {NOTE_ITEM_LIMIT + 1} [CONCEPTO] AS concepto, [CANTIDAD] AS cantidad, "
+            f"[PRECIO] AS precio, [IMPORTE] AS importe FROM {PURCHASES} "
+            f"WHERE {active} AND [FOLIO] = ? ORDER BY [IMPORTE] DESC",
+            (code, note["folio"]),
+            NOTE_ITEM_LIMIT,
+        )
+        lines.append(f"Última nota: folio {label(note['folio'])} · {_day(note['fecha'])}.")
+        lines.append(f"Importe de la nota: {amount(note['importe'])}.")
+        for item in items:
+            concept = display_label(item["concepto"], "concepto no disponible")[0]
+            lines.append(
+                f"• {concept} · {_number(item['cantidad'])} × {_number(item['precio'])} "
+                f"· {_number(item['importe'])}"
+            )
+        warnings = []
+        if more:
+            warnings.append(f"Muestro {NOTE_ITEM_LIMIT} partidas; el importe sí incluye todas.")
+        if len(notes) > 1 and notes[1]["fecha"] == note["fecha"]:
+            warnings.append("Comparten fecha; el folio no prueba cuál ocurrió después.")
+        lines += warnings
+        lines.append("Importes sin moneda confirmada.")
+        return self._answer("\n".join(lines), "partial" if more else "answered")
+
+    def _movements(self, catalog, row, first, until, limit):
+        bought = date_expression(catalog[PURCHASES]["FECHA"], "compras")
+        paid = date_expression(catalog[SUPPLIER_PAYMENTS]["FECHA"], "pagos")
+        code = row["codigo"]
+        active = "[PROVEEDOR] = ? AND [ESTADO] = 'ACTIVA'"
+        quality, _ = self._query(
+            f"SELECT (SELECT COUNT(*) - COUNT({bought}) FROM {PURCHASES} WHERE {active}) "
+            f"+ (SELECT COUNT(*) - COUNT({paid}) FROM {SUPPLIER_PAYMENTS} WHERE {active}) "
+            "AS invalid_dates",
+            (code, code),
+            1,
+        )
+        invalid = int(quality[0]["invalid_dates"])
+        purchase_where, payment_where = active, active
+        purchase_params, payment_params = (code,), (code,)
+        if first:
+            purchase_where += f" AND {bought} >= ? AND {bought} < ?"
+            payment_where += f" AND {paid} >= ? AND {paid} < ?"
+            purchase_params += (first, until)
+            payment_params += (first, until)
+        else:
+            purchase_where += f" AND {bought} IS NOT NULL"
+            payment_where += f" AND {paid} IS NOT NULL"
+        rows, more = self._query(
+            f"SELECT TOP {limit + 1} tipo, folio, fecha, importe FROM ("
+            f"SELECT 'compra' AS tipo, [FOLIO] AS folio, MIN({bought}) AS fecha, "
+            f"SUM([IMPORTE]) AS importe FROM {PURCHASES} WHERE {purchase_where} GROUP BY [FOLIO] "
+            f"UNION ALL SELECT 'pago' AS tipo, [FOLIO] AS folio, {paid} AS fecha, "
+            f"[IMPORTE] AS importe FROM {SUPPLIER_PAYMENTS} WHERE {payment_where}"
+            ") AS movimientos ORDER BY fecha DESC, folio DESC",
+            purchase_params + payment_params,
+            limit,
+        )
+        lines = self._opening_lines(row)
+        period_text = (
+            f"Del {first:%d/%m/%Y} al {until - timedelta(days=1):%d/%m/%Y}."
+            if first
+            else "Historial completo de fechas válidas."
+        )
+        warning = ["Hay movimientos activos sin fecha válida; no aparecen aquí."] if invalid else []
+        if not rows:
+            lines.append(f"No encontré movimientos activos con fecha válida. {period_text}")
+            return self._answer("\n".join(lines + warning), "partial" if invalid else "empty")
+        for movement in rows:
+            sign = "+" if movement["tipo"] == "compra" else "−"
+            value = (
+                f"{sign}{amount(movement['importe'])}"
+                if movement["importe"] is not None
+                else "importe no disponible"
+            )
+            line = (
+                f"• {_day(movement['fecha'])} · {movement['tipo']} · "
+                f"folio {label(movement['folio'])} · {value}"
+            )
+            if len("\n".join(lines + [line])) > MAX_ANSWER_CHARS:
+                more = True
+                break
+            lines.append(line)
+        lines.append(period_text)
+        if row["importe"] is None:
+            lines.append("Saldo actual desconocido; requiere revisión en el catálogo.")
+        else:
+            lines.append(f"Saldo actual: {amount(row['importe'])}.")
+        if more:
+            lines.append("Hay más movimientos. No es un estado de cuenta completo.")
+        lines.append("Importes sin moneda confirmada.")
+        unknown = any(m["importe"] is None for m in rows)
+        return self._answer(
+            "\n".join(lines + warning), "partial" if more or invalid or unknown else "answered"
+        )
+
+    def _pending_notes(self, catalog, row):
+        """Purchase notes that make up what we owe, allocating active payments FIFO."""
+        self._require(catalog, SUPPLIERS, ["SALDO_INICIAL"], ["SALDO_INICIAL"])
+        self._require(catalog, SUPPLIER_PAYMENTS, ["PROVEEDOR", "ESTADO", "IMPORTE"], ["IMPORTE"])
+        if row["importe"] is None:
+            raise BusinessError("El saldo actual del proveedor es desconocido; requiere revisión.")
+        when = date_expression(catalog[PURCHASES]["FECHA"], "compras")
+        code = row["codigo"]
+        active = "[PROVEEDOR] = ? AND [ESTADO] = 'ACTIVA'"
+        totals, _ = self._query(
+            f"SELECT (SELECT [SALDO_INICIAL] FROM {SUPPLIERS} WHERE [CODIGO] = ?) AS inicial, "
+            f"(SELECT SUM([IMPORTE]) FROM {PURCHASES} WHERE {active}) AS cargos, "
+            f"(SELECT SUM([IMPORTE]) FROM {SUPPLIER_PAYMENTS} WHERE {active}) AS pagos, "
+            f"(SELECT COUNT(*) - COUNT({when}) FROM {PURCHASES} WHERE {active}) AS sin_fecha, "
+            f"(SELECT COUNT(*) FROM (SELECT [FOLIO] AS f FROM {PURCHASES} WHERE {active} "
+            "GROUP BY [FOLIO] HAVING SUM([IMPORTE]) <= 0) AS n) AS no_positivas",
+            (code,) * 5,
+            1,
+        )
+        try:
+            total = totals[0]
+            balance = Decimal(str(row["importe"]))
+            initial, charges = decimal_value(total["inicial"]), decimal_value(total["cargos"])
+            credits = decimal_value(total["pagos"])
+        except (InvalidOperation, ValueError, TypeError, IndexError):
+            raise BusinessError("Los importes del proveedor requieren revisión.") from None
+        expected = initial + charges - credits
+        squared = abs(expected - balance) < Decimal("0.01")
+        warnings = []
+        if not squared:
+            warnings.append(
+                f"Los movimientos suman {amount(expected)} y no cuadran con el saldo actual "
+                f"{amount(balance)}; la lista requiere revisión."
+            )
+        if int(total["sin_fecha"] or 0):
+            warnings.append("Hay partidas sin fecha válida; el orden de antigüedad es aproximado.")
+        if int(total["no_positivas"] or 0):
+            warnings.append("Hay notas con importe cero o negativo; la asignación es aproximada.")
+        lines = self._opening_lines(row)
+        if balance <= 0:
+            lines.append(f"No tiene notas pendientes de pago: {_balance_phrase(balance)}.")
+            return self._answer("\n".join(lines + warnings), "partial" if warnings else "answered")
+        applied = credits - initial
+        notes, more = self._query(
+            f"SELECT TOP {NOTE_LIMIT + 1} folio, fecha, importe, acumulado FROM ("
+            f"SELECT [FOLIO] AS folio, MIN({when}) AS fecha, SUM([IMPORTE]) AS importe, "
+            f"SUM(SUM([IMPORTE])) OVER (ORDER BY MIN({when}), [FOLIO] ROWS UNBOUNDED PRECEDING) "
+            f"AS acumulado FROM {PURCHASES} WHERE {active} GROUP BY [FOLIO]) AS notas "
+            "WHERE acumulado > ? ORDER BY fecha, folio",
+            (code, float(applied)),
+            NOTE_LIMIT,
+        )
+        lines.append("Notas pendientes de pago (de la más antigua a la más reciente):")
+        initial_pending = max(Decimal("0"), initial - credits)
+        if initial_pending:
+            lines.append(f"• Saldo inicial pendiente: {amount(initial_pending)}")
+        shown = 0
+        for note in notes:
+            note_total = decimal_value(note["importe"])
+            pending = min(note_total, decimal_value(note["acumulado"]) - applied)
+            if pending < Decimal("0.005"):
+                continue
+            noted = _day(note["fecha"])
+            try:
+                age = f" · {(self.today - date.fromisoformat(noted)).days} días"
+            except ValueError:
+                noted, age = "sin fecha", ""
+            partial = " (parcial)" if pending < note_total else ""
+            line = (
+                f"• {noted} · folio {label(note['folio'])} · nota {amount(note_total)} · "
+                f"pendiente {amount(pending)}{partial}{age}"
+            )
+            if len("\n".join(lines + [line])) > MAX_ANSWER_CHARS:
+                more = True
+                break
+            lines.append(line)
+            shown += 1
+        if more:
+            warnings.append(
+                f"Muestro las {shown} notas pendientes más antiguas; hay más. El total sí "
+                "incluye todas."
+            )
+        lines.append(f"Total pendiente: {amount(max(Decimal('0'), expected))}.")
+        if squared:
+            lines.append("Cuadra con el saldo actual.")
+        lines += warnings
+        lines.append(
+            "Método: los pagos activos liquidan primero el saldo inicial y luego las notas más "
+            "antiguas (FIFO). Importes sin moneda confirmada."
+        )
+        return self._answer("\n".join(lines), "partial" if warnings else "answered")
 
     def _payment_scope(self, catalog, row, first, until):
         """WHERE clause, parameters, date expression and undated count for active payments."""
