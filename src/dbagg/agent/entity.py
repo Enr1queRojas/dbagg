@@ -67,3 +67,13 @@ def listed_row(history, position):
             mark, code = rows[position - 1]
             return ROW_ENTITIES.get(mark) or entity_in_answer(content), code
     return None
+
+
+def mixed_list_choice(question, history):
+    """«El proveedor» answers «¿cliente o proveedor?»: (entity, code if only one row is left)."""
+    entity = explicit_entity(question)
+    latest = next(_assistant_messages(history), "")
+    if not entity or AMBIGUOUS_MARK not in latest:
+        return None
+    codes = [code for mark, code in listed_rows(latest) if ROW_ENTITIES.get(mark) == entity]
+    return entity, codes[0] if len(codes) == 1 else None

@@ -15,6 +15,12 @@ from dbagg.agent.prompts import build_messages, tool_definitions
 from dbagg.agent.prompt_files import load_prompt_bundle
 from dbagg.llm.config import LLMConfig, ModelProfile
 from dbagg.llm.providers import create_provider
+from dbagg.agent.entity import (
+    conversation_entity,
+    explicit_entity,
+    listed_row,
+    mixed_list_choice,
+)
 from dbagg.agent.intent import (
     COMPARISON_CLARIFICATION,
     NOT_A_CUSTOMER_HINT,
@@ -28,17 +34,28 @@ from dbagg.agent.intent import (
 )
 from dbagg.business.calendar import business_today
 from dbagg.business.customers import (
+    CUSTOMERS,
     NOT_FOUND_ANSWERS,
     PROTECTED_SOURCES,
     CustomerQueries,
     validate_context,
 )
-from dbagg.business.evidence import BusinessError, render_exploratory
+from dbagg.business.evidence import BusinessAnswer, BusinessError, label, render_exploratory
+from dbagg.business.parties import CUSTOMER, SUPPLIER, PartyDirectory, ambiguous_answer
 from dbagg.business.products import PRODUCT_OPERATIONS, ProductQueries
-from dbagg.business.suppliers import SUPPLIER_PROTECTED_SOURCES
+from dbagg.business.suppliers import (
+    SUPPLIER_MATCHES_NOT_FOUND,
+    SUPPLIER_NOT_FOUND,
+    SUPPLIER_ONLY_OPERATIONS,
+    SUPPLIER_PROTECTED_SOURCES,
+    SUPPLIERS,
+    SupplierQueries,
+    validate_supplier_context,
+)
 
 logger = logging.getLogger("uvicorn.error")
 
+ALL_NOT_FOUND_ANSWERS = NOT_FOUND_ANSWERS | {SUPPLIER_NOT_FOUND, SUPPLIER_MATCHES_NOT_FOUND}
 MAX_MODEL_ROUNDS = 9
 MAX_SQL_QUERIES = 4
 MAX_SCHEMA_REQUESTS = 4
@@ -294,10 +311,15 @@ class Assistant:
         return "No pude resolver la pregunta dentro del límite de consultas. ¿Puedes precisar el nombre o período?"
 
     def _consult_business(self, arguments, context, question, history, today):
+        model_entity = arguments.get("entidad")
+        arguments = {k: v for k, v in arguments.items() if k != "entidad"}
         if arguments.get("operation") in PRODUCT_OPERATIONS:
             answer = ProductQueries(self.db, self.tables, today=today).execute(**arguments)
             return self._business_answer(answer)
-        validate_context(context, arguments.get("operation"))
+        directory = PartyDirectory(self.db, self.tables)
+        routed = directory.supports_suppliers
+        if not routed:
+            validate_context(context, arguments.get("operation"))
         if arguments.get("operation") == "ranking_deuda" and not requests_ranking(question):
             logger.info("dbagg stage=ranking_not_requested")
             raise ToolHint(RANKING_HINT)
@@ -311,16 +333,21 @@ class Assistant:
             if single_customer
             else None
         )
+        picked = mixed_list_choice(question, history) if routed and single_customer else None
         if chosen:
             arguments = {**arguments, "customer": chosen, "codigo_exacto": True}
+        elif picked and picked[1]:
+            arguments = {**arguments, "customer": picked[1], "codigo_exacto": True}
         if arguments.get("operation") != "ranking_deuda" and not customer_in_conversation(
             arguments.get("customer"), question, history
         ):
             raise BusinessError(
                 "No pude vincular ese cliente con la conversación. Indica su nombre o código."
             )
-        if single_customer and customer_left_unselected(
-            arguments.get("customer"), question, history
+        if (
+            single_customer
+            and not picked
+            and customer_left_unselected(arguments.get("customer"), question, history)
         ):
             logger.info("dbagg stage=customer_not_selected")
             self.last_trace.update(
@@ -331,15 +358,85 @@ class Assistant:
             k: v for k, v in arguments.items() if k not in ("producto", "comparar")
         }
         customer_arguments["codigo_exacto"] = arguments.get("codigo_exacto") is True and bool(
-            chosen or code_confirmed(arguments.get("customer"), question, history)
+            chosen
+            or (picked and picked[1])
+            or code_confirmed(arguments.get("customer"), question, history)
         )
-        answer = CustomerQueries(self.db, self.tables, today=today).execute(**customer_arguments)
-        if answer.text in NOT_FOUND_ANSWERS and not self._customer_missed:
+        entity = CUSTOMER
+        if routed:
+            if chosen:
+                entity = listed_row(history, list_position(question))[0]
+            elif picked:
+                entity = picked[0]
+            else:
+                entity = self._party_entity(
+                    directory, customer_arguments, model_entity, question, history
+                )
+            if isinstance(entity, BusinessAnswer):
+                return self._business_answer(entity)
+        if entity == SUPPLIER:
+            validate_supplier_context(context)
+            supplier_arguments = dict(customer_arguments)
+            supplier_arguments["supplier"] = supplier_arguments.pop("customer", None)
+            answer = SupplierQueries(self.db, self.tables, today=today).execute(
+                **supplier_arguments
+            )
+        elif arguments.get("operation") in SUPPLIER_ONLY_OPERATIONS:
+            answer = BusinessAnswer.make(
+                "Ese reporte todavía solo está disponible para proveedores.",
+                "needs_clarification",
+                arguments["operation"],
+                [],
+            )
+        else:
+            if routed:
+                validate_context(context, arguments.get("operation"))
+            answer = CustomerQueries(self.db, self.tables, today=today).execute(
+                **customer_arguments
+            )
+        if answer.text in ALL_NOT_FOUND_ANSWERS and not self._customer_missed:
             # One retry: the name may be an expense section, product or warehouse.
             self._customer_missed = True
             logger.info("dbagg stage=customer_not_found_retry")
             raise ToolHint(NOT_A_CUSTOMER_HINT)
         return self._business_answer(answer)
+
+    def _party_entity(self, directory, arguments, model_entity, question, history):
+        """Which catalogue a question means, or the answer that asks; see docs/business-queries.md."""
+        explicit = explicit_entity(question)
+        model = model_entity if model_entity in (CUSTOMER, SUPPLIER) else None
+        term = arguments.get("customer")
+        if not isinstance(term, str) or not term.strip():
+            return explicit or model or CUSTOMER
+        term = term.strip()
+        if not explicit:
+            remembered = conversation_entity(term, history)
+            if remembered:
+                return remembered
+        found = directory.find(term, exact_code=arguments.get("codigo_exacto") is True)
+        sources = [CUSTOMERS, SUPPLIERS]
+        operation = arguments.get("operation")
+        if explicit:
+            other = CUSTOMER if explicit == SUPPLIER else SUPPLIER
+            if not found[explicit] and found[other]:
+                return BusinessAnswer.make(
+                    f"No encontré a {label(term)} como {explicit}. "
+                    f"{label(term)} sí aparece como {other}.",
+                    "needs_clarification",
+                    operation,
+                    sources,
+                )
+            return explicit
+        if found[CUSTOMER] and found[SUPPLIER]:
+            if model:
+                return model
+            logger.info("dbagg stage=party_ambiguous")
+            return BusinessAnswer.make(
+                ambiguous_answer(term, found), "needs_clarification", operation, sources
+            )
+        if found[SUPPLIER]:
+            return SUPPLIER
+        return CUSTOMER if found[CUSTOMER] else model or CUSTOMER
 
     def _business_answer(self, answer):
         self.last_trace.update(
