@@ -182,6 +182,53 @@ class SupplierBalanceTests(SupplierCase):
         self.assertIn("No encontré", self.run_op("saldo", "%").text)
 
 
+class SupplierPaymentTests(SupplierCase):
+    def test_total_payments_excludes_cancelled(self):
+        self.db.payment(1, "ACME", "2026-10-02", "100")
+        self.db.payment(2, "ACME", "2026-10-03", "200")
+        self.db.payment(3, "ACME", "2026-10-04", "999", state="CANCELADA")
+        text = self.run_op("total_pagos", "ACME", period="este_mes").text
+        self.assertTrue(text.startswith("Proveedor Acme SA (código ACME)"))
+        self.assertIn("Total pagado: 300.00", text)
+
+    def test_total_payments_respects_the_period(self):
+        self.db.payment(1, "ACME", "2026-09-30", "100")
+        answer = self.run_op("total_pagos", "ACME", period="este_mes")
+        self.assertEqual(answer.status, "empty")
+
+    def test_last_payment_with_invalid_date_is_unavailable(self):
+        self.db.payment(1, "ACME", None, "100")
+        self.assertEqual(self.run_op("ultimo_pago", "ACME").status, "unavailable")
+
+    def test_last_payment_shows_only_the_latest_date(self):
+        self.db.payment(1, "ACME", "2026-09-01", "100")
+        self.db.payment(2, "ACME", "2026-10-01", "250")
+        text = self.run_op("ultimo_pago", "ACME").text
+        self.assertIn("250.00", text)
+        self.assertNotIn("100.00", text)
+
+    def test_payment_list_beyond_limit_is_partial(self):
+        self.db.payment(1, "ACME", "2026-09-01", "100")
+        self.db.payment(2, "ACME", "2026-10-01", "250")
+        answer = self.run_op("pagos", "ACME", limit=1)
+        self.assertEqual(answer.status, "partial")
+        self.assertIn("No es una lista completa", answer.text)
+        self.assertIn("Pagos que le hicimos", answer.text)
+
+    def test_payments_of_another_supplier_are_excluded(self):
+        self.db.supplier("OTRO", "Otro SA", "1")
+        self.db.payment(1, "OTRO", "2026-10-01", "777")
+        self.assertEqual(self.run_op("pagos", "ACME").status, "empty")
+
+    def test_invalid_period_is_rejected(self):
+        with self.assertRaisesRegex(BusinessError, "período válido"):
+            self.run_op("pagos", "ACME", period="rango", start="ayer", end="hoy")
+
+    def test_last_payment_rejects_a_period(self):
+        with self.assertRaisesRegex(BusinessError, "filtro de fechas"):
+            self.run_op("ultimo_pago", "ACME", period="este_mes")
+
+
 class SupplierContractTests(unittest.TestCase):
     def test_supplier_sources_are_business_tool(self):
         catalog = load_catalog()

@@ -1,10 +1,11 @@
 """Confirmed supplier contracts. Model arguments are values, never SQL fragments."""
 
 import json
+from datetime import timedelta
 from decimal import Decimal
 
 from dbagg.business.calendar import business_today, period_bounds
-from dbagg.business.customers import CatalogQueries, like_literal
+from dbagg.business.customers import CatalogQueries, date_expression, like_literal
 from dbagg.business.evidence import BusinessAnswer, BusinessError, amount, display_label, label
 
 SUPPLIERS = "proadel.catalogo_proveedores_data_v"
@@ -26,6 +27,7 @@ SUPPLIER_OPERATIONS = (
 SUPPLIER_ONLY_OPERATIONS = ("ultima_nota", "movimientos")
 PERIOD_OPERATIONS = frozenset({"pagos", "total_pagos", "movimientos"})
 MATCH_LIMIT = 10
+MAX_ANSWER_CHARS = 2800
 SUPPLIER_NOT_FOUND = "No encontré un proveedor con ese nombre o código. ¿Puedes precisarlo?"
 SUPPLIER_MATCHES_NOT_FOUND = "No encontré proveedores con ese nombre o código. ¿Puedes precisarlo?"
 DUPLICATE_KEY = "El catálogo repite una clave de proveedor; no puedo confirmar su identidad."
@@ -203,7 +205,116 @@ class SupplierQueries(CatalogQueries):
         row = identity[0]
         if operation == "saldo":
             return self._balance(row)
+        if operation in {"pagos", "ultimo_pago", "total_pagos"}:
+            return self._payments(catalog, row, first, until, limit)
         raise BusinessError("Operación no soportada.")
+
+    def _payment_scope(self, catalog, row, first, until):
+        """WHERE clause, parameters, date expression and undated count for active payments."""
+        self._require(
+            catalog,
+            SUPPLIER_PAYMENTS,
+            ["PROVEEDOR", "ESTADO", "FECHA", "IMPORTE", "ID", "FOLIO"],
+            ["IMPORTE"],
+        )
+        expression = date_expression(catalog[SUPPLIER_PAYMENTS]["FECHA"], "pagos")
+        where = "[PROVEEDOR] = ? AND [ESTADO] = 'ACTIVA'"
+        params = (row["codigo"],)
+        quality, _ = self._query(
+            f"SELECT COUNT(*) - COUNT({expression}) AS invalid_dates "
+            f"FROM {SUPPLIER_PAYMENTS} WHERE {where}",
+            params,
+            1,
+        )
+        if first:
+            where += f" AND {expression} >= ? AND {expression} < ?"
+            params += (first, until)
+        else:
+            where += f" AND {expression} IS NOT NULL"
+        return where, params, expression, int(quality[0]["invalid_dates"])
+
+    def _payments(self, catalog, row, first, until, limit):
+        where, params, expression, invalid = self._payment_scope(catalog, row, first, until)
+        lines = self._opening_lines(row)
+        if self.operation == "ultimo_pago" and invalid:
+            lines.append(
+                "Hay pagos activos sin fecha válida. No puedo confirmar cuál fue el último."
+            )
+            return self._answer("\n".join(lines), "unavailable")
+        period_text = (
+            f"Del {first:%d/%m/%Y} al {until - timedelta(days=1):%d/%m/%Y}."
+            if first
+            else "Historial completo de fechas válidas."
+        )
+        warnings = (
+            ["Hay pagos activos sin fecha válida; no se pueden ubicar en el período."]
+            if invalid
+            else []
+        )
+        empty = lines + [f"No encontré pagos activos con fecha válida. {period_text}"] + warnings
+        if self.operation == "total_pagos":
+            totals, _ = self._query(
+                "SELECT COUNT(*) AS cantidad, COUNT(*) - COUNT([IMPORTE]) AS missing_amounts, "
+                f"SUM([IMPORTE]) AS importe FROM {SUPPLIER_PAYMENTS} WHERE {where}",
+                params,
+                1,
+            )
+            total = totals[0]
+            if int(total["cantidad"]) == 0:
+                return self._answer("\n".join(empty), "partial" if invalid else "empty")
+            if int(total["missing_amounts"]):
+                lines.append(f"Hay pagos sin importe; no puedo confirmar el total. {period_text}")
+                return self._answer("\n".join(lines + warnings), "unavailable")
+            lines.append(f"Total pagado: {amount(total['importe'])}. {period_text}")
+            lines.append("Importe sin moneda confirmada.")
+            return self._answer("\n".join(lines + warnings), "partial" if invalid else "answered")
+        if self.operation == "ultimo_pago":
+            where += (
+                f" AND {expression} = (SELECT MAX({expression}) FROM {SUPPLIER_PAYMENTS} "
+                "WHERE [PROVEEDOR] = ? AND [ESTADO] = 'ACTIVA')"
+            )
+            params += (row["codigo"],)
+        rows, more = self._query(
+            f"SELECT TOP {limit + 1} [ID] AS id, [FOLIO] AS folio, {expression} AS fecha, "
+            f"[IMPORTE] AS importe FROM {SUPPLIER_PAYMENTS} WHERE {where} "
+            f"ORDER BY {expression} DESC, [ID] DESC",
+            params,
+            limit,
+        )
+        if not rows:
+            return self._answer("\n".join(empty), "partial" if invalid else "empty")
+        lines.append(
+            "Pagos de la última fecha registrada:"
+            if self.operation == "ultimo_pago"
+            else "Pagos que le hicimos:"
+        )
+        shown = 0
+        for payment in rows:
+            value = (
+                amount(payment["importe"])
+                if payment["importe"] is not None
+                else "importe no disponible"
+            )
+            folio = label(payment["folio"]) if payment["folio"] is not None else "no disponible"
+            line = f"• {label(payment['fecha'])} · {value} · folio {folio}"
+            if len("\n".join(lines + [line])) > MAX_ANSWER_CHARS:
+                more = True
+                break
+            lines.append(line)
+            shown += 1
+        if self.operation == "ultimo_pago" and (len(rows) > 1 or more):
+            lines.append("Comparten fecha; ID y folio no prueban cuál ocurrió después.")
+        if more:
+            lines.append(
+                f"Muestro {shown} registros; hay más coincidencias. No es una lista completa."
+            )
+        if self.operation == "pagos":
+            lines.append(period_text)
+        lines.append("Importes sin moneda confirmada.")
+        return self._answer(
+            "\n".join(lines + warnings),
+            "partial" if more or invalid or any(p["importe"] is None for p in rows) else "answered",
+        )
 
     def _opening_lines(self, row):
         lines = [_heading(row)]
