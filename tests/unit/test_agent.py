@@ -87,7 +87,7 @@ class AssistantTests(unittest.TestCase):
         )
         self.assertEqual(
             self.assistant.answer("su saldo"),
-            "¿De qué cliente o proveedor quieres consultar el saldo o los pagos? Indica su nombre o código.",
+            "¿De qué cliente quieres consultar el saldo o los pagos? Indica su nombre o código.",
         )
         self.assistant.db.query.assert_not_called()
 

@@ -235,9 +235,9 @@ class SupplierQueries(CatalogQueries):
         active = "[PROVEEDOR] = ? AND [ESTADO] = 'ACTIVA'"
         lines = self._opening_lines(row)
         notes, _ = self._query(
-            f"SELECT TOP 2 [FOLIO] AS folio, {when} AS fecha, SUM([IMPORTE]) AS importe "
-            f"FROM {PURCHASES} WHERE {active} AND {when} IS NOT NULL "
-            f"GROUP BY [FOLIO], {when} ORDER BY {when} DESC, [FOLIO] DESC",
+            f"SELECT TOP 2 [FOLIO] AS folio, MAX({when}) AS fecha, SUM([IMPORTE]) AS importe "
+            f"FROM {PURCHASES} WHERE {active} GROUP BY [FOLIO] "
+            f"HAVING MAX({when}) IS NOT NULL ORDER BY MAX({when}) DESC, [FOLIO] DESC",
             (code,),
             2,
         )
@@ -519,7 +519,7 @@ class SupplierQueries(CatalogQueries):
                 else "importe no disponible"
             )
             folio = label(payment["folio"]) if payment["folio"] is not None else "no disponible"
-            line = f"• {label(payment['fecha'])} · {value} · folio {folio}"
+            line = f"• {_day(payment['fecha'])} · {value} · folio {folio}"
             if len("\n".join(lines + [line])) > MAX_ANSWER_CHARS:
                 more = True
                 break

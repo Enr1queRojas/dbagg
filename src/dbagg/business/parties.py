@@ -1,10 +1,15 @@
 """Looks a name or code up in both catalogues; the same value can be two different parties."""
 
+import logging
 from dataclasses import dataclass
+
+import pyodbc
 
 from dbagg.business.customers import CUSTOMERS, like_literal
 from dbagg.business.evidence import label, records
 from dbagg.business.suppliers import SUPPLIERS
+
+logger = logging.getLogger("uvicorn.error")
 
 CUSTOMER = "cliente"
 SUPPLIER = "proveedor"
@@ -53,12 +58,19 @@ class PartyDirectory:
             )
             found[CUSTOMER] = [PartyMatch(CUSTOMER, r["codigo"], r["nombre"]) for r in rows]
         if self.supports_suppliers:
-            rows = self._search(
-                SUPPLIERS,
-                "[CODIGO] AS codigo, [NOMBRE] AS nombre, [ESTADO] AS estado",
-                term,
-                exact_code,
-            )
+            try:
+                rows = self._search(
+                    SUPPLIERS,
+                    "[CODIGO] AS codigo, [NOMBRE] AS nombre, [ESTADO] AS estado",
+                    term,
+                    exact_code,
+                )
+            except pyodbc.Error as exc:
+                # Authorised but not readable here: customers must keep working.
+                logger.warning(
+                    "dbagg stage=supplier_search_failed error_type=%s", type(exc).__name__
+                )
+                rows = []
             found[SUPPLIER] = [
                 PartyMatch(
                     SUPPLIER,

@@ -82,28 +82,28 @@ def requests_candidate_comparison(question):
     )
 
 
-def listed_rows(answer):
-    """(entity mark, code) of a party list's rows, in order; movements carry « · » and never match."""
+def list_row_details(answer):
+    """(entity mark, name, code) of a party list's rows; movements carry « · » and never match."""
     rows = re.findall(
-        r"^\s*(?:\d+\.|[•*])\s[^·\n]*\((?:(cliente|proveedor),\s*)?(?:c[oó]digo\s+)?([^()\n]+)\)"
-        r"(?::[^·\n]*)?(?:\s·\sinactivo)?\s*$",
+        r"^\s*(?:\d+\.|[•*])\s([^·\n]*?)\s*\((?:(cliente|proveedor),\s*)?(?:c[oó]digo\s+)?"
+        r"([^()\n]+)\)(?::[^·\n]*)?(?:\s·\sinactivo)?\s*$",
         answer,
         flags=re.MULTILINE,
     )
-    return [(mark or None, code.strip()) for mark, code in rows]
+    return [(mark or None, name.strip(), code.strip()) for name, mark, code in rows]
 
 
 def listed_codes(answer):
     """Codes of the rows of a party list, in order."""
-    return [code for _, code in listed_rows(answer)]
+    return [code for _, _, code in list_row_details(answer)]
 
 
 def list_position(question):
     """«El segundo» points at a row; «su primer pago» or «el segundo pago» do not."""
     match = re.search(
-        r"\b(?:(?:el|la|al|del)\s+(primer|segund|tercer|cuart|quint|sext|septim|octav|noven)[oa]"
+        r"\b(?:(?:el|la|al|del)\s+(primer|segund|tercer|cuart|quint|sext|septim|octav|noven)[oa]?"
         r"|(?:(?:el|la)\s+(?:numero\s+)?|numero\s+)(\d{1,2}))\b"
-        r"(?=\s*(?:$|[,.?!]|cliente\b|de\s+la\s+lista\b|por\s+favor\b))",
+        r"(?=\s*(?:$|[,.?!]|cliente\b|proveedor\b|de\s+la\s+lista\b|por\s+favor\b))",
         _plain(question),
     )
     if not match:

@@ -66,8 +66,10 @@ estar activo.
 Un código puede pertenecer a dos personas distintas. El servicio decide, en este orden:
 
 1. La fila elegida de una lista («el segundo»).
-2. Palabras de la pregunta: «le debemos» o «proveedor»; «nos debe» o «cliente». «Cuánto debe X» no decide.
-3. La respuesta más reciente del asistente que mencione ese nombre o código.
+2. Palabras de la pregunta, fuera del nombre consultado: «le debemos» o «proveedor»; «nos debe» o
+   «cliente». «Cuánto debe X» no decide. Si un verbo contradice la conversación y el código existe en
+   ambos catálogos, pregunta; «como cliente» o «como proveedor» sí cambia de persona.
+3. La respuesta más reciente que muestre exactamente ese código o nombre completo.
 4. Los dos catálogos: si está en uno, ese; si está en ambos, pregunta cuál.
 
 Sin las fuentes de proveedores en `SQL_ALLOWED_TABLES`, todo se comporta como antes.

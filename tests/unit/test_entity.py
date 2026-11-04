@@ -8,7 +8,7 @@ from dbagg.agent.entity import (
     explicit_entity,
     listed_row,
 )
-from dbagg.agent.intent import listed_codes
+from dbagg.agent.intent import list_position, listed_codes
 from dbagg.business.customers import CUSTOMERS
 from dbagg.business.parties import (
     CUSTOMER,
@@ -23,6 +23,65 @@ from tests.unit.test_supplier_queries import SupplierDatabase
 
 def assistant(content):
     return {"role": "assistant", "content": content}
+
+
+class ReviewedWordingTests(unittest.TestCase):
+    def test_common_supplier_wording(self):
+        for question in (
+            "¿cuánto se le debe a Robles?",
+            "¿cuánto debemos al Cuervo?",
+            "¿cuánto le debo a Robles?",
+            "¿cuánto le quedamos a deber?",
+            "¿cuánto le pagué?",
+            "¿qué le compré?",
+            "¿qué nos vendieron?",
+            "¿qué nos vende?",
+        ):
+            with self.subTest(question=question):
+                self.assertEqual(explicit_entity(question), SUPPLIER)
+
+    def test_common_customer_wording(self):
+        for question in (
+            "¿cuánto nos ha pagado?",
+            "¿cuánto nos adeuda?",
+            "¿cuánto me adeuda?",
+            "¿qué le vendí?",
+            "¿cuánto le fiamos?",
+        ):
+            with self.subTest(question=question):
+                self.assertEqual(explicit_entity(question), CUSTOMER)
+
+    def test_the_named_party_does_not_decide(self):
+        self.assertIsNone(explicit_entity("saldo de Clientes Unidos", "Clientes Unidos"))
+        self.assertIsNone(explicit_entity("¿cuánto debe Proveedor Bajío?", "Proveedor Bajío"))
+
+    def test_customer_named_supplier_without_notes_stays_customer(self):
+        text = "Proveedor Bajío (código PB) no tiene notas de crédito pendientes: su saldo está en cero."
+        self.assertEqual(entity_in_answer(text), CUSTOMER)
+
+    def test_exploratory_table_has_no_entity(self):
+        self.assertIsNone(entity_in_answer("PROVEEDOR | IMPORTE\nX | 100.00"))
+
+    def test_exact_party_is_required(self):
+        history = [assistant("Proveedor Ana Dos (código X)\nLe debemos: 100.00.")]
+        self.assertEqual(conversation_entity("x", history), SUPPLIER)
+        self.assertEqual(conversation_entity("Ana Dos", history), SUPPLIER)
+        self.assertIsNone(conversation_entity("Ana", history))
+        self.assertIsNone(conversation_entity("100", history))
+
+    def test_customer_heading_name_is_read(self):
+        history = [assistant("Saldo actual de Ana Demo (código C1): 1.00.")]
+        self.assertEqual(conversation_entity("Ana Demo", history), CUSTOMER)
+
+    def test_other_entity_sentence_sets_the_context(self):
+        history = [assistant("No encontré a Beta como cliente. Beta sí aparece como proveedor.")]
+        self.assertEqual(conversation_entity("Beta", history), SUPPLIER)
+
+    def test_ordinal_words(self):
+        self.assertEqual(list_position("el segundo proveedor"), 2)
+        self.assertEqual(list_position("el primer proveedor"), 1)
+        self.assertEqual(list_position("el primero"), 1)
+        self.assertIsNone(list_position("el primer pago"))
 
 
 class ExplicitEntityTests(unittest.TestCase):

@@ -217,6 +217,11 @@ class SupplierPaymentTests(SupplierCase):
         self.assertIn("No es una lista completa", answer.text)
         self.assertIn("Pagos que le hicimos", answer.text)
 
+    def test_payment_dates_show_no_time(self):
+        self.db.payment(1, "ACME", "2026-10-01 00:00:00", "100")
+        self.assertNotIn("00:00:00", self.run_op("ultimo_pago", "ACME").text)
+        self.assertNotIn("00:00:00", self.run_op("pagos", "ACME").text)
+
     def test_payments_of_another_supplier_are_excluded(self):
         self.db.supplier("OTRO", "Otro SA", "1")
         self.db.payment(1, "OTRO", "2026-10-01", "777")
@@ -265,6 +270,11 @@ class SupplierNoteTests(SupplierCase):
         self.assertIn("compra · folio 7 · +150.00", lines[1])
         self.assertIn("pago · folio 3 · −40.00", lines[2])
         self.assertIn("compra · folio 6", lines[3])
+
+    def test_last_note_with_two_dates_shows_the_whole_note(self):
+        self.db.purchase(1, 7, "ACME", "2026-10-01", "100")
+        self.db.purchase(2, 7, "ACME", "2026-10-02", "50")
+        self.assertIn("Importe de la nota: 150.00", self.run_op("ultima_nota", "ACME").text)
 
     def test_movements_never_look_like_a_party_list(self):
         self.db.purchase(1, 7, "ACME", "2026-10-05", "100")

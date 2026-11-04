@@ -54,7 +54,7 @@ def _tool(name, description, properties, required):
     }
 
 
-def tool_definitions(bundle=None):
+def tool_definitions(bundle=None, suppliers=True):
     bundle = bundle or load_prompt_bundle()
     tools = [
         _tool(
@@ -63,18 +63,29 @@ def tool_definitions(bundle=None):
             {
                 "operation": {
                     "type": "string",
-                    "enum": list(OPERATIONS + SUPPLIER_ONLY_OPERATIONS + PRODUCT_OPERATIONS),
+                    "enum": list(
+                        OPERATIONS
+                        + (SUPPLIER_ONLY_OPERATIONS if suppliers else ())
+                        + PRODUCT_OPERATIONS
+                    ),
                 },
                 "customer": {
                     "type": "string",
                     "description": "Nombre o código del cliente o proveedor presente en la conversación. "
                     "Omitir en ranking.",
                 },
-                "entidad": {
-                    "type": "string",
-                    "enum": ["cliente", "proveedor"],
-                    "description": "Solo si la pregunta indica si es cliente o proveedor; si no, omitir.",
-                },
+                **(
+                    {
+                        "entidad": {
+                            "type": "string",
+                            "enum": ["cliente", "proveedor"],
+                            "description": "Solo si la pregunta indica si es cliente o proveedor; "
+                            "si no, omitir.",
+                        }
+                    }
+                    if suppliers
+                    else {}
+                ),
                 "codigo_exacto": {
                     "type": "boolean",
                     "description": "true solo si customer es un código que el usuario eligió de una "

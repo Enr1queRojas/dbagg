@@ -20,6 +20,8 @@ from dbagg.agent.entity import (
     explicit_entity,
     listed_row,
     mixed_list_choice,
+    named_row,
+    names_entity,
 )
 from dbagg.agent.intent import (
     COMPARISON_CLARIFICATION,
@@ -67,11 +69,17 @@ class ToolHint(Exception):
 
 CLARIFICATIONS = {
     "comparacion": COMPARISON_CLARIFICATION,
-    "cliente": "¿De qué cliente o proveedor quieres consultar el saldo o los pagos? Indica su nombre o código.",
+    "cliente": "¿De qué cliente quieres consultar el saldo o los pagos? Indica su nombre o código.",
     "periodo": "¿Qué período quieres consultar? Puedes indicar esta semana, este mes o un rango de fechas.",
-    "criterio": "Necesito precisar el concepto. De clientes y proveedores: saldo actual, saldos de varios con un nombre, pagos, último pago o ranking de deuda. De proveedores, también última nota y movimientos. También puedo consultar existencias de inventario, gastos registrados y compras a proveedores. ¿Qué quieres revisar?",
+    "criterio": "Necesito precisar el concepto. De clientes: saldo actual, saldos de varios clientes con un nombre, pagos, último pago o ranking de deuda. También puedo consultar existencias de inventario, gastos registrados y compras a proveedores. ¿Qué quieres revisar?",
     "escritura": "Solo puedo consultar información; no puedo modificar ni eliminar datos.",
     "fuera_alcance": "Ese reporte todavía no tiene una definición de negocio verificada. Puedo ayudarte con saldos, pagos y rankings de deuda, y consultar existencias de inventario, gastos y compras.",
+}
+
+# Only offered where the supplier sources are authorised.
+SUPPLIER_CLARIFICATIONS = {
+    "cliente": "¿De qué cliente o proveedor quieres consultar el saldo o los pagos? Indica su nombre o código.",
+    "criterio": "Necesito precisar el concepto. De clientes y proveedores: saldo actual, saldos de varios con un nombre, pagos, último pago o ranking de deuda. De proveedores, también última nota y movimientos. También puedo consultar existencias de inventario, gastos registrados y compras a proveedores. ¿Qué quieres revisar?",
 }
 
 NO_EVIDENCE = (
@@ -114,7 +122,11 @@ def _open_list(history):
         content = message.get("content")
         if message.get("role") != "assistant" or not isinstance(content, str):
             continue
-        if content not in (CLARIFICATIONS["cliente"], NO_EVIDENCE):
+        if content not in (
+            CLARIFICATIONS["cliente"],
+            SUPPLIER_CLARIFICATIONS["cliente"],
+            NO_EVIDENCE,
+        ):
             codes = listed_codes(content)
             return codes if len(codes) >= 2 else []
     return []
@@ -203,7 +215,7 @@ class Assistant:
             return COMPARISON_CLARIFICATION
         today = business_today(getattr(self.settings, "business_timezone", "America/Mexico_City"))
         messages = build_messages(schema, context, question, history, today=today, bundle=bundle)
-        tools = tool_definitions(bundle)
+        tools = tool_definitions(bundle, suppliers=SUPPLIERS in self.tables)
         attempts, descriptions = 0, 0
         described = set()
         latest_result = None
@@ -245,7 +257,7 @@ class Assistant:
                         ):
                             period_hinted = True
                             raise ToolHint(PERIOD_HINT)
-                        text = CLARIFICATIONS[arguments["reason"]]
+                        text = self._clarifications()[arguments["reason"]]
                         self.last_trace.update(
                             status="needs_clarification",
                             sources=[],
@@ -333,11 +345,48 @@ class Assistant:
             if single_customer
             else None
         )
-        picked = mixed_list_choice(question, history) if routed and single_customer else None
+        if not routed and explicit_entity(question, arguments.get("customer")) == SUPPLIER:
+            logger.info("dbagg stage=suppliers_not_enabled")
+            return self._business_answer(
+                BusinessAnswer.make(
+                    "La consulta de proveedores no está habilitada en este servicio.",
+                    "unavailable",
+                    arguments.get("operation"),
+                    [],
+                )
+            )
+        named = named_row(question, history) if single_customer and not chosen else None
+        row = None
+        if named:
+            # The person named a row; the model may have sent its code instead of the name.
+            chosen = named[1]
+            row = named if routed else None
+        elif routed and chosen:
+            row = listed_row(
+                history,
+                list_position(question),
+                explicit_entity(question, arguments.get("customer")),
+            )
+            if row is None:
+                logger.info("dbagg stage=customer_not_selected")
+                self.last_trace.update(
+                    status="needs_clarification", sources=[], clarification="cliente"
+                )
+                return self._clarifications()["cliente"]
+            chosen = row[1]
+        picked = (
+            mixed_list_choice(question, history, arguments.get("customer"))
+            if routed and single_customer and not chosen
+            else None
+        )
         if chosen:
             arguments = {**arguments, "customer": chosen, "codigo_exacto": True}
-        elif picked and picked[1]:
-            arguments = {**arguments, "customer": picked[1], "codigo_exacto": True}
+        elif picked:
+            arguments = {
+                **arguments,
+                "customer": picked[1] or picked[2],
+                "codigo_exacto": bool(picked[1]),
+            }
         if arguments.get("operation") != "ranking_deuda" and not customer_in_conversation(
             arguments.get("customer"), question, history
         ):
@@ -353,7 +402,7 @@ class Assistant:
             self.last_trace.update(
                 status="needs_clarification", sources=[], clarification="cliente"
             )
-            return CLARIFICATIONS["cliente"]
+            return self._clarifications()["cliente"]
         customer_arguments = {
             k: v for k, v in arguments.items() if k not in ("producto", "comparar")
         }
@@ -364,8 +413,8 @@ class Assistant:
         )
         entity = CUSTOMER
         if routed:
-            if chosen:
-                entity = listed_row(history, list_position(question))[0]
+            if row and row[0]:
+                entity = row[0]
             elif picked:
                 entity = picked[0]
             else:
@@ -403,21 +452,31 @@ class Assistant:
 
     def _party_entity(self, directory, arguments, model_entity, question, history):
         """Which catalogue a question means, or the answer that asks; see docs/business-queries.md."""
-        explicit = explicit_entity(question)
-        model = model_entity if model_entity in (CUSTOMER, SUPPLIER) else None
         term = arguments.get("customer")
+        explicit = explicit_entity(question, term)
+        model = model_entity if model_entity in (CUSTOMER, SUPPLIER) else None
         if not isinstance(term, str) or not term.strip():
             return explicit or model or CUSTOMER
         term = term.strip()
-        if not explicit:
-            remembered = conversation_entity(term, history)
-            if remembered:
-                return remembered
+        remembered = conversation_entity(term, history)
+        if remembered and not explicit:
+            return remembered
         found = directory.find(term, exact_code=arguments.get("codigo_exacto") is True)
         sources = [CUSTOMERS, SUPPLIERS]
         operation = arguments.get("operation")
         if explicit:
             other = CUSTOMER if explicit == SUPPLIER else SUPPLIER
+            if (
+                remembered == other
+                and found[CUSTOMER]
+                and found[SUPPLIER]
+                and not names_entity(question, term)
+            ):
+                # «¿Y cuánto nos debe?» about a supplier in our favor is not a change of person.
+                logger.info("dbagg stage=party_ambiguous")
+                return BusinessAnswer.make(
+                    ambiguous_answer(term, found), "needs_clarification", operation, sources
+                )
             if not found[explicit] and found[other]:
                 return BusinessAnswer.make(
                     f"No encontré a {label(term)} como {explicit}. "
@@ -437,6 +496,11 @@ class Assistant:
         if found[SUPPLIER]:
             return SUPPLIER
         return CUSTOMER if found[CUSTOMER] else model or CUSTOMER
+
+    def _clarifications(self):
+        if SUPPLIERS in self.tables:
+            return {**CLARIFICATIONS, **SUPPLIER_CLARIFICATIONS}
+        return CLARIFICATIONS
 
     def _business_answer(self, answer):
         self.last_trace.update(

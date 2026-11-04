@@ -4,6 +4,8 @@ import json
 import unittest
 from types import SimpleNamespace
 
+import pyodbc
+
 from dbagg.agent.prompts import tool_definitions
 from dbagg.agent.service import Assistant
 from dbagg.business.customers import CUSTOMERS, PAYMENTS
@@ -165,6 +167,110 @@ class SupplierRoutingTests(RoutingCase):
         text = self.ask("movimientos", customer="Robles")
         self.assertIn("todavía solo está disponible para proveedores", text)
 
+    MIXED = (
+        "Encontré «Ana» como cliente y como proveedor:\n"
+        "• Ana (cliente, código A1)\n• Ana (proveedor, código P1)\n"
+        "• Ana Dos (proveedor, código X)\n¿Cuál quieres consultar?"
+    )
+
+    def test_topic_change_after_mixed_list_answers_the_named_party(self):
+        history = [assistant_message(self.MIXED)]
+        text = self.ask(
+            "saldo", customer="Cuervo", question="¿Cuánto le debemos a Cuervo?", history=history
+        )
+        self.assertTrue(text.startswith("Proveedor Cuervo"))
+        text = self.ask(
+            "saldo", customer="Robles", question="¿Cuánto nos debe Robles?", history=history
+        )
+        self.assertEqual(text, ROBLES_TEXT)
+
+    def test_denied_supplier_access_keeps_customer_questions_working(self):
+        db = self.db
+        original = db.query
+
+        def denied(sql, params=(), row_limit=50):
+            if SUPPLIERS in sql:
+                raise pyodbc.ProgrammingError("42000", "denied")
+            return original(sql, params, row_limit)
+
+        db.query = denied
+        self.assertEqual(self.ask("saldo", customer="Robles"), ROBLES_TEXT)
+
+    def test_exploratory_answer_sets_no_entity(self):
+        history = [assistant_message("PROVEEDOR | IMPORTE\nX | 100.00\nLista completa.")]
+        text = self.ask("saldo", customer="X", question="¿cuál es el saldo de X?", history=history)
+        self.assertIn("como cliente y como proveedor", text)
+
+    def test_found_as_other_entity_sets_the_context(self):
+        history = [
+            assistant_message(
+                "No encontré a Cuervo como cliente. Cuervo sí aparece como proveedor."
+            )
+        ]
+        text = self.ask("saldo", customer="Cuervo", question="¿y su saldo?", history=history)
+        self.assertTrue(text.startswith("Proveedor Cuervo"))
+
+    def test_an_amount_in_the_answer_is_not_a_party(self):
+        self.db.customer("100", "Cliente Cien", 9)
+        self.db.supplier("X100", "Beta", "1")
+        history = [assistant_message("Proveedor Beta (código C7)\nLe debemos: 100.00.")]
+        text = self.ask("saldo", customer="100", question="¿cuánto debe el 100?", history=history)
+        self.assertIn("como cliente y como proveedor", text)
+
+    def test_partial_name_does_not_inherit_the_entity(self):
+        history = [assistant_message("Proveedor Ana Dos (código X)\nLe debemos: 33.00.")]
+        text = self.ask("saldo", customer="Ana", question="¿cuánto debe Ana?", history=history)
+        self.assertIn("como cliente y como proveedor", text)
+
+    def test_ordinal_with_entity_counts_within_that_entity(self):
+        history = [assistant_message(self.MIXED)]
+        text = self.ask("saldo", customer="Ana", question="el segundo proveedor", history=history)
+        self.assertTrue(text.startswith("Proveedor Ana Dos (código X)"))
+
+    def test_entity_word_with_several_rows_lists_only_that_entity(self):
+        history = [assistant_message(self.MIXED)]
+        text = self.ask("saldo", customer="Ana", question="el proveedor", history=history)
+        self.assertTrue(text.startswith("Encontré varios proveedores:"))
+        self.assertNotIn("A1", text)
+
+    def test_verb_against_context_asks_when_code_is_in_both(self):
+        history = [assistant_message("Proveedor Ana Dos (código X)\nSaldo a nuestro favor: 33.00.")]
+        text = self.ask(
+            "saldo",
+            customer="X",
+            codigo_exacto=True,
+            question="¿y cuánto nos debe?",
+            history=history,
+        )
+        self.assertIn("como cliente y como proveedor", text)
+
+    def test_name_containing_entity_word_does_not_decide(self):
+        self.db.customer("PA", "Proveedores Agricolas", 3)
+        text = self.ask(
+            "saldo",
+            customer="Proveedores Agricolas",
+            question="¿cuánto debe Proveedores Agricolas?",
+        )
+        self.assertIn("Saldo actual de Proveedores Agricolas", text)
+
+    def test_without_supplier_sources_supplier_question_is_not_answered_as_customer(self):
+        text = self.ask(
+            "saldo",
+            customer="Robles",
+            question="¿Cuánto le debemos a Robles?",
+            tables={CUSTOMERS, PAYMENTS},
+        )
+        self.assertIn("no está habilitada", text)
+
+    def test_naming_a_row_answers_the_list_even_if_the_model_sends_its_code(self):
+        history = [
+            assistant_message(
+                "Encontré varios proveedores:\n• Cuervo (código C1)\n• Ana (código P1)\n¿Cuál quieres consultar?"
+            )
+        ]
+        text = self.ask("saldo", customer="C1", question="Cuervo", history=history)
+        self.assertTrue(text.startswith("Proveedor Cuervo (código C1)"))
+
     def test_ranking_uses_explicit_supplier(self):
         text = self.ask("ranking_deuda", question="¿A quién le debemos más?")
         self.assertIn("Proveedores a los que más les debemos", text)
@@ -196,6 +302,17 @@ class ToolDefinitionTests(unittest.TestCase):
         self.assertIn("movimientos", props["operation"]["enum"])
         self.assertIn("ultima_nota", props["operation"]["enum"])
         self.assertEqual(props["entidad"]["enum"], ["cliente", "proveedor"])
+
+    def test_without_suppliers_the_tool_offers_nothing_of_theirs(self):
+        tools = tool_definitions(suppliers=False)
+        function = next(
+            t.get("function", t)
+            for t in tools
+            if t.get("function", t)["name"] == "consultar_negocio"
+        )
+        props = function["parameters"]["properties"]
+        self.assertNotIn("movimientos", props["operation"]["enum"])
+        self.assertNotIn("entidad", props)
 
     def test_tool_description_requires_no_table_names(self):
         function, _ = self.properties()
