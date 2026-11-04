@@ -6,7 +6,7 @@ from pathlib import Path
 
 from dbagg.paths import project_root
 
-MAX_FILE_CHARS = 16000
+MAX_FILE_CHARS = 17000
 MAX_CONTEXT_CHARS = 32000
 
 

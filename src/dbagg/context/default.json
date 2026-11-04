@@ -99,13 +99,27 @@
       "rule": "No confundir productor con cliente ni sumar anticipos, préstamos y liquidaciones como si fueran el mismo concepto. La persona puede tener varios roles; resuelve identidad en el catálogo correspondiente y separa temporadas.",
       "pending": ["Definición de saldo a favor/en contra del productor, fuentes, claves y relaciones.", "Temporada aplicable y tratamiento de insumos, préstamos, comisiones y anticipos."]
     },
+    "supplier_balance": {
+      "questions": ["¿Cuánto le debemos a un proveedor?"],
+      "status": "confirmed_by_owner",
+      "preferred_sources": ["proadel.CATALOGO_PROVEEDORES_DATA_V"],
+      "rule": "Positivo: se le debe al proveedor; negativo: a nuestro favor.",
+      "columns": {"supplier_key": "CODIGO", "supplier_name": "NOMBRE", "current_balance": "SALDO ACTUAL"}
+    },
+    "supplier_payments": {
+      "questions": ["¿Cuánto le pagamos a un proveedor?"],
+      "status": "confirmed_by_owner",
+      "preferred_sources": ["proadel.PAGO_PROVEEDOR_DATA"],
+      "columns": {"supplier_key": "PROVEEDOR", "amount": "IMPORTE", "date": "FECHA", "status": "ESTADO", "record_id": "ID", "receipt": "FOLIO"},
+      "confirmed_filters": {"ESTADO": "ACTIVA"}
+    },
     "suppliers_and_purchases": {
-      "questions": ["¿Cuánto debemos a proveedores?", "¿Cuánto compramos este mes?", "¿Cuándo pagamos al proveedor?"],
+      "questions": ["¿Cuánto compramos este mes?"],
       "status": "candidate_by_name",
-      "preferred_sources": ["proadel.COMPRAS_DATA", "proadel.CATALOGO_PROVEEDORES_DATA_V"],
-      "candidates": ["proadel.REP_COMPRAS", "proadel.PAGO_PROVEEDOR_DATA", "proadel.TOTAL_COMPRAS_PROVEEDORES_V", "proadel.TOTAL_PAGO_PROVEEDORES_PROVEEDORES_V"],
-      "rule": "Compras y costo por tonelada: COMPRAS_DATA según su ficha del catálogo; comisiones (PRECIO < 1) suman al costo, no a toneladas. Separar compras del período, pagos y saldo pendiente. No derivar saldo de totales históricos sin definir saldo inicial, devoluciones y ajustes.",
-      "pending": ["Saldo oficial del proveedor y clave de relación.", "Si IMPORTE incluye impuestos."]
+      "preferred_sources": ["proadel.COMPRAS_DATA"],
+      "candidates": ["proadel.REP_COMPRAS", "proadel.TOTAL_COMPRAS_PROVEEDORES_V"],
+      "rule": "Compras y costo por tonelada: COMPRAS_DATA según su ficha del catálogo; comisiones (PRECIO < 1) suman al costo, no a toneladas. Saldos y pagos a proveedores: consultar_negocio.",
+      "pending": ["Si IMPORTE incluye impuestos."]
     },
     "risk": {
       "questions": ["¿Qué clientes tienen mayor riesgo?", "¿Qué significa el semáforo?"],

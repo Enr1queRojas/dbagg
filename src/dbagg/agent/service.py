@@ -35,6 +35,7 @@ from dbagg.business.customers import (
 )
 from dbagg.business.evidence import BusinessError, render_exploratory
 from dbagg.business.products import PRODUCT_OPERATIONS, ProductQueries
+from dbagg.business.suppliers import SUPPLIER_PROTECTED_SOURCES
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -370,7 +371,7 @@ class Assistant:
             f"{table.db}.{table.name}".lower()
             for table in sqlglot.parse_one(sql, read="tsql").find_all(exp.Table)
         }
-        if referenced & PROTECTED_SOURCES:
+        if referenced & (PROTECTED_SOURCES | SUPPLIER_PROTECTED_SOURCES):
             raise ValueError("Estas fuentes requieren las operaciones de negocio verificadas.")
         if not referenced.issubset(described):
             raise ValueError("Primero inspecciona las columnas de los objetos usados.")

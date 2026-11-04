@@ -6,6 +6,7 @@ from unittest.mock import Mock, patch
 from sqlglot.errors import ParseError
 from dbagg.agent.service import Assistant
 from dbagg.business.customers import PROTECTED_SOURCES
+from dbagg.business.suppliers import SUPPLIER_PROTECTED_SOURCES
 from dbagg.config import Settings
 from dbagg.database.catalog import load_catalog, parse_catalog
 from dbagg.database.validation import validate_sql
@@ -27,7 +28,7 @@ class CatalogTests(unittest.TestCase):
 
     def test_business_tool_sources_match_verified_contracts(self):
         business = {n for n, s in self.catalog.sources.items() if s.access == "business_tool"}
-        self.assertEqual(business, set(PROTECTED_SOURCES))
+        self.assertEqual(business, set(PROTECTED_SOURCES | SUPPLIER_PROTECTED_SOURCES))
 
     def test_personal_columns_are_never_catalogued(self):
         for source in self.catalog.sources.values():

@@ -46,7 +46,7 @@ class BusinessContextTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             local = root / "business_context.json"
-            for content in ("{invalido", "[]", '{"notes":"' + "x" * 16000 + '"}'):
+            for content in ("{invalido", "[]", '{"notes":"' + "x" * 17000 + '"}'):
                 with self.subTest(content_length=len(content)):
                     local.write_text(content, encoding="utf-8")
                     with self.assertRaises(ValueError):
