@@ -3,6 +3,7 @@
 import json
 import logging
 import re
+import threading
 import unicodedata
 from datetime import timedelta
 import pyodbc
@@ -199,7 +200,8 @@ class Assistant:
         # Compatibility for tests/extensions that inject an OpenAI-compatible client.
         self.client = client
         self.catalog = load_catalog()
-        self._document = None
+        # Each background task answers and delivers on its own thread.
+        self._local = threading.local()
 
     @property
     def tables(self):
@@ -212,7 +214,7 @@ class Assistant:
     def answer(self, question, history=None):
         schema = json.dumps(self.catalog.cards(self.tables), ensure_ascii=False)
         self._customer_missed = False
-        self._document = None
+        self._local.document = None
         logger.info("dbagg stage=catalogue_ready")
         context = load_business_context()
         bundle = load_prompt_bundle(self.llm_config)
@@ -370,7 +372,11 @@ class Assistant:
                     [],
                 )
             )
-        named = named_row(question, history) if single_customer and not chosen else None
+        named = (
+            named_row(question, history)
+            if single_customer and not chosen and _open_list(history)
+            else None
+        )
         row = None
         if named:
             # The person named a row; the model may have sent its code instead of the name.
@@ -558,7 +564,7 @@ class Assistant:
         except Exception as exc:
             logger.warning("dbagg stage=statement_pdf_failed error_type=%s", type(exc).__name__)
             raise BusinessError("No pude generar el PDF del estado de cuenta.") from None
-        self._document = DocumentAttachment(content, statement_filename(statement))
+        self._local.document = DocumentAttachment(content, statement_filename(statement))
         identity = (
             f"Proveedor {name} (código {code})"
             if entity == SUPPLIER
@@ -585,7 +591,8 @@ class Assistant:
 
     def pop_document(self):
         """The document of the latest answer, once; the conversation delivers it."""
-        document, self._document = self._document, None
+        document = getattr(self._local, "document", None)
+        self._local.document = None
         return document
 
     def _clarifications(self):

@@ -832,6 +832,57 @@
       "criteria": [
         "La respuesta de fechas sigue con el código ya aclarado."
       ]
+    },
+    {
+      "id": "statement-dates-without-year",
+      "question": "del 30 de agosto a hoy",
+      "history": [
+        {
+          "role": "user",
+          "content": "Estado de cuenta de DEMOP"
+        },
+        {
+          "role": "assistant",
+          "content": "Proveedor Demo SA (código DEMOP)\n¿De qué fechas quieres el estado de cuenta?"
+        }
+      ],
+      "expected_tool": "consultar_negocio",
+      "expected_arguments": {
+        "operation": "estado_cuenta",
+        "customer": "DEMOP",
+        "codigo_exacto": true,
+        "period": "rango",
+        "start": "2026-08-30",
+        "end": "2026-10-08"
+      },
+      "criteria": [
+        "Un rango que termina hoy toma el año actual."
+      ]
+    },
+    {
+      "id": "sales-report-is-not-a-statement",
+      "question": "Reporte de ventas de este mes",
+      "expected_tool": "consultar_negocio",
+      "expected_arguments": {
+        "operation": "ventas",
+        "period": "este_mes"
+      },
+      "criteria": [
+        "«Reporte de» más un dominio no es una persona."
+      ]
+    },
+    {
+      "id": "expenses-report-is-not-a-statement",
+      "question": "Reporte de gastos de este mes",
+      "expected_tool": "describir_tablas",
+      "expected_arguments": {
+        "tables": [
+          "proadel.CATALOGO_GASTOS_DATA_V"
+        ]
+      },
+      "criteria": [
+        "«Reporte de gastos» sigue siendo exploración."
+      ]
     }
   ]
 }

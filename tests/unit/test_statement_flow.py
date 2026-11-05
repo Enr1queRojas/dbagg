@@ -1,6 +1,7 @@
 """Who, then dates, then the document: the service asks; the model only chooses the operation."""
 
 import json
+import threading
 import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock
@@ -181,6 +182,81 @@ class StatementFlowTests(unittest.TestCase):
         text = self.ask(customer="Muchos", **RANGE)
         self.assertIn("fechas más cortas", text)
         self.assertIsNone(self.service.pop_document())
+
+
+class ReviewedStatementFlowTests(StatementFlowTests):
+    """Closed lists and threads must not change whose statement is delivered."""
+
+    def closed_list(self, first_code, chosen_code):
+        self.db.supplier(first_code, "1", name="Persona Uno")
+        self.db.supplier(chosen_code, "2", name="Persona Dos")
+        return [
+            assistant_message(
+                "Encontré varios proveedores:\n"
+                f"• Persona Uno (código {first_code})\n"
+                f"• Persona Dos (código {chosen_code})\n¿Cuál quieres consultar?"
+            ),
+            {"role": "user", "content": "Persona Dos"},
+            assistant_message(
+                f"Proveedor Persona Dos (código {chosen_code})\n"
+                "¿De qué fechas quieres el estado de cuenta?"
+            ),
+        ]
+
+    def test_date_words_do_not_reopen_a_closed_list(self):
+        history = self.closed_list("JULIO", "J2")
+        text = self.ask(
+            customer="J2",
+            codigo_exacto=True,
+            question="del 1 de julio a hoy",
+            history=history,
+            **RANGE,
+        )
+        self.assertTrue(text.startswith("Proveedor Persona Dos (código J2)"))
+        self.assertIn("J2", self.service.pop_document().filename)
+
+    def test_a_numeric_code_does_not_match_a_day(self):
+        history = self.closed_list("30", "J2")
+        text = self.ask(
+            customer="J2",
+            codigo_exacto=True,
+            question="del 30 de agosto a hoy",
+            history=history,
+            **RANGE,
+        )
+        self.assertTrue(text.startswith("Proveedor Persona Dos (código J2)"))
+
+    def test_an_open_list_still_accepts_a_name(self):
+        self.db.supplier("Q1", "1", name="Persona Uno")
+        self.db.supplier("Q2", "2", name="Persona Dos")
+        history = [
+            assistant_message(
+                "Encontré varios proveedores:\n• Persona Uno (código Q1)\n"
+                "• Persona Dos (código Q2)\n¿Cuál quieres consultar?"
+            )
+        ]
+        text = self.ask(customer="Q1", question="Persona Dos", history=history)
+        self.assertTrue(text.startswith("Proveedor Persona Dos (código Q2)"))
+
+    def test_a_document_belongs_to_the_thread_that_answered(self):
+        self.ask(customer="Cuervo", **RANGE)
+        service = self.service
+        seen = []
+        other = threading.Thread(target=lambda: seen.append(service.pop_document()))
+        other.start()
+        other.join()
+        self.assertEqual(seen, [None])
+        self.assertIsNotNone(service.pop_document())
+
+    def test_another_thread_answering_does_not_clear_the_document(self):
+        self.ask(customer="Cuervo", **RANGE)
+        service = self.service
+        call = ToolCall("t2", "pedir_aclaracion", json.dumps({"reason": "escritura"}))
+        service.provider = OneCallProvider(ModelReply(None, (call,), {}))
+        other = threading.Thread(target=lambda: service.answer("borra todo"))
+        other.start()
+        other.join()
+        self.assertIsNotNone(service.pop_document())
 
 
 class FakeAssistant:
