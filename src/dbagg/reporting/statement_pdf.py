@@ -28,8 +28,8 @@ EMPTY = ParagraphStyle("empty", fontName="Helvetica", fontSize=10, leading=12, s
 COLUMNS = ("Tipo", "Fecha", "Folio", "Cantidad", "Código", "Concepto", "Precio", "Total", "Abono")
 COLUMNS_WITH_RETURNS = (*COLUMNS, "Devolución", "Saldo")
 COLUMNS_WITHOUT_RETURNS = (*COLUMNS, "Saldo")
-WIDTHS_WITH_RETURNS = (58, 50, 42, 54, 62, 136, 50, 66, 66, 66, 70)
-WIDTHS_WITHOUT_RETURNS = (58, 50, 42, 54, 62, 202, 50, 66, 66, 70)
+WIDTHS_WITH_RETURNS = (58, 50, 42, 54, 72, 126, 50, 66, 66, 66, 70)
+WIDTHS_WITHOUT_RETURNS = (58, 50, 42, 54, 72, 192, 50, 66, 66, 70)
 
 
 def _day(value):

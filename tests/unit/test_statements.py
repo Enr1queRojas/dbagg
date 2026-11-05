@@ -38,6 +38,7 @@ MONEY = {
     "FOLIO": "bigint",
     "FECHA": "date",
     "BANCO": TEXT,
+    "CONCEPTO DIVERSO": TEXT,
     "IMPORTE": NUMBER,
     "ESTADO": TEXT,
 }
@@ -136,7 +137,9 @@ class StatementDatabase:
             **{column: party},
         )
 
-    def money(self, table, party, id, fecha, importe, state="ACTIVA", banco="SANTANDER"):
+    def money(
+        self, table, party, id, fecha, importe, state="ACTIVA", banco="SANTANDER", concepto="ABONO"
+    ):
         column = "PROVEEDOR" if table == SUPPLIER_PAYMENTS else "CLIENTE"
         self.insert(
             table,
@@ -144,6 +147,7 @@ class StatementDatabase:
             FOLIO=id,
             FECHA=fecha,
             BANCO=banco,
+            **{"CONCEPTO DIVERSO": concepto},
             IMPORTE=importe,
             ESTADO=state,
             **{column: party},
@@ -200,6 +204,19 @@ class CustomerStatementTests(StatementCase):
         self.assertEqual(s.rows[-1].total, Decimal("0"))
         self.assertEqual(s.closing, Decimal("70"))
         self.assertEqual(s.warnings, ())
+
+    def test_payment_keeps_its_own_concept_like_the_erp(self):
+        self.db.customer("AJU", "0", "100")
+        self.db.money(
+            PAYMENTS, "AJU", 1, "2026-10-22", "100", banco="AJUSTES", concepto="AJUSTE DE PRECIO"
+        )
+        row = self.build(CUSTOMER, "AJU").rows[0]
+        self.assertEqual((row.codigo, row.concepto), ("AJUSTES", "AJUSTE DE PRECIO"))
+
+    def test_payment_without_concept_says_abono(self):
+        self.db.customer("SINC", "0", "100")
+        self.db.money(PAYMENTS, "SINC", 1, "2026-10-22", "100", concepto=None)
+        self.assertEqual(self.build(CUSTOMER, "SINC").rows[0].concepto, "ABONO")
 
     def test_cash_sales_are_never_queried(self):
         self.build(CUSTOMER, "A.ESPARZA3")

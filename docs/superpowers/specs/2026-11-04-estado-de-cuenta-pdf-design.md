@@ -88,7 +88,7 @@ forma los movimientos de una misma fecha; el saldo final no cambia.
 | Folio | `FOLIO` | `FOLIO` | `FOLIO` |
 | Cantidad | `CANTIDAD` | 0 | `CANTIDAD` |
 | Código | `CODIGO` | `BANCO` | `CODIGO` |
-| Concepto | `CONCEPTO` | `ABONO` | `CONCEPTO` |
+| Concepto | `CONCEPTO` | `CONCEPTO DIVERSO`, o `ABONO` si está vacío | `CONCEPTO` |
 | Precio | `PRECIO` | 0.00 | `PRECIO` |
 | Total | Clientes `TOTAL`; proveedores `IMPORTE` | 0.00 | 0.00 |
 | Abono | 0.00 | `IMPORTE` | 0.00 |

@@ -150,7 +150,7 @@ class StatementQueries(CatalogQueries):
         columns = (
             "[CANTIDAD] AS cantidad, [CODIGO] AS codigo, [CONCEPTO] AS concepto, [PRECIO] AS precio"
             if lines
-            else "[BANCO] AS codigo"
+            else "[BANCO] AS codigo, [CONCEPTO DIVERSO] AS concepto"
         )
         rows, more = self._report(
             f"SELECT [ID] AS id, [FOLIO] AS folio, {when} AS fecha, "
@@ -186,7 +186,9 @@ class StatementQueries(CatalogQueries):
         for source in sources:
             required = ["ID", "FOLIO", "FECHA", "ESTADO", source.party_column, source.amount_column]
             required += (
-                ["CANTIDAD", "CODIGO", "CONCEPTO", "PRECIO"] if source.side != CREDIT else ["BANCO"]
+                ["CANTIDAD", "CODIGO", "CONCEPTO", "PRECIO"]
+                if source.side != CREDIT
+                else ["BANCO", "CONCEPTO DIVERSO"]
             )
             self._require(catalog, source.table, required, [source.amount_column])
             when = date_expression(catalog[source.table]["FECHA"], "los movimientos")
@@ -218,7 +220,7 @@ class StatementQueries(CatalogQueries):
                     folio=str(row["folio"] or ""),
                     cantidad=decimal_value(row.get("cantidad")),
                     codigo=str(row.get("codigo") or ""),
-                    concepto="ABONO" if source.side == CREDIT else str(row.get("concepto") or ""),
+                    concepto=str(row.get("concepto") or ("ABONO" if source.side == CREDIT else "")),
                     precio=decimal_value(row.get("precio")),
                     total=value if source.side == CHARGE else Decimal("0"),
                     abono=value if source.side == CREDIT else Decimal("0"),
