@@ -2,7 +2,7 @@
 
 import json
 import pyodbc
-from dbagg.limits import MAX_ROWS, MAX_CELL_CHARS, MAX_RESULT_CHARS
+from dbagg.limits import MAX_CELL_CHARS, MAX_REPORT_ROWS, MAX_RESULT_CHARS, MAX_ROWS
 
 
 # pyodbc's readonly flag is a hint SQL Server ignores; the login itself must be read-only.
@@ -73,6 +73,26 @@ class Database:
             if len(payload) > 24000:
                 raise ValueError("Catálogo demasiado grande; reducir vistas autorizadas.")
             return payload
+        finally:
+            conn.close()
+
+    def query_report(self, sql, params=(), row_limit=MAX_REPORT_ROWS):
+        """Whole values for a document built in code; never for rows shown to the model."""
+        if type(row_limit) is not int or not 1 <= row_limit <= MAX_REPORT_ROWS:
+            raise ValueError("Límite de filas inválido.")
+        conn = self._connect()
+        try:
+            cursor = conn.cursor()
+            cursor.execute(sql, *params)
+            columns = [str(c[0])[:100] for c in cursor.description]
+            fetched = cursor.fetchmany(row_limit + 1)
+            return {
+                "columns": columns,
+                "rows": [
+                    [None if v is None else str(v) for v in row] for row in fetched[:row_limit]
+                ],
+                "has_more": len(fetched) > row_limit,
+            }
         finally:
             conn.close()
 
