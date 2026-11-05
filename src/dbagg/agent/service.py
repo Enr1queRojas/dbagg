@@ -3,7 +3,9 @@
 import json
 import logging
 import re
+import threading
 import unicodedata
+from datetime import timedelta
 import pyodbc
 import sqlglot
 from sqlglot import exp
@@ -15,6 +17,15 @@ from dbagg.agent.prompts import build_messages, tool_definitions
 from dbagg.agent.prompt_files import load_prompt_bundle
 from dbagg.llm.config import LLMConfig, ModelProfile
 from dbagg.llm.providers import create_provider
+from dbagg.reporting.statement_pdf import statement_filename, statement_pdf
+from dbagg.agent.entity import (
+    conversation_entity,
+    explicit_entity,
+    listed_row,
+    mixed_list_choice,
+    named_row,
+    names_entity,
+)
 from dbagg.agent.intent import (
     COMPARISON_CLARIFICATION,
     NOT_A_CUSTOMER_HINT,
@@ -26,18 +37,41 @@ from dbagg.agent.intent import (
     requests_candidate_comparison,
     requests_ranking,
 )
-from dbagg.business.calendar import business_today
+from dbagg.business.calendar import business_today, period_bounds
 from dbagg.business.customers import (
+    CUSTOMERS,
     NOT_FOUND_ANSWERS,
     PROTECTED_SOURCES,
     CustomerQueries,
     validate_context,
 )
-from dbagg.business.evidence import BusinessError, render_exploratory
+from dbagg.business.evidence import (
+    BusinessAnswer,
+    BusinessError,
+    amount,
+    label,
+    render_exploratory,
+)
+from dbagg.business.parties import CUSTOMER, SUPPLIER, PartyDirectory, ambiguous_answer
 from dbagg.business.products import PRODUCT_OPERATIONS, ProductQueries
+from dbagg.business.statements import (
+    STATEMENT_OPERATION,
+    DocumentAttachment,
+    StatementQueries,
+)
+from dbagg.business.suppliers import (
+    SUPPLIER_MATCHES_NOT_FOUND,
+    SUPPLIER_NOT_FOUND,
+    SUPPLIER_ONLY_OPERATIONS,
+    SUPPLIER_PROTECTED_SOURCES,
+    SUPPLIERS,
+    SupplierQueries,
+    validate_supplier_context,
+)
 
 logger = logging.getLogger("uvicorn.error")
 
+ALL_NOT_FOUND_ANSWERS = NOT_FOUND_ANSWERS | {SUPPLIER_NOT_FOUND, SUPPLIER_MATCHES_NOT_FOUND}
 MAX_MODEL_ROUNDS = 9
 MAX_SQL_QUERIES = 4
 MAX_SCHEMA_REQUESTS = 4
@@ -54,6 +88,12 @@ CLARIFICATIONS = {
     "criterio": "Necesito precisar el concepto. De clientes: saldo actual, saldos de varios clientes con un nombre, pagos, último pago o ranking de deuda. También puedo consultar existencias de inventario, gastos registrados y compras a proveedores. ¿Qué quieres revisar?",
     "escritura": "Solo puedo consultar información; no puedo modificar ni eliminar datos.",
     "fuera_alcance": "Ese reporte todavía no tiene una definición de negocio verificada. Puedo ayudarte con saldos, pagos y rankings de deuda, y consultar existencias de inventario, gastos y compras.",
+}
+
+# Only offered where the supplier sources are authorised.
+SUPPLIER_CLARIFICATIONS = {
+    "cliente": "¿De qué cliente o proveedor quieres consultar el saldo o los pagos? Indica su nombre o código.",
+    "criterio": "Necesito precisar el concepto. De clientes y proveedores: saldo actual, saldos de varios con un nombre, pagos, último pago o ranking de deuda. De proveedores, también última nota y movimientos. También puedo consultar existencias de inventario, gastos registrados y compras a proveedores. ¿Qué quieres revisar?",
 }
 
 NO_EVIDENCE = (
@@ -96,7 +136,11 @@ def _open_list(history):
         content = message.get("content")
         if message.get("role") != "assistant" or not isinstance(content, str):
             continue
-        if content not in (CLARIFICATIONS["cliente"], NO_EVIDENCE):
+        if content not in (
+            CLARIFICATIONS["cliente"],
+            SUPPLIER_CLARIFICATIONS["cliente"],
+            NO_EVIDENCE,
+        ):
             codes = listed_codes(content)
             return codes if len(codes) >= 2 else []
     return []
@@ -156,6 +200,8 @@ class Assistant:
         # Compatibility for tests/extensions that inject an OpenAI-compatible client.
         self.client = client
         self.catalog = load_catalog()
+        # Each background task answers and delivers on its own thread.
+        self._local = threading.local()
 
     @property
     def tables(self):
@@ -168,6 +214,7 @@ class Assistant:
     def answer(self, question, history=None):
         schema = json.dumps(self.catalog.cards(self.tables), ensure_ascii=False)
         self._customer_missed = False
+        self._local.document = None
         logger.info("dbagg stage=catalogue_ready")
         context = load_business_context()
         bundle = load_prompt_bundle(self.llm_config)
@@ -185,7 +232,7 @@ class Assistant:
             return COMPARISON_CLARIFICATION
         today = business_today(getattr(self.settings, "business_timezone", "America/Mexico_City"))
         messages = build_messages(schema, context, question, history, today=today, bundle=bundle)
-        tools = tool_definitions(bundle)
+        tools = tool_definitions(bundle, suppliers=SUPPLIERS in self.tables)
         attempts, descriptions = 0, 0
         described = set()
         latest_result = None
@@ -227,7 +274,7 @@ class Assistant:
                         ):
                             period_hinted = True
                             raise ToolHint(PERIOD_HINT)
-                        text = CLARIFICATIONS[arguments["reason"]]
+                        text = self._clarifications()[arguments["reason"]]
                         self.last_trace.update(
                             status="needs_clarification",
                             sources=[],
@@ -293,10 +340,15 @@ class Assistant:
         return "No pude resolver la pregunta dentro del límite de consultas. ¿Puedes precisar el nombre o período?"
 
     def _consult_business(self, arguments, context, question, history, today):
+        model_entity = arguments.get("entidad")
+        arguments = {k: v for k, v in arguments.items() if k != "entidad"}
         if arguments.get("operation") in PRODUCT_OPERATIONS:
             answer = ProductQueries(self.db, self.tables, today=today).execute(**arguments)
             return self._business_answer(answer)
-        validate_context(context, arguments.get("operation"))
+        directory = PartyDirectory(self.db, self.tables)
+        routed = directory.supports_suppliers
+        if not routed:
+            validate_context(context, arguments.get("operation"))
         if arguments.get("operation") == "ranking_deuda" and not requests_ranking(question):
             logger.info("dbagg stage=ranking_not_requested")
             raise ToolHint(RANKING_HINT)
@@ -310,35 +362,243 @@ class Assistant:
             if single_customer
             else None
         )
+        if not routed and explicit_entity(question, arguments.get("customer")) == SUPPLIER:
+            logger.info("dbagg stage=suppliers_not_enabled")
+            return self._business_answer(
+                BusinessAnswer.make(
+                    "La consulta de proveedores no está habilitada en este servicio.",
+                    "unavailable",
+                    arguments.get("operation"),
+                    [],
+                )
+            )
+        named = (
+            named_row(question, history)
+            if single_customer and not chosen and _open_list(history)
+            else None
+        )
+        row = None
+        if named:
+            # The person named a row; the model may have sent its code instead of the name.
+            chosen = named[1]
+            row = named if routed else None
+        elif routed and chosen:
+            row = listed_row(
+                history,
+                list_position(question),
+                explicit_entity(question, arguments.get("customer")),
+            )
+            if row is None:
+                logger.info("dbagg stage=customer_not_selected")
+                self.last_trace.update(
+                    status="needs_clarification", sources=[], clarification="cliente"
+                )
+                return self._clarifications()["cliente"]
+            chosen = row[1]
+        picked = (
+            mixed_list_choice(question, history, arguments.get("customer"))
+            if routed and single_customer and not chosen
+            else None
+        )
         if chosen:
             arguments = {**arguments, "customer": chosen, "codigo_exacto": True}
+        elif picked:
+            arguments = {
+                **arguments,
+                "customer": picked[1] or picked[2],
+                "codigo_exacto": bool(picked[1]),
+            }
         if arguments.get("operation") != "ranking_deuda" and not customer_in_conversation(
             arguments.get("customer"), question, history
         ):
             raise BusinessError(
                 "No pude vincular ese cliente con la conversación. Indica su nombre o código."
             )
-        if single_customer and customer_left_unselected(
-            arguments.get("customer"), question, history
+        if (
+            single_customer
+            and not picked
+            and not named
+            and customer_left_unselected(arguments.get("customer"), question, history)
         ):
             logger.info("dbagg stage=customer_not_selected")
             self.last_trace.update(
                 status="needs_clarification", sources=[], clarification="cliente"
             )
-            return CLARIFICATIONS["cliente"]
+            return self._clarifications()["cliente"]
         customer_arguments = {
             k: v for k, v in arguments.items() if k not in ("producto", "comparar")
         }
         customer_arguments["codigo_exacto"] = arguments.get("codigo_exacto") is True and bool(
-            chosen or code_confirmed(arguments.get("customer"), question, history)
+            chosen
+            or (picked and picked[1])
+            or code_confirmed(arguments.get("customer"), question, history)
         )
-        answer = CustomerQueries(self.db, self.tables, today=today).execute(**customer_arguments)
-        if answer.text in NOT_FOUND_ANSWERS and not self._customer_missed:
+        entity = CUSTOMER
+        if routed:
+            if row and row[0]:
+                entity = row[0]
+            elif picked:
+                entity = picked[0]
+            else:
+                entity = self._party_entity(
+                    directory, customer_arguments, model_entity, question, history
+                )
+            if isinstance(entity, BusinessAnswer):
+                return self._business_answer(entity)
+        if arguments.get("operation") == STATEMENT_OPERATION:
+            return self._statement(entity, customer_arguments, context, today)
+        if entity == SUPPLIER:
+            validate_supplier_context(context)
+            supplier_arguments = dict(customer_arguments)
+            supplier_arguments["supplier"] = supplier_arguments.pop("customer", None)
+            answer = SupplierQueries(self.db, self.tables, today=today).execute(
+                **supplier_arguments
+            )
+        elif arguments.get("operation") in SUPPLIER_ONLY_OPERATIONS:
+            answer = BusinessAnswer.make(
+                "Ese reporte todavía solo está disponible para proveedores.",
+                "needs_clarification",
+                arguments["operation"],
+                [],
+            )
+        else:
+            if routed:
+                validate_context(context, arguments.get("operation"))
+            answer = CustomerQueries(self.db, self.tables, today=today).execute(
+                **customer_arguments
+            )
+        if answer.text in ALL_NOT_FOUND_ANSWERS and not self._customer_missed:
             # One retry: the name may be an expense section, product or warehouse.
             self._customer_missed = True
             logger.info("dbagg stage=customer_not_found_retry")
             raise ToolHint(NOT_A_CUSTOMER_HINT)
         return self._business_answer(answer)
+
+    def _party_entity(self, directory, arguments, model_entity, question, history):
+        """Which catalogue a question means, or the answer that asks; see docs/business-queries.md."""
+        term = arguments.get("customer")
+        explicit = explicit_entity(question, term)
+        model = model_entity if model_entity in (CUSTOMER, SUPPLIER) else None
+        if not isinstance(term, str) or not term.strip():
+            return explicit or model or CUSTOMER
+        term = term.strip()
+        remembered = conversation_entity(term, history)
+        if remembered and not explicit:
+            return remembered
+        found = directory.find(term, exact_code=arguments.get("codigo_exacto") is True)
+        sources = [CUSTOMERS, SUPPLIERS]
+        operation = arguments.get("operation")
+        if explicit:
+            other = CUSTOMER if explicit == SUPPLIER else SUPPLIER
+            if (
+                remembered == other
+                and found[CUSTOMER]
+                and found[SUPPLIER]
+                and not names_entity(question, term)
+            ):
+                # «¿Y cuánto nos debe?» about a supplier in our favor is not a change of person.
+                logger.info("dbagg stage=party_ambiguous")
+                return BusinessAnswer.make(
+                    ambiguous_answer(term, found), "needs_clarification", operation, sources
+                )
+            if not found[explicit] and found[other]:
+                return BusinessAnswer.make(
+                    f"No encontré a {label(term)} como {explicit}. "
+                    f"{label(term)} sí aparece como {other}.",
+                    "needs_clarification",
+                    operation,
+                    sources,
+                )
+            return explicit
+        if found[CUSTOMER] and found[SUPPLIER]:
+            if model:
+                return model
+            logger.info("dbagg stage=party_ambiguous")
+            return BusinessAnswer.make(
+                ambiguous_answer(term, found), "needs_clarification", operation, sources
+            )
+        if found[SUPPLIER]:
+            return SUPPLIER
+        return CUSTOMER if found[CUSTOMER] else model or CUSTOMER
+
+    def _statement(self, entity, arguments, context, today):
+        """Party first, then dates, then the document; nothing is generated before both."""
+        if entity == SUPPLIER:
+            validate_supplier_context(context)
+        else:
+            validate_context(context, STATEMENT_OPERATION)
+        queries = StatementQueries(self.db, self.tables, today=today)
+        found = queries.resolve(
+            entity, arguments.get("customer"), exact_code=arguments.get("codigo_exacto") is True
+        )
+        if isinstance(found, BusinessAnswer):
+            if found.text in ALL_NOT_FOUND_ANSWERS and not self._customer_missed:
+                self._customer_missed = True
+                logger.info("dbagg stage=customer_not_found_retry")
+                raise ToolHint(NOT_A_CUSTOMER_HINT)
+            return self._business_answer(found)
+        name, code = label(found["nombre"]), label(found["codigo"])
+        sources = [CUSTOMERS if entity == CUSTOMER else SUPPLIERS]
+        period = arguments.get("period")
+        if period in (None, "todo"):
+            logger.info("dbagg stage=statement_needs_dates")
+            text = (
+                f"Proveedor {name} (código {code})\n¿De qué fechas quieres el estado de cuenta?"
+                if entity == SUPPLIER
+                else f"Estado de cuenta de {name} (código {code}). ¿De qué fechas lo quieres?"
+            )
+            return self._business_answer(
+                BusinessAnswer.make(text, "needs_clarification", STATEMENT_OPERATION, sources)
+            )
+        try:
+            first, until = period_bounds(
+                period, today, arguments.get("start"), arguments.get("end")
+            )
+        except (ValueError, TypeError, OverflowError):
+            raise BusinessError(
+                "Indica un período válido; para un rango usa inicio y fin en formato YYYY-MM-DD."
+            ) from None
+        statement = queries.build(entity, found["codigo"], first, until - timedelta(days=1))
+        try:
+            content = statement_pdf(statement)
+        except Exception as exc:
+            logger.warning("dbagg stage=statement_pdf_failed error_type=%s", type(exc).__name__)
+            raise BusinessError("No pude generar el PDF del estado de cuenta.") from None
+        self._local.document = DocumentAttachment(content, statement_filename(statement))
+        identity = (
+            f"Proveedor {name} (código {code})"
+            if entity == SUPPLIER
+            else f"Estado de cuenta de {name} (código {code})"
+        )
+        lines = [
+            identity,
+            f"Estado de cuenta del {statement.start:%d/%m/%Y} al {statement.end:%d/%m/%Y}.",
+            f"Saldo anterior: {amount(statement.opening)}.",
+            f"Saldo al {statement.end:%d/%m/%Y}: {amount(statement.closing)}.",
+            f"Movimientos: {len(statement.rows)}.",
+            *statement.warnings,
+            "Importes sin moneda confirmada.",
+        ]
+        logger.info("dbagg stage=statement_ready rows=%s", len(statement.rows))
+        return self._business_answer(
+            BusinessAnswer.make(
+                "\n".join(lines),
+                "partial" if statement.warnings else "answered",
+                STATEMENT_OPERATION,
+                queries.sources,
+            )
+        )
+
+    def pop_document(self):
+        """The document of the latest answer, once; the conversation delivers it."""
+        document = getattr(self._local, "document", None)
+        self._local.document = None
+        return document
+
+    def _clarifications(self):
+        if SUPPLIERS in self.tables:
+            return {**CLARIFICATIONS, **SUPPLIER_CLARIFICATIONS}
+        return CLARIFICATIONS
 
     def _business_answer(self, answer):
         self.last_trace.update(
@@ -370,7 +630,7 @@ class Assistant:
             f"{table.db}.{table.name}".lower()
             for table in sqlglot.parse_one(sql, read="tsql").find_all(exp.Table)
         }
-        if referenced & PROTECTED_SOURCES:
+        if referenced & (PROTECTED_SOURCES | SUPPLIER_PROTECTED_SOURCES):
             raise ValueError("Estas fuentes requieren las operaciones de negocio verificadas.")
         if not referenced.issubset(described):
             raise ValueError("Primero inspecciona las columnas de los objetos usados.")

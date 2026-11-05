@@ -58,7 +58,8 @@ El acceso SQL del agente se controla por capas, todas fuera del modelo:
 | Allowlist | `SQL_ALLOWED_TABLES` ∩ catálogo; el `.env` acota, nunca amplía | `config.py` |
 | Prompt | Fichas por dominio (clientes, gastos, inventarios) en lugar de nombres sueltos | `agent/service.py` |
 | Validación | Un objeto por consulta salvo relación declarada; columnas explícitas del catálogo; sin `SELECT *` | `database/validation.py` |
-| Contratos | `business_tool`: solo mediante `consultar_negocio` | `business/customers.py` |
+| Contratos | `business_tool`: solo mediante `consultar_negocio` | `business/customers.py`, `business/suppliers.py` |
+| Entidad | Cliente o proveedor lo decide el servicio; el contexto se recupera del texto de las respuestas | `agent/entity.py`, `business/parties.py` |
 
 `describir_tablas` devuelve solo las columnas catalogadas. Direcciones, teléfonos,
 responsables de captura y choferes no se catalogan. `joins` está vacío: ninguna relación

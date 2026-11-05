@@ -82,7 +82,7 @@ def validate_context(context, operation):
             },
         ),
     }
-    if operation in {"pagos", "ultimo_pago", "total_pagos", "notas_pendientes"}:
+    if operation in {"pagos", "ultimo_pago", "total_pagos", "notas_pendientes", "estado_cuenta"}:
         expected["collections"] = (
             PAYMENTS,
             {
@@ -113,7 +113,9 @@ def validate_context(context, operation):
         )
 
 
-class CustomerQueries:
+class CatalogQueries:
+    """Shared plumbing of the verified query classes."""
+
     def __init__(self, db, allowed_tables, today=None):
         self.db = db
         self.allowed = set(allowed_tables)
@@ -144,6 +146,8 @@ class CustomerQueries:
     def _answer(self, text, status="answered"):
         return BusinessAnswer.make(text, status, self.operation, self.sources)
 
+
+class CustomerQueries(CatalogQueries):
     def _matching_rows(self, columns, customer, limit):
         """Partial matches on name or code; exact ones first so the limit cannot hide them.
 

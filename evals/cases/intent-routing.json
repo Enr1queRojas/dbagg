@@ -137,12 +137,13 @@
       "id": "whole-statement",
       "question": "Dame el estado de cuenta completo de DEMO1, con ventas, pagos y devoluciones",
       "history": [],
-      "expected_tool": "pedir_aclaracion",
+      "expected_tool": "consultar_negocio",
       "expected_arguments": {
-        "reason": "fuera_alcance"
+        "operation": "estado_cuenta",
+        "customer": "DEMO1"
       },
       "criteria": [
-        "No presentar solo pagos como estado de cuenta completo."
+        "El estado de cuenta tiene operación propia; no se responde solo con pagos."
       ]
     },
     {
@@ -684,6 +685,203 @@
       },
       "criteria": [
         "Regresión: tras varios turnos el modelo dejaba de llamar herramientas."
+      ]
+    },
+    {
+      "id": "supplier-balance-without-entity",
+      "question": "¿Cuál es el saldo de Cuervo?",
+      "expected_tool": "consultar_negocio",
+      "expected_arguments": {
+        "operation": "saldo",
+        "customer": "Cuervo"
+      },
+      "criteria": [
+        "Un saldo por nombre va a consultar_negocio; el servicio decide si es cliente o proveedor."
+      ]
+    },
+    {
+      "id": "supplier-balance-explicit",
+      "question": "¿Cuánto le debemos a Cuervo?",
+      "expected_tool": "consultar_negocio",
+      "expected_arguments": {
+        "operation": "saldo",
+        "customer": "Cuervo",
+        "entidad": "proveedor"
+      },
+      "criteria": [
+        "«Le debemos» indica proveedor."
+      ]
+    },
+    {
+      "id": "supplier-last-note-followup",
+      "question": "¿Y su última nota?",
+      "history": [
+        {
+          "role": "user",
+          "content": "¿Cuánto le debemos a DEMOP?"
+        },
+        {
+          "role": "assistant",
+          "content": "Proveedor Demo SA (código DEMOP)\nLe debemos: 100.00.\nImporte sin moneda confirmada."
+        }
+      ],
+      "expected_tool": "consultar_negocio",
+      "expected_arguments": {
+        "operation": "ultima_nota",
+        "customer": "DEMOP",
+        "codigo_exacto": true
+      },
+      "criteria": [
+        "La continuidad usa el código mostrado."
+      ]
+    },
+    {
+      "id": "supplier-movements-followup",
+      "question": "¿Y sus movimientos?",
+      "history": [
+        {
+          "role": "user",
+          "content": "¿Cuánto le debemos a DEMOP?"
+        },
+        {
+          "role": "assistant",
+          "content": "Proveedor Demo SA (código DEMOP)\nLe debemos: 100.00.\nImporte sin moneda confirmada."
+        }
+      ],
+      "expected_tool": "consultar_negocio",
+      "expected_arguments": {
+        "operation": "movimientos",
+        "customer": "DEMOP",
+        "codigo_exacto": true
+      },
+      "criteria": [
+        "Movimientos del mismo proveedor."
+      ]
+    },
+    {
+      "id": "supplier-ranking",
+      "question": "¿A quién le debemos más?",
+      "expected_tool": "consultar_negocio",
+      "expected_arguments": {
+        "operation": "ranking_deuda",
+        "entidad": "proveedor"
+      },
+      "criteria": [
+        "Ranking de proveedores, no de clientes."
+      ]
+    },
+    {
+      "id": "purchases-stay-exploratory",
+      "question": "¿Cuánto compramos de maíz este mes?",
+      "expected_tool": "describir_tablas",
+      "expected_arguments": {
+        "tables": [
+          "proadel.COMPRAS_DATA"
+        ]
+      },
+      "criteria": [
+        "Sin un proveedor nombrado sigue siendo exploración de compras."
+      ]
+    },
+    {
+      "id": "statement-without-dates",
+      "question": "Estado de cuenta de Cuervo",
+      "expected_tool": "consultar_negocio",
+      "expected_arguments": {
+        "operation": "estado_cuenta",
+        "customer": "Cuervo"
+      },
+      "criteria": [
+        "Sin fechas se omite period; el servicio aclara a la persona y las pide."
+      ]
+    },
+    {
+      "id": "statement-with-period",
+      "question": "Reporte del proveedor Cuervo de este mes",
+      "expected_tool": "consultar_negocio",
+      "expected_arguments": {
+        "operation": "estado_cuenta",
+        "customer": "Cuervo",
+        "entidad": "proveedor",
+        "period": "este_mes"
+      },
+      "criteria": [
+        "Con fechas en la petición no se vuelven a preguntar."
+      ]
+    },
+    {
+      "id": "statement-dates-followup",
+      "question": "este mes",
+      "history": [
+        {
+          "role": "user",
+          "content": "Estado de cuenta de DEMOP"
+        },
+        {
+          "role": "assistant",
+          "content": "Proveedor Demo SA (código DEMOP)\n¿De qué fechas quieres el estado de cuenta?"
+        }
+      ],
+      "expected_tool": "consultar_negocio",
+      "expected_arguments": {
+        "operation": "estado_cuenta",
+        "customer": "DEMOP",
+        "codigo_exacto": true,
+        "period": "este_mes"
+      },
+      "criteria": [
+        "La respuesta de fechas sigue con el código ya aclarado."
+      ]
+    },
+    {
+      "id": "statement-dates-without-year",
+      "question": "del 30 de agosto a hoy",
+      "history": [
+        {
+          "role": "user",
+          "content": "Estado de cuenta de DEMOP"
+        },
+        {
+          "role": "assistant",
+          "content": "Proveedor Demo SA (código DEMOP)\n¿De qué fechas quieres el estado de cuenta?"
+        }
+      ],
+      "expected_tool": "consultar_negocio",
+      "expected_arguments": {
+        "operation": "estado_cuenta",
+        "customer": "DEMOP",
+        "codigo_exacto": true,
+        "period": "rango",
+        "start": "2026-08-30",
+        "end": "2026-10-08"
+      },
+      "criteria": [
+        "Un rango que termina hoy toma el año actual."
+      ]
+    },
+    {
+      "id": "sales-report-is-not-a-statement",
+      "question": "Reporte de ventas de este mes",
+      "expected_tool": "consultar_negocio",
+      "expected_arguments": {
+        "operation": "ventas",
+        "period": "este_mes"
+      },
+      "criteria": [
+        "«Reporte de» más un dominio no es una persona."
+      ]
+    },
+    {
+      "id": "expenses-report-is-not-a-statement",
+      "question": "Reporte de gastos de este mes",
+      "expected_tool": "describir_tablas",
+      "expected_arguments": {
+        "tables": [
+          "proadel.CATALOGO_GASTOS_DATA_V"
+        ]
+      },
+      "criteria": [
+        "«Reporte de gastos» sigue siendo exploración."
       ]
     }
   ]

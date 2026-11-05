@@ -88,7 +88,13 @@
      "columns": ["CODIGO", "TOTAL"]},
     {"object": "proadel.COMPRAS_DATA", "domain": "compras", "status": "candidate", "access": "exploratory",
      "description": "Partidas de compra a proveedores. CANTIDAD en kg, PRECIO en pesos por kg, IMPORTE = CANTIDAD × PRECIO: sumar IMPORTE, nunca el total de la nota. ESTADO ACTIVA o CANCELADA; usar ACTIVA. FECHA es texto: TRY_CONVERT(date,[FECHA],103). Incluye productos que no son grano (préstamos, fletes, fertilizante): filtrar por CONCEPTO o CODIGO. Maíz: UPPER(CONCEPTO) LIKE '%MA_Z%' excluyendo CODIGO LIKE 'SEMILLA%'. Las partidas con PRECIO < 1 son comisiones por kg sobre grano ya registrado: suman al costo pero no a las toneladas. Toneladas = SUM(CASE WHEN PRECIO >= 1 THEN CANTIDAD ELSE 0 END)/1000; costo total = SUM(IMPORTE) (grano + comisiones); costo promedio por tonelada = SUM(IMPORTE)/toneladas de grano. Las boletas de entrada son la recepción física de estas compras: no sumarlas también.",
-     "columns": ["ID", "TIPODOC", "FECHA", "FOLIO", "PROVEEDOR", "CANTIDAD", "CODIGO", "CONCEPTO", "PRECIO", "IMPORTE", "ESTADO"]}
+     "columns": ["ID", "TIPODOC", "FECHA", "FOLIO", "PROVEEDOR", "CANTIDAD", "CODIGO", "CONCEPTO", "PRECIO", "IMPORTE", "ESTADO"]},
+    {"object": "proadel.CATALOGO_PROVEEDORES_DATA_V", "domain": "compras", "status": "verified", "access": "business_tool",
+     "description": "Catálogo de proveedores; [SALDO ACTUAL] positivo es lo que se le debe al proveedor y negativo, saldo a favor. Solo mediante consultar_negocio.",
+     "columns": ["CODIGO", "NOMBRE", "SALDO ACTUAL", "IMPORTE", "ABONO", "SALDO_INICIAL", "ESTADO"]},
+    {"object": "proadel.PAGO_PROVEEDOR_DATA", "domain": "compras", "status": "verified", "access": "business_tool",
+     "description": "Pagos a proveedores. PROVEEDOR = CODIGO del catálogo; usar ESTADO ACTIVA. Solo mediante consultar_negocio.",
+     "columns": ["ID", "FECHA", "FOLIO", "PROVEEDOR", "IMPORTE", "ESTADO"]}
   ],
   "joins": []
 }

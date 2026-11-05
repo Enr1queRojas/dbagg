@@ -5,6 +5,8 @@ from datetime import timedelta
 from dbagg.business.calendar import business_today
 from dbagg.business.customers import OPERATIONS
 from dbagg.business.products import COMPARISONS, PRODUCT_OPERATIONS
+from dbagg.business.statements import STATEMENT_OPERATION
+from dbagg.business.suppliers import SUPPLIER_ONLY_OPERATIONS
 from dbagg.agent.prompt_files import PROMPT_VERSION as PROMPT_VERSION, load_prompt_bundle
 
 
@@ -53,18 +55,39 @@ def _tool(name, description, properties, required):
     }
 
 
-def tool_definitions(bundle=None):
+def tool_definitions(bundle=None, suppliers=True):
     bundle = bundle or load_prompt_bundle()
     tools = [
         _tool(
             "consultar_negocio",
             bundle.descriptions["consultar_negocio"],
             {
-                "operation": {"type": "string", "enum": list(OPERATIONS + PRODUCT_OPERATIONS)},
+                "operation": {
+                    "type": "string",
+                    "enum": list(
+                        OPERATIONS
+                        + (STATEMENT_OPERATION,)
+                        + (SUPPLIER_ONLY_OPERATIONS if suppliers else ())
+                        + PRODUCT_OPERATIONS
+                    ),
+                },
                 "customer": {
                     "type": "string",
-                    "description": "Nombre o código presente en la conversación. Omitir en ranking.",
+                    "description": "Nombre o código del cliente o proveedor presente en la conversación. "
+                    "Omitir en ranking.",
                 },
+                **(
+                    {
+                        "entidad": {
+                            "type": "string",
+                            "enum": ["cliente", "proveedor"],
+                            "description": "Solo si la pregunta indica si es cliente o proveedor; "
+                            "si no, omitir.",
+                        }
+                    }
+                    if suppliers
+                    else {}
+                ),
                 "codigo_exacto": {
                     "type": "boolean",
                     "description": "true solo si customer es un código que el usuario eligió de una "

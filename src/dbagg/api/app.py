@@ -50,7 +50,14 @@ def is_stale(message, now):
         return True
 
 
-def create_app(settings=None, assistant=None, send_message=None, feedback_store=None, voice=None):
+def create_app(
+    settings=None,
+    assistant=None,
+    send_message=None,
+    feedback_store=None,
+    voice=None,
+    send_document=None,
+):
     settings = settings or Settings.from_env()
     owns_assistant = assistant is None
     assistant = assistant if assistant is not None else Assistant(settings)
@@ -70,7 +77,13 @@ def create_app(settings=None, assistant=None, send_message=None, feedback_store=
     deliver = send_message or meta.send
     voice = voice if voice is not None else build_voice(settings, meta)
     conversation = ConversationService(
-        settings, assistant, deliver, feedback_store, voice, outbox=outbox
+        settings,
+        assistant,
+        deliver,
+        feedback_store,
+        voice,
+        outbox=outbox,
+        deliver_document=send_document or (meta.send_document if send_message is None else None),
     )
 
     @asynccontextmanager
