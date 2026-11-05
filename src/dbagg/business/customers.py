@@ -82,7 +82,7 @@ def validate_context(context, operation):
             },
         ),
     }
-    if operation in {"pagos", "ultimo_pago", "total_pagos", "notas_pendientes"}:
+    if operation in {"pagos", "ultimo_pago", "total_pagos", "notas_pendientes", "estado_cuenta"}:
         expected["collections"] = (
             PAYMENTS,
             {

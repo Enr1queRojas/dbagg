@@ -55,8 +55,8 @@ PERIOD = (date(2026, 8, 30), date(2026, 11, 4))
 
 
 class StatementDatabase:
-    def __init__(self):
-        self.conn = sqlite3.connect(":memory:")
+    def __init__(self, check_same_thread=True):
+        self.conn = sqlite3.connect(":memory:", check_same_thread=check_same_thread)
         self.conn.execute("ATTACH DATABASE ':memory:' AS proadel")
         self.statements = []
         for table, columns in DEFINITIONS.items():

@@ -6,6 +6,7 @@ from uuid import uuid4
 import httpx
 
 from dbagg.agent.prompts import PROMPT_VERSION
+from dbagg.business.statements import DocumentAttachment
 from dbagg.evaluation.gaps import GapStore
 from dbagg.evaluation.store import FeedbackStore, utc_now
 from dbagg.integrations.meta import meta_error_codes
@@ -18,6 +19,7 @@ logger = logging.getLogger("uvicorn.error")
 
 CONTROL_COMMANDS = frozenset({"/diagnostico", "/reiniciar", "/buena", "/mala", "/ayuda"})
 RECOVERY_MAX_HOURS = 1
+DOCUMENT_FAILED = "No pude enviar el PDF del estado de cuenta. Intenta de nuevo."
 UNAUTHORIZED_NOTICE = (
     "Este número no está autorizado para usar este asistente. "
     "Si necesitas acceso, contacta a soporte."
@@ -38,10 +40,12 @@ class ConversationService:
         voice=None,
         gap_store=None,
         outbox=None,
+        deliver_document=None,
     ):
         self.settings = settings
         self.assistant = assistant
         self.deliver = deliver
+        self.deliver_document = deliver_document
         self.voice = voice
         self.gaps = gap_store
         self.outbox = outbox
@@ -142,6 +146,32 @@ class ConversationService:
             logger.warning("dbagg stage=send_failed error_type=%s", type(exc).__name__)
         return False
 
+    def _take_document(self):
+        take = getattr(self.assistant, "pop_document", None)
+        document = take() if callable(take) else None
+        return document if isinstance(document, DocumentAttachment) else None
+
+    def _send_document(self, sender, document):
+        """Never claims delivery on failure; the bytes go nowhere but Meta."""
+        try:
+            if self.deliver_document is None:
+                raise RuntimeError("Sin canal de documentos.")
+            self.deliver_document(sender, document.content, document.filename)
+            logger.info("dbagg stage=document_ok")
+            return True
+        except httpx.HTTPStatusError as exc:
+            code, subcode = meta_error_codes(exc.response)
+            logger.warning(
+                "dbagg stage=document_failed error_type=HTTPStatusError "
+                "http_status=%s meta_code=%s meta_subcode=%s",
+                exc.response.status_code,
+                code,
+                subcode,
+            )
+        except Exception as exc:
+            logger.warning("dbagg stage=document_failed error_type=%s", type(exc).__name__)
+        return False
+
     def recover_pending(self):
         """Reencola mensajes pendientes al arrancar. No-op si no hay outbox."""
         if self.outbox is None:
@@ -183,6 +213,9 @@ class ConversationService:
                     else self.assistant.answer(question)
                 )
                 save_turn = True
+                document = self._take_document()
+                if document is not None and not self._send_document(sender, document):
+                    answer = DOCUMENT_FAILED
         except Exception as exc:
             answer_failed = True
             status = (

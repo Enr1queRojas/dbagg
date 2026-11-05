@@ -29,7 +29,7 @@ SUPPLIER_LIST = re.compile(
 )
 CUSTOMER_LIST = re.compile(r"^Clientes con mayor saldo", flags=re.MULTILINE)
 CUSTOMER_PROSE = re.compile(
-    r"^(?:(?:Saldo actual|Total de pagos activos|Pagos activos|Pagos de la última fecha registrada"
+    r"^(?:(?:Estado de cuenta|Saldo actual|Total de pagos activos|Pagos activos|Pagos de la última fecha registrada"
     r"|Notas de crédito pendientes|Hay pagos activos|Hay pagos"
     r"|No encontré pagos activos con fecha válida) (?:de|para) )?(.+?) \(código ([^()\n]+)\)",
     flags=re.MULTILINE,

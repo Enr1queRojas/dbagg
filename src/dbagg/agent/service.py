@@ -4,6 +4,7 @@ import json
 import logging
 import re
 import unicodedata
+from datetime import timedelta
 import pyodbc
 import sqlglot
 from sqlglot import exp
@@ -15,6 +16,7 @@ from dbagg.agent.prompts import build_messages, tool_definitions
 from dbagg.agent.prompt_files import load_prompt_bundle
 from dbagg.llm.config import LLMConfig, ModelProfile
 from dbagg.llm.providers import create_provider
+from dbagg.reporting.statement_pdf import statement_filename, statement_pdf
 from dbagg.agent.entity import (
     conversation_entity,
     explicit_entity,
@@ -34,7 +36,7 @@ from dbagg.agent.intent import (
     requests_candidate_comparison,
     requests_ranking,
 )
-from dbagg.business.calendar import business_today
+from dbagg.business.calendar import business_today, period_bounds
 from dbagg.business.customers import (
     CUSTOMERS,
     NOT_FOUND_ANSWERS,
@@ -42,9 +44,20 @@ from dbagg.business.customers import (
     CustomerQueries,
     validate_context,
 )
-from dbagg.business.evidence import BusinessAnswer, BusinessError, label, render_exploratory
+from dbagg.business.evidence import (
+    BusinessAnswer,
+    BusinessError,
+    amount,
+    label,
+    render_exploratory,
+)
 from dbagg.business.parties import CUSTOMER, SUPPLIER, PartyDirectory, ambiguous_answer
 from dbagg.business.products import PRODUCT_OPERATIONS, ProductQueries
+from dbagg.business.statements import (
+    STATEMENT_OPERATION,
+    DocumentAttachment,
+    StatementQueries,
+)
 from dbagg.business.suppliers import (
     SUPPLIER_MATCHES_NOT_FOUND,
     SUPPLIER_NOT_FOUND,
@@ -186,6 +199,7 @@ class Assistant:
         # Compatibility for tests/extensions that inject an OpenAI-compatible client.
         self.client = client
         self.catalog = load_catalog()
+        self._document = None
 
     @property
     def tables(self):
@@ -198,6 +212,7 @@ class Assistant:
     def answer(self, question, history=None):
         schema = json.dumps(self.catalog.cards(self.tables), ensure_ascii=False)
         self._customer_missed = False
+        self._document = None
         logger.info("dbagg stage=catalogue_ready")
         context = load_business_context()
         bundle = load_prompt_bundle(self.llm_config)
@@ -424,6 +439,8 @@ class Assistant:
                 )
             if isinstance(entity, BusinessAnswer):
                 return self._business_answer(entity)
+        if arguments.get("operation") == STATEMENT_OPERATION:
+            return self._statement(entity, customer_arguments, context, today)
         if entity == SUPPLIER:
             validate_supplier_context(context)
             supplier_arguments = dict(customer_arguments)
@@ -497,6 +514,79 @@ class Assistant:
         if found[SUPPLIER]:
             return SUPPLIER
         return CUSTOMER if found[CUSTOMER] else model or CUSTOMER
+
+    def _statement(self, entity, arguments, context, today):
+        """Party first, then dates, then the document; nothing is generated before both."""
+        if entity == SUPPLIER:
+            validate_supplier_context(context)
+        else:
+            validate_context(context, STATEMENT_OPERATION)
+        queries = StatementQueries(self.db, self.tables, today=today)
+        found = queries.resolve(
+            entity, arguments.get("customer"), exact_code=arguments.get("codigo_exacto") is True
+        )
+        if isinstance(found, BusinessAnswer):
+            if found.text in ALL_NOT_FOUND_ANSWERS and not self._customer_missed:
+                self._customer_missed = True
+                logger.info("dbagg stage=customer_not_found_retry")
+                raise ToolHint(NOT_A_CUSTOMER_HINT)
+            return self._business_answer(found)
+        name, code = label(found["nombre"]), label(found["codigo"])
+        sources = [CUSTOMERS if entity == CUSTOMER else SUPPLIERS]
+        period = arguments.get("period")
+        if period in (None, "todo"):
+            logger.info("dbagg stage=statement_needs_dates")
+            text = (
+                f"Proveedor {name} (código {code})\n¿De qué fechas quieres el estado de cuenta?"
+                if entity == SUPPLIER
+                else f"Estado de cuenta de {name} (código {code}). ¿De qué fechas lo quieres?"
+            )
+            return self._business_answer(
+                BusinessAnswer.make(text, "needs_clarification", STATEMENT_OPERATION, sources)
+            )
+        try:
+            first, until = period_bounds(
+                period, today, arguments.get("start"), arguments.get("end")
+            )
+        except (ValueError, TypeError, OverflowError):
+            raise BusinessError(
+                "Indica un período válido; para un rango usa inicio y fin en formato YYYY-MM-DD."
+            ) from None
+        statement = queries.build(entity, found["codigo"], first, until - timedelta(days=1))
+        try:
+            content = statement_pdf(statement)
+        except Exception as exc:
+            logger.warning("dbagg stage=statement_pdf_failed error_type=%s", type(exc).__name__)
+            raise BusinessError("No pude generar el PDF del estado de cuenta.") from None
+        self._document = DocumentAttachment(content, statement_filename(statement))
+        identity = (
+            f"Proveedor {name} (código {code})"
+            if entity == SUPPLIER
+            else f"Estado de cuenta de {name} (código {code})"
+        )
+        lines = [
+            identity,
+            f"Estado de cuenta del {statement.start:%d/%m/%Y} al {statement.end:%d/%m/%Y}.",
+            f"Saldo anterior: {amount(statement.opening)}.",
+            f"Saldo al {statement.end:%d/%m/%Y}: {amount(statement.closing)}.",
+            f"Movimientos: {len(statement.rows)}.",
+            *statement.warnings,
+            "Importes sin moneda confirmada.",
+        ]
+        logger.info("dbagg stage=statement_ready rows=%s", len(statement.rows))
+        return self._business_answer(
+            BusinessAnswer.make(
+                "\n".join(lines),
+                "partial" if statement.warnings else "answered",
+                STATEMENT_OPERATION,
+                queries.sources,
+            )
+        )
+
+    def pop_document(self):
+        """The document of the latest answer, once; the conversation delivers it."""
+        document, self._document = self._document, None
+        return document
 
     def _clarifications(self):
         if SUPPLIERS in self.tables:

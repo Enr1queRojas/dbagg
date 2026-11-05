@@ -81,6 +81,12 @@ class Statement:
     warnings: tuple
 
 
+@dataclass(frozen=True)
+class DocumentAttachment:
+    content: bytes
+    filename: str
+
+
 class StatementTooLarge(BusinessError):
     """More rows than a statement may hold; a partial document would mislead."""
 
