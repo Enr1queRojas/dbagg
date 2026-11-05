@@ -74,6 +74,58 @@ class MetaClient:
                     chunks.append(chunk)
         return b"".join(chunks), str(meta.get("mime_type", "audio/ogg"))
 
+    def _post_with_retries(self, path, timeout, **request):
+        """POST to the phone's Graph path, retrying 429, 5xx and timeouts; raises on failure."""
+        last_exc = None
+        for attempt in range(_MAX_ATTEMPTS):
+            if attempt > 0:
+                sleep_secs = 2 ** (attempt - 1)
+                logger.info(
+                    "dbagg stage=document_retry attempt=%s backoff_secs=%s", attempt, sleep_secs
+                )
+                time.sleep(sleep_secs)
+            try:
+                with httpx.Client(timeout=timeout, transport=self.transport) as client:
+                    response = client.post(
+                        f"https://graph.facebook.com/{self.settings.graph_version}"
+                        f"/{self.settings.phone_id}/{path}",
+                        headers={"Authorization": "Bearer " + self.settings.meta_token},
+                        **request,
+                    )
+            except httpx.TimeoutException as exc:
+                last_exc = exc
+                continue
+            if response.status_code == 429 or response.status_code >= 500:
+                last_exc = httpx.HTTPStatusError(
+                    f"HTTP {response.status_code}", request=response.request, response=response
+                )
+                continue
+            response.raise_for_status()
+            return response
+        raise last_exc
+
+    def send_document(self, sender, content, filename):
+        """Upload a PDF to Meta and send it; the bytes stay in memory and out of the logs."""
+        upload = self._post_with_retries(
+            "media",
+            timeout=60,
+            data={"messaging_product": "whatsapp", "type": "application/pdf"},
+            files={"file": (filename, content, "application/pdf")},
+        )
+        media_id = upload.json().get("id")
+        if not media_id:
+            raise ValueError("Meta no devolvió un identificador para el documento.")
+        self._post_with_retries(
+            "messages",
+            timeout=15,
+            json={
+                "messaging_product": "whatsapp",
+                "to": sender,
+                "type": "document",
+                "document": {"id": media_id, "filename": filename},
+            },
+        )
+
     def send(self, sender, text, outbox=None, row_id=None):
         """Envía un mensaje de texto por WhatsApp.
 
