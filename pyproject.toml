@@ -21,10 +21,11 @@ dependencies = [
   "numpy==2.4.6",
   "pandas==3.0.6",
   "tzdata==2026.5",
+  "reportlab==5.1.0",
 ]
 
 [project.optional-dependencies]
-dev = ["ruff==0.16.10", "build==1.6.1", "pip-audit==2.10.1"]
+dev = ["ruff==0.16.10", "build==1.6.1", "pip-audit==2.10.1", "pypdf==6.21.4"]
 
 [project.scripts]
 dbagg-report = "dbagg.reporting.cli:main"
