@@ -7,6 +7,7 @@ from pathlib import Path
 from dbagg.agent.prompt_files import TOOL_NAMES
 from dbagg.agent.service import CLARIFICATIONS
 from dbagg.business.customers import OPERATIONS
+from dbagg.business.statements import STATEMENT_OPERATION
 from dbagg.business.suppliers import SUPPLIER_ONLY_OPERATIONS
 from dbagg.business.products import PRODUCT_OPERATIONS
 
@@ -41,7 +42,10 @@ class EvalCaseTests(unittest.TestCase):
                     if case["expected_tool"] == "consultar_negocio":
                         self.assertIn(
                             arguments.get("operation"),
-                            OPERATIONS + SUPPLIER_ONLY_OPERATIONS + PRODUCT_OPERATIONS,
+                            OPERATIONS
+                            + (STATEMENT_OPERATION,)
+                            + SUPPLIER_ONLY_OPERATIONS
+                            + PRODUCT_OPERATIONS,
                         )
                     if case["expected_tool"] == "pedir_aclaracion":
                         self.assertIn(arguments.get("reason"), CLARIFICATIONS)

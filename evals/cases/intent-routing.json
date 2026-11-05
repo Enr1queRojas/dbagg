@@ -137,12 +137,13 @@
       "id": "whole-statement",
       "question": "Dame el estado de cuenta completo de DEMO1, con ventas, pagos y devoluciones",
       "history": [],
-      "expected_tool": "pedir_aclaracion",
+      "expected_tool": "consultar_negocio",
       "expected_arguments": {
-        "reason": "fuera_alcance"
+        "operation": "estado_cuenta",
+        "customer": "DEMO1"
       },
       "criteria": [
-        "No presentar solo pagos como estado de cuenta completo."
+        "El estado de cuenta tiene operación propia; no se responde solo con pagos."
       ]
     },
     {
@@ -780,6 +781,56 @@
       },
       "criteria": [
         "Sin un proveedor nombrado sigue siendo exploración de compras."
+      ]
+    },
+    {
+      "id": "statement-without-dates",
+      "question": "Estado de cuenta de Cuervo",
+      "expected_tool": "consultar_negocio",
+      "expected_arguments": {
+        "operation": "estado_cuenta",
+        "customer": "Cuervo"
+      },
+      "criteria": [
+        "Sin fechas se omite period; el servicio aclara a la persona y las pide."
+      ]
+    },
+    {
+      "id": "statement-with-period",
+      "question": "Reporte del proveedor Cuervo de este mes",
+      "expected_tool": "consultar_negocio",
+      "expected_arguments": {
+        "operation": "estado_cuenta",
+        "customer": "Cuervo",
+        "entidad": "proveedor",
+        "period": "este_mes"
+      },
+      "criteria": [
+        "Con fechas en la petición no se vuelven a preguntar."
+      ]
+    },
+    {
+      "id": "statement-dates-followup",
+      "question": "este mes",
+      "history": [
+        {
+          "role": "user",
+          "content": "Estado de cuenta de DEMOP"
+        },
+        {
+          "role": "assistant",
+          "content": "Proveedor Demo SA (código DEMOP)\n¿De qué fechas quieres el estado de cuenta?"
+        }
+      ],
+      "expected_tool": "consultar_negocio",
+      "expected_arguments": {
+        "operation": "estado_cuenta",
+        "customer": "DEMOP",
+        "codigo_exacto": true,
+        "period": "este_mes"
+      },
+      "criteria": [
+        "La respuesta de fechas sigue con el código ya aclarado."
       ]
     }
   ]

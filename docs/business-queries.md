@@ -74,6 +74,21 @@ Un código puede pertenecer a dos personas distintas. El servicio decide, en est
 
 Sin las fuentes de proveedores en `SQL_ALLOWED_TABLES`, todo se comporta como antes.
 
+## Estado de cuenta en PDF
+
+`estado_cuenta` aclara primero a la persona con la misma decisión de cliente o proveedor, luego pide las
+fechas si faltan, y entrega un PDF y un resumen en mensajes separados. El PDF no se guarda.
+
+- **Clientes:** créditos (`TOTAL`), cobranza y devoluciones (`IMPORTE`). Sin ventas de contado.
+- **Proveedores:** compras y pagos (`IMPORTE`). No se usa `TOTAL`.
+- **Saldo anterior:** `SALDO_INICIAL` + cargos − abonos activos antes de la fecha inicial.
+- **Cuadre:** `SALDO_INICIAL` + todos los cargos − todos los abonos activos contra `[SALDO ACTUAL]`,
+  con tolerancia de 0.01. Si difiere, el PDF y el resumen lo avisan.
+- **Límite:** 2,000 filas. Si se supera, no se genera un PDF parcial y se piden fechas más cortas.
+- **Si falla el envío:** el bot avisa que no se entregó.
+
+Si el período termina antes de hoy, el saldo final no es el saldo actual; el PDF muestra ambos.
+
 ## Notas de crédito pendientes
 
 Confirmado con datos (2026-10-26, 423 de 423 clientes):

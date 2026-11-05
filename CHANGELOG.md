@@ -1,5 +1,12 @@
 # Cambios
 
+## Sin publicar — Estado de cuenta en PDF
+
+- Por WhatsApp, el bot aclara a la persona, pide fechas y entrega un PDF con el estado de cuenta de un
+  cliente o proveedor, con un resumen aparte.
+- Migración en producción: reconstruir la imagen con ReportLab; publicar los prompts de `config/prompts`
+  en el paquete; probar el envío de documentos con el número real después de desplegar.
+
 ## Sin publicar — Consultas de proveedores
 
 - Saldo, coincidencias, ranking, pagos, notas pendientes, última nota y movimientos de proveedores.

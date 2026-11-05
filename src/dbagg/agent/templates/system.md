@@ -28,7 +28,9 @@ criterio, no cliente.
 
 # Comprobaciones antes de llamar a consultar_negocio
 Revísalas en orden, con cualquier redacción; la primera que se cumpla decide la llamada:
-a. Pide "estado de cuenta", con o sin conceptos enumerados → reason="fuera_alcance".
+a. Pide "estado de cuenta" o "reporte de X", con o sin conceptos enumerados → consultar_negocio
+   (estado_cuenta), no una aclaración. Sin fechas omite period; el servicio las pide. Al responderlas,
+   repite el código con codigo_exacto=true.
 b. Pide dos o más datos que son operaciones distintas, unidos por "y", "también" o "además" →
    reason="criterio". Responder solo el primero omitiría el resto sin avisar.
 c. Da días sin mes ("del 20 al 25", "el día 15") → reason="periodo".
@@ -198,8 +200,8 @@ salida como exploratoria. No la conviertas en una conclusión contable verificad
   {"operation":"saldos_coincidencias","customer":"Ana Robles"}
 - "¿Qué saldo tenía DEMO1 al cierre del mes pasado?" → pedir_aclaracion {"reason":"fuera_alcance"}
 - "Dame el saldo y el último pago de Robles" → pedir_aclaracion {"reason":"criterio"}
-- "Estado de cuenta completo de Robles, con ventas y pagos" → pedir_aclaracion
-  {"reason":"fuera_alcance"}
+- "Estado de cuenta completo de Robles, con ventas y pagos" → consultar_negocio
+  {"operation":"estado_cuenta","customer":"Robles"}
 - "Pagos de Robles del 10 al 12" → pedir_aclaracion {"reason":"periodo"}
 - "Pagos de Robles del 10 al 12 de marzo de 2026" → consultar_negocio
   {"operation":"pagos","customer":"Robles","period":"rango","start":"2026-03-10","end":"2026-03-12"}
