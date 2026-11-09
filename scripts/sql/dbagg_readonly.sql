@@ -46,6 +46,19 @@ GRANT SELECT ON proadel.TOTAL_PROCESOS_PRODUCTOS_V TO dbagg_lectura;
 GRANT SELECT ON proadel.ULTIMO_PEDIDO_PRODUCTO_V TO dbagg_lectura;
 GRANT SELECT ON proadel.VENTAS_DIARIAS_V TO dbagg_lectura;
 GRANT SELECT ON proadel.VW_ALERTASCOBRANZA TO dbagg_lectura;
+-- Bancos: catálogo, desglose y tablas de movimientos por cuenta.
+GRANT SELECT ON proadel.ABONO_DINERO_DATA TO dbagg_lectura;
+GRANT SELECT ON proadel.CATALOGO_BANCOS_DATA TO dbagg_lectura;
+GRANT SELECT ON proadel.CATALOGO_BANCOS_DATA_V TO dbagg_lectura;
+GRANT SELECT ON proadel.INSUMO_CONTADO_DATA TO dbagg_lectura;
+GRANT SELECT ON proadel.PAGO_PRESTAMO_DATA TO dbagg_lectura;
+GRANT SELECT ON proadel.PAGO_TRANSPORTE_DATA TO dbagg_lectura;
+GRANT SELECT ON proadel.POR_ABONAR_DATA TO dbagg_lectura;
+GRANT SELECT ON proadel.POR_APLICAR_DATA TO dbagg_lectura;
+GRANT SELECT ON proadel.PRESTAMO_DATA TO dbagg_lectura;
+GRANT SELECT ON proadel.PRESTAMO_DINERO_DATA TO dbagg_lectura;
+GRANT SELECT ON proadel.RENTAS_DATA TO dbagg_lectura;
+GRANT SELECT ON proadel.TRANSFERENCIAS_BANCOS_DATA TO dbagg_lectura;
 GO
 
 -- Verificación: debe devolver 0, 0, 0, 0 y solo las vistas de arriba.

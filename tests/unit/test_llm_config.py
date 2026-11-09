@@ -149,9 +149,12 @@ class LLMConfigurationTests(unittest.TestCase):
     def test_missing_empty_or_oversized_prompt_fails_explicitly(self):
         self.initialize()
         config = load_llm_config(self.root, {})
-        for content in ("", "x" * 24001):
+        for content in ("", "x" * 26001):
             config.system_prompt.write_text(content, encoding="utf-8")
             with self.assertRaises(ValueError):
                 load_prompt_bundle(config)
+        # Room for local vocabulary, such as the names of bank and cash accounts.
+        config.system_prompt.write_text("x" * 26000, encoding="utf-8")
+        load_prompt_bundle(config)
         with self.assertRaises(ValueError):
             load_prompt_bundle(replace(config, system_prompt=self.root / "absent.md"))

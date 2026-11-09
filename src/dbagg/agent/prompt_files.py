@@ -36,7 +36,7 @@ def _read(path, limit):
 def load_prompt_bundle(config=None):
     system_path = getattr(config, "system_prompt", None) or TEMPLATES / "system.md"
     tools_path = getattr(config, "tool_descriptions", None) or TEMPLATES / "tools.json"
-    system = _read(system_path, 24000)
+    system = _read(system_path, 26000)
     try:
         descriptions = json.loads(_read(tools_path, 8000))
     except json.JSONDecodeError:

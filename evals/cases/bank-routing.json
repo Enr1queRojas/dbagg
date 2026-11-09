@@ -1,0 +1,103 @@
+{
+  "dataset_version": "1",
+  "data_kind": "synthetic",
+  "business_today": "2026-11-09",
+  "execution": "Elección de herramienta con el modelo real: python -m dbagg.evaluation.routing --dataset evals/cases/bank-routing.json. No ejecuta consultas.",
+  "cases": [
+    {
+      "id": "bank-balance-institution",
+      "question": "¿Cuánto hay en Santander?",
+      "expected_tool": "consultar_negocio",
+      "expected_arguments": {"operation": "saldo_banco", "banco": "Santander"},
+      "criteria": ["Una cuenta, no un cliente: banco, nunca customer."]
+    },
+    {
+      "id": "bank-balance-person-cash",
+      "question": "¿Cuánto efectivo tiene Enrique?",
+      "expected_tool": "consultar_negocio",
+      "expected_arguments": {"operation": "saldo_banco", "banco": "Enrique"},
+      "criteria": ["Efectivo de una persona es una cuenta del catálogo de bancos."]
+    },
+    {
+      "id": "bank-balance-petty-cash",
+      "question": "Saldo de caja chica",
+      "expected_tool": "consultar_negocio",
+      "expected_arguments": {"operation": "saldo_banco", "banco": "caja chica"},
+      "criteria": ["Caja chica es una cuenta."]
+    },
+    {
+      "id": "bank-balance-two-words",
+      "question": "¿Cuánto dinero trae Don Leo?",
+      "expected_tool": "consultar_negocio",
+      "expected_arguments": {"operation": "saldo_banco", "banco": "Don Leo"},
+      "criteria": ["Dinero que trae una persona es su cuenta de efectivo."]
+    },
+    {
+      "id": "bank-balance-account-of",
+      "question": "¿Cuánto hay en la cuenta de Sara?",
+      "expected_tool": "consultar_negocio",
+      "expected_arguments": {"operation": "saldo_banco", "banco": "Sara"},
+      "criteria": ["«La cuenta de» nombra la cuenta."]
+    },
+    {
+      "id": "bank-all-balances",
+      "question": "¿Cuánto hay en cada banco?",
+      "expected_tool": "consultar_negocio",
+      "expected_arguments": {"operation": "saldos_bancos"},
+      "criteria": ["Sin banco ni customer."]
+    },
+    {
+      "id": "bank-how-much-money",
+      "question": "¿Cuánto dinero tenemos?",
+      "expected_tool": "consultar_negocio",
+      "expected_arguments": {"operation": "saldos_bancos"},
+      "criteria": ["Lista por cuenta, sin total; no es una aclaración de criterio."]
+    },
+    {
+      "id": "bank-movements-this-month",
+      "question": "Movimientos de Bancomer este mes",
+      "expected_tool": "consultar_negocio",
+      "expected_arguments": {"operation": "movimientos_banco", "banco": "Bancomer", "period": "este_mes"},
+      "criteria": ["Período este_mes."]
+    },
+    {
+      "id": "bank-withdrawals-last-week",
+      "question": "¿Qué salió de caja chica la semana pasada?",
+      "expected_tool": "consultar_negocio",
+      "expected_arguments": {"operation": "movimientos_banco", "banco": "caja chica", "period": "semana_pasada"},
+      "criteria": ["Salidas de una cuenta son sus movimientos."]
+    },
+    {
+      "id": "bank-movements-range",
+      "question": "Movimientos de Bajío del 1 al 15 de octubre de 2026",
+      "expected_tool": "consultar_negocio",
+      "expected_arguments": {"operation": "movimientos_banco", "banco": "Bajío", "period": "rango", "start": "2026-10-01", "end": "2026-10-15"},
+      "criteria": ["Rango con fechas ISO; sin año se pide el periodo, igual que en clientes."]
+    },
+    {
+      "id": "bank-followup-movements",
+      "question": "¿Y sus movimientos de este mes?",
+      "history": [
+        {"role": "user", "content": "¿Cuánto hay en Santander?"},
+        {"role": "assistant", "content": "Cuenta SANTANDER (SANTANDER CUENTA)\nSaldo actual: 113,735.59.\nImportes en pesos."}
+      ],
+      "expected_tool": "consultar_negocio",
+      "expected_arguments": {"operation": "movimientos_banco", "banco": "SANTANDER", "period": "este_mes"},
+      "criteria": ["Sigue con la cuenta mostrada en «Cuenta X»."]
+    },
+    {
+      "id": "bank-not-customer-debt",
+      "question": "¿Cuánto debe Enrique?",
+      "expected_tool": "consultar_negocio",
+      "expected_arguments": {"operation": "saldo", "customer": "Enrique"},
+      "criteria": ["Deuda de una persona es de clientes aunque exista una cuenta ENRIQUE."]
+    },
+    {
+      "id": "bank-not-customer-payments",
+      "question": "¿Cuánto pagó Sara esta semana?",
+      "expected_tool": "consultar_negocio",
+      "expected_arguments": {"operation": "total_pagos", "customer": "Sara", "period": "esta_semana"},
+      "criteria": ["Pagos de una persona son cobranza de clientes, no movimientos de la cuenta SARA."]
+    }
+  ]
+}

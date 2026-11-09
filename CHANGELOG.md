@@ -1,5 +1,16 @@
 # Cambios
 
+## Sin publicar — Consultas de bancos
+
+- Saldo de una cuenta con su desglose por concepto, saldos de todas las cuentas sin sumar y
+  movimientos de una cuenta por período (`saldo_banco`, `saldos_bancos`, `movimientos_banco`).
+  Incluye efectivo de personas, caja chica y créditos; detalle en
+  [docs/business-queries.md](docs/business-queries.md#bancos).
+- Migración en producción, antes de desplegar: aplicar los `GRANT` nuevos de
+  `scripts/sql/dbagg_readonly.sql` (12 tablas de bancos); confirmar que `SQL_ALLOWED_TABLES` incluye
+  esas tablas; publicar con el paquete `config/prompts/agent-v7.md` y `config/prompts/tools.json`,
+  que ya traen la sección de bancos.
+
 ## Sin publicar — Estado de cuenta en PDF
 
 - Por WhatsApp, el bot aclara a la persona, pide fechas y entrega un PDF con el estado de cuenta de un

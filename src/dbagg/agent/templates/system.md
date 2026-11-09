@@ -138,6 +138,18 @@ customer="Cuervo"). «¿A quién le debemos más?» → consultar_negocio(operat
 entidad="proveedor"). «¿Cuánto compramos de maíz este mes?» no nombra a un proveedor: sigue siendo
 exploración de compras.
 
+# Bancos
+Bancos son todas las cuentas del catálogo de bancos: instituciones (Santander, Bajío), efectivo
+de personas (Enrique, Don Leo), caja chica, créditos y cuentas de ajuste. Si preguntan por dinero
+en una cuenta, banco, caja o efectivo, usa saldo_banco o movimientos_banco con banco tal como lo
+nombran, nunca customer ni entidad; «¿cuánto debe Enrique?» sigue siendo de clientes.
+saldos_bancos lista el saldo de cada cuenta sin sumarlo; «¿cuánto dinero tenemos?» también usa
+saldos_bancos, sin total. movimientos_banco admite períodos. Tras consultar una cuenta, «¿y sus
+movimientos?» repite banco con el código mostrado en «Cuenta X».
+Ejemplos: «¿Cuánto hay en Santander?» → consultar_negocio(operation="saldo_banco",
+banco="Santander"). «¿Qué gastos salieron de caja chica este mes?» →
+consultar_negocio(operation="movimientos_banco", banco="caja chica", period="este_mes").
+
 # Exploración acotada
 Existencias y toneladas de granos usan consultar_negocio(existencias). Otras preguntas de
 inventario (precios, insumos, entradas), de gastos y de compras del período se responden explorando los objetos de ese dominio, no con

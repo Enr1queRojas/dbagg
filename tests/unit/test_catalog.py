@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock, patch
 from sqlglot.errors import ParseError
 from dbagg.agent.service import Assistant
+from dbagg.business.banks import BANK_PROTECTED_SOURCES
 from dbagg.business.customers import PROTECTED_SOURCES
 from dbagg.business.suppliers import SUPPLIER_PROTECTED_SOURCES
 from dbagg.config import Settings
@@ -23,12 +24,14 @@ class CatalogTests(unittest.TestCase):
 
     def test_first_domains_are_catalogued(self):
         domains = {s.domain for s in self.catalog.sources.values()}
-        self.assertEqual(domains, {"clientes", "gastos", "inventarios", "compras"})
+        self.assertEqual(domains, {"clientes", "gastos", "inventarios", "compras", "bancos"})
         self.assertTrue(self.catalog.version.startswith("catalog-v1:"))
 
     def test_business_tool_sources_match_verified_contracts(self):
         business = {n for n, s in self.catalog.sources.items() if s.access == "business_tool"}
-        self.assertEqual(business, set(PROTECTED_SOURCES | SUPPLIER_PROTECTED_SOURCES))
+        self.assertEqual(
+            business, set(PROTECTED_SOURCES | SUPPLIER_PROTECTED_SOURCES | BANK_PROTECTED_SOURCES)
+        )
 
     def test_personal_columns_are_never_catalogued(self):
         for source in self.catalog.sources.values():
@@ -43,7 +46,7 @@ class CatalogTests(unittest.TestCase):
             "proadel.carga_masiva_bancos_temporary",
             "proadel.override_ultimo_consumo_maiz",
             "proadel.lista_clientes_v",
-            "proadel.rentas_data",
+            "proadel.temporadas_data",
         }
         self.assertEqual(self.catalog.restrict(configured), {GASTOS})
 
@@ -77,7 +80,7 @@ class CatalogTests(unittest.TestCase):
                     parse_catalog(json.dumps(bad))
 
     def test_cards_list_only_configured_objects_with_domain(self):
-        cards = self.catalog.cards({GASTOS, "proadel.rentas_data"})
+        cards = self.catalog.cards({GASTOS, "proadel.temporadas_data"})
         self.assertEqual([c["objeto"] for c in cards["objetos"]], ["proadel.GASTOS_DATA"])
         self.assertEqual(set(cards["dominios"]), {"gastos"})
         self.assertEqual(cards["objetos"][0]["estado"], "candidate")
@@ -179,7 +182,7 @@ class CatalogValidationTests(unittest.TestCase):
             "JOIN proadel.ALMACENES_DISPONIBLES_V a ON a.CODIGO = g.DESTINO",
             "SELECT IMPORTE FROM proadel.GASTOS_DATA WHERE DESTINO IN "
             "(SELECT CODIGO FROM proadel.ALMACENES_DISPONIBLES_V)",
-            "SELECT IMPORTE FROM proadel.RENTAS_DATA",
+            "SELECT IMPORTE FROM proadel.TEMPORADAS_DATA",
         ):
             with self.subTest(sql=sql), self.assertRaises((ValueError, ParseError)):
                 self.validate(sql)
@@ -259,7 +262,7 @@ class CatalogAgentTests(unittest.TestCase):
 
     def test_prompt_shows_domain_cards_and_hides_uncatalogued_objects(self):
         assistant = Assistant(
-            SimpleNamespace(model="test", tables={GASTOS, "proadel.rentas_data"}),
+            SimpleNamespace(model="test", tables={GASTOS, "proadel.temporadas_data"}),
             db=Mock(),
             client=Mock(),
         )
@@ -271,7 +274,7 @@ class CatalogAgentTests(unittest.TestCase):
         prompt = create.call_args.kwargs["messages"][0]["content"]
         self.assertIn("proadel.GASTOS_DATA", prompt)
         self.assertIn('"dominio": "gastos"', prompt)
-        self.assertNotIn("RENTAS_DATA", prompt)
+        self.assertNotIn("TEMPORADAS_DATA", prompt)
         self.assertTrue(assistant.last_trace["catalog_version"].startswith("catalog-v1:"))
 
     def test_inventory_question_is_explored_and_marked_exploratory(self):
@@ -383,14 +386,14 @@ class CatalogSettingsTests(unittest.TestCase):
     def test_environment_can_narrow_but_not_extend_the_catalogue(self):
         with self.assertLogs("uvicorn.error", level="WARNING") as logs:
             settings = self.settings(
-                "proadel.GASTOS_DATA,proadel.CARGA_MASIVA_BANCOS_TEMPORARY,proadel.RENTAS_DATA"
+                "proadel.GASTOS_DATA,proadel.CARGA_MASIVA_BANCOS_TEMPORARY,proadel.TEMPORADAS_DATA"
             )
         self.assertEqual(settings.tables, {GASTOS})
         self.assertIn("2 objetos fuera del catálogo", logs.output[0])
 
     def test_no_catalogued_object_fails_at_startup(self):
         with self.assertRaisesRegex(ValueError, "catálogo"):
-            self.settings("proadel.RENTAS_DATA")
+            self.settings("proadel.TEMPORADAS_DATA")
 
 
 if __name__ == "__main__":

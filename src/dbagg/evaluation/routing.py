@@ -9,13 +9,15 @@ from dbagg.agent.intent import requests_candidate_comparison
 from dbagg.agent.prompt_files import load_prompt_bundle
 from dbagg.agent.prompts import build_messages, tool_definitions
 from dbagg.agent.service import Assistant, _normalize, code_confirmed
+from dbagg.business.banks import BANKS
+from dbagg.business.suppliers import SUPPLIERS
 from dbagg.config import Settings
 from dbagg.context.loader import load_business_context
 from dbagg.paths import project_root
 
 # Sending one of these is the same request as omitting it, unless the case expects another value.
 DEFAULTS = {"period": "todo", "limit": 5, "codigo_exacto": False, "comparar": "periodo_anterior"}
-NAME_ARGUMENTS = {"customer", "producto"}
+NAME_ARGUMENTS = {"customer", "producto", "banco"}
 
 
 def _canonical(arguments):
@@ -43,7 +45,12 @@ def observe(assistant, case, today):
     messages = build_messages(
         schema, load_business_context(), question, case.get("history"), today=today, bundle=bundle
     )
-    tools = tool_definitions(bundle)
+    # The same tools the service offers for these tables.
+    tools = tool_definitions(
+        bundle,
+        suppliers=SUPPLIERS in assistant.tables,
+        banks=BANKS in assistant.tables,
+    )
     calls = assistant.provider.complete(messages, tools).tool_calls
     if not calls:
         # The service asks once more before giving up; that second reply is what it acts on.

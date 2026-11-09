@@ -37,6 +37,13 @@ from dbagg.agent.intent import (
     requests_candidate_comparison,
     requests_ranking,
 )
+from dbagg.business.banks import (
+    BANK_OPERATIONS,
+    BANK_PROTECTED_SOURCES,
+    BANKS,
+    BankQueries,
+    validate_bank_context,
+)
 from dbagg.business.calendar import business_today, period_bounds
 from dbagg.business.customers import (
     CUSTOMERS,
@@ -232,7 +239,9 @@ class Assistant:
             return COMPARISON_CLARIFICATION
         today = business_today(getattr(self.settings, "business_timezone", "America/Mexico_City"))
         messages = build_messages(schema, context, question, history, today=today, bundle=bundle)
-        tools = tool_definitions(bundle, suppliers=SUPPLIERS in self.tables)
+        tools = tool_definitions(
+            bundle, suppliers=SUPPLIERS in self.tables, banks=BANKS in self.tables
+        )
         attempts, descriptions = 0, 0
         described = set()
         latest_result = None
@@ -342,6 +351,9 @@ class Assistant:
     def _consult_business(self, arguments, context, question, history, today):
         model_entity = arguments.get("entidad")
         arguments = {k: v for k, v in arguments.items() if k != "entidad"}
+        if arguments.get("operation") in BANK_OPERATIONS:
+            return self._bank(arguments, context, today)
+        arguments = {k: v for k, v in arguments.items() if k != "banco"}
         if arguments.get("operation") in PRODUCT_OPERATIONS:
             answer = ProductQueries(self.db, self.tables, today=today).execute(**arguments)
             return self._business_answer(answer)
@@ -472,6 +484,30 @@ class Assistant:
             self._customer_missed = True
             logger.info("dbagg stage=customer_not_found_retry")
             raise ToolHint(NOT_A_CUSTOMER_HINT)
+        return self._business_answer(answer)
+
+    def _bank(self, arguments, context, today):
+        """Accounts are resolved in their own catalogue, never against customers or suppliers."""
+        operation = arguments["operation"]
+        if BANKS not in self.tables:
+            logger.info("dbagg stage=banks_not_enabled")
+            return self._business_answer(
+                BusinessAnswer.make(
+                    "La consulta de bancos no está habilitada en este servicio.",
+                    "unavailable",
+                    operation,
+                    [],
+                )
+            )
+        validate_bank_context(context)
+        bank_arguments = {
+            k: v for k, v in arguments.items() if k in ("period", "start", "end", "limit")
+        }
+        # The model sometimes names the account in customer; it is still an account here.
+        bank = arguments.get("banco") or arguments.get("customer")
+        if operation != "saldos_bancos":
+            bank_arguments["banco"] = bank
+        answer = BankQueries(self.db, self.tables, today=today).execute(operation, **bank_arguments)
         return self._business_answer(answer)
 
     def _party_entity(self, directory, arguments, model_entity, question, history):
@@ -630,7 +666,7 @@ class Assistant:
             f"{table.db}.{table.name}".lower()
             for table in sqlglot.parse_one(sql, read="tsql").find_all(exp.Table)
         }
-        if referenced & (PROTECTED_SOURCES | SUPPLIER_PROTECTED_SOURCES):
+        if referenced & (PROTECTED_SOURCES | SUPPLIER_PROTECTED_SOURCES | BANK_PROTECTED_SOURCES):
             raise ValueError("Estas fuentes requieren las operaciones de negocio verificadas.")
         if not referenced.issubset(described):
             raise ValueError("Primero inspecciona las columnas de los objetos usados.")

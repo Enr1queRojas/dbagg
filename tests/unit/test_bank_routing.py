@@ -1,0 +1,119 @@
+"""Bank operations reach BankQueries directly; account names never go to the party lookup."""
+
+import json
+import unittest
+from types import SimpleNamespace
+
+from dbagg.agent.prompts import tool_definitions
+from dbagg.agent.service import Assistant
+from dbagg.business.banks import BANK_SOURCES, BANKS, MOVEMENT_SOURCES
+from dbagg.business.customers import CUSTOMERS
+from dbagg.llm.config import LLMConfig, ModelProfile
+from dbagg.llm.types import ModelReply, ToolCall
+from tests.unit.test_bank_queries import BankDatabase
+
+
+class OneCallProvider:
+    def __init__(self, reply):
+        self.reply = reply
+
+    def complete(self, messages, tools, require_tool=False):
+        return self.reply
+
+    def close(self):
+        pass
+
+
+class BankRoutingTests(unittest.TestCase):
+    def setUp(self):
+        self.db = BankDatabase()
+        self.addCleanup(self.db.conn.close)
+        self.db.account("ENRIQUE", "EFECTIVOS ENRIQUE ROJAS", opening="-20")
+        self.db.account("SANTANDER", "SANTANDER CUENTA", opening="100")
+
+    def ask(self, question, tables=None, **arguments):
+        call = ToolCall("t1", "consultar_negocio", json.dumps(arguments))
+        settings = SimpleNamespace(
+            model="test-model",
+            api_key="synthetic",
+            tables=tables if tables is not None else set(BANK_SOURCES),
+            llm=LLMConfig(ModelProfile(model="test-model")),
+        )
+        provider = OneCallProvider(ModelReply(None, (call,), {}))
+        service = Assistant(settings, db=self.db, provider=provider)
+        return service.answer(question), service.last_trace
+
+    def test_balance_of_a_named_account(self):
+        text, trace = self.ask(
+            "¿Cuánto hay en Santander?", operation="saldo_banco", banco="Santander"
+        )
+        self.assertTrue(text.startswith("Cuenta SANTANDER (SANTANDER CUENTA)"))
+        self.assertEqual(trace["operation"], "saldo_banco")
+
+    def test_account_sent_as_customer_still_answers(self):
+        text, _ = self.ask(
+            "¿Cuánto efectivo tiene Enrique?", operation="saldo_banco", customer="Enrique"
+        )
+        self.assertIn("Saldo actual: -20.00.", text)
+
+    def test_all_balances(self):
+        text, _ = self.ask("¿Cuánto hay en cada banco?", operation="saldos_bancos")
+        self.assertIn("• ENRIQUE (EFECTIVOS ENRIQUE ROJAS): -20.00", text)
+
+    def test_movements_with_period(self):
+        source = next(s for s in MOVEMENT_SOURCES if s.concept == "Cobranza")
+        self.db.movement(source.table, source.column, "SANTANDER", "2026-11-02", 500)
+        text, _ = self.ask(
+            "Movimientos de Santander este mes",
+            operation="movimientos_banco",
+            banco="Santander",
+            period="este_mes",
+        )
+        self.assertIn("Cobranza", text)
+
+    def test_without_bank_sources_says_it_is_not_enabled(self):
+        text, trace = self.ask(
+            "¿Cuánto hay en Santander?",
+            tables={CUSTOMERS},
+            operation="saldo_banco",
+            banco="Santander",
+        )
+        self.assertIn("no está habilitada", text)
+        self.assertEqual(trace["status"], "unavailable")
+
+
+class BankToolTests(unittest.TestCase):
+    def properties(self, **kwargs):
+        tools = tool_definitions(**kwargs)
+        function = next(
+            t.get("function", t)
+            for t in tools
+            if t.get("function", t)["name"] == "consultar_negocio"
+        )
+        return function["parameters"]["properties"]
+
+    def test_tool_offers_bank_operations_and_argument(self):
+        props = self.properties(banks=True)
+        self.assertIn("saldo_banco", props["operation"]["enum"])
+        self.assertIn("movimientos_banco", props["operation"]["enum"])
+        self.assertIn("banco", props)
+
+    def test_without_banks_the_tool_offers_nothing_of_theirs(self):
+        props = self.properties(banks=False)
+        self.assertNotIn("saldo_banco", props["operation"]["enum"])
+        self.assertNotIn("banco", props)
+
+    def test_bank_sources_cannot_be_explored_with_sql(self):
+        settings = SimpleNamespace(
+            model="test-model",
+            api_key="synthetic",
+            tables=set(BANK_SOURCES),
+            llm=LLMConfig(ModelProfile(model="test-model")),
+        )
+        service = Assistant(settings, db=BankDatabase(), provider=OneCallProvider(None))
+        with self.assertRaises(ValueError):
+            service._query_sql(f"SELECT [CODIGO] FROM {BANKS}", {BANKS})
+
+
+if __name__ == "__main__":
+    unittest.main()

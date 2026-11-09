@@ -113,6 +113,13 @@
       "columns": {"supplier_key": "PROVEEDOR", "amount": "IMPORTE", "date": "FECHA", "status": "ESTADO", "record_id": "ID", "receipt": "FOLIO"},
       "confirmed_filters": {"ESTADO": "ACTIVA"}
     },
+    "bank_accounts": {
+      "status": "confirmed_by_owner",
+      "preferred_sources": ["proadel.CATALOGO_BANCOS_DATA_V", "proadel.CATALOGO_BANCOS_DATA"],
+      "columns": {"current_balance": "SALDO ACTUAL"},
+      "confirmed_filters": {"ESTADO": "ACTIVA"},
+      "rule": "Bancos incluye efectivo de personas y créditos. Pesos; negativo tal cual; nunca sumar cuentas."
+    },
     "suppliers_and_purchases": {
       "questions": ["¿Cuánto compramos este mes?"],
       "status": "candidate_by_name",

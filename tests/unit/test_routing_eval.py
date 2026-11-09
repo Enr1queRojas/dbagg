@@ -9,6 +9,7 @@ from dbagg.agent.service import Assistant
 from dbagg.evaluation.routing import matches, observe, run
 from dbagg.llm.config import LLMConfig, ModelProfile
 from dbagg.llm.types import ModelReply, ToolCall
+from dbagg.business.banks import BANK_SOURCES
 from tests.unit.test_customer_queries import CUSTOMERS, PAYMENTS
 
 
@@ -25,9 +26,11 @@ class FakeProvider:
     def __init__(self, *replies):
         self.replies = list(replies)
         self.calls = []
+        self.tools = []
 
     def complete(self, messages, tools, require_tool=False):
         self.calls.append(messages)
+        self.tools.append(tools)
         next_reply = self.replies.pop(0)
         if isinstance(next_reply, Exception):
             raise next_reply
@@ -42,11 +45,11 @@ class NoDatabase:
         raise AssertionError("La evaluación de enrutamiento no debe consultar la base.")
 
 
-def assistant(provider):
+def assistant(provider, tables=None):
     settings = SimpleNamespace(
         model="test-model",
         api_key="synthetic",
-        tables={CUSTOMERS, PAYMENTS},
+        tables=tables or {CUSTOMERS, PAYMENTS},
         llm=LLMConfig(ModelProfile(model="test-model")),
     )
     return Assistant(settings, db=NoDatabase(), provider=provider)
@@ -135,6 +138,21 @@ class ObserveTests(unittest.TestCase):
         self.assertEqual(messages[1:3], history)
         self.assertEqual(messages[-1]["content"], "¿Cuánto debe DEMO1?")
         self.assertIn('"today": "2026-10-08"', messages[0]["content"])
+
+    def test_offers_the_operations_the_service_would_offer(self):
+        def operations(tables):
+            provider = FakeProvider(reply("consultar_negocio", operation="saldos_bancos"))
+            observe(assistant(provider, tables), case(), date(2026, 10, 8))
+            tool = next(
+                t["function"]
+                for t in provider.tools[0]
+                if t["function"]["name"] == "consultar_negocio"
+            )
+            return tool["parameters"]["properties"]["operation"]["enum"]
+
+        self.assertIn("saldo_banco", operations({CUSTOMERS, PAYMENTS, *BANK_SOURCES}))
+        self.assertNotIn("saldo_banco", operations({CUSTOMERS, PAYMENTS}))
+        self.assertNotIn("movimientos", operations({CUSTOMERS, PAYMENTS}))
 
     def test_exact_code_flag_counts_only_when_the_service_would_honor_it(self):
         flagged = dict(operation="saldo", customer="DEMO1", codigo_exacto=True)

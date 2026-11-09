@@ -2,6 +2,7 @@
 
 import json
 from datetime import timedelta
+from dbagg.business.banks import BANK_OPERATIONS
 from dbagg.business.calendar import business_today
 from dbagg.business.customers import OPERATIONS
 from dbagg.business.products import COMPARISONS, PRODUCT_OPERATIONS
@@ -55,7 +56,7 @@ def _tool(name, description, properties, required):
     }
 
 
-def tool_definitions(bundle=None, suppliers=True):
+def tool_definitions(bundle=None, suppliers=True, banks=False):
     bundle = bundle or load_prompt_bundle()
     tools = [
         _tool(
@@ -69,6 +70,7 @@ def tool_definitions(bundle=None, suppliers=True):
                         + (STATEMENT_OPERATION,)
                         + (SUPPLIER_ONLY_OPERATIONS if suppliers else ())
                         + PRODUCT_OPERATIONS
+                        + (BANK_OPERATIONS if banks else ())
                     ),
                 },
                 "customer": {
@@ -86,6 +88,17 @@ def tool_definitions(bundle=None, suppliers=True):
                         }
                     }
                     if suppliers
+                    else {}
+                ),
+                **(
+                    {
+                        "banco": {
+                            "type": "string",
+                            "description": "Solo saldo_banco y movimientos_banco: cuenta de banco "
+                            "o efectivo tal como la nombran (Santander, caja chica, Don Leo).",
+                        }
+                    }
+                    if banks
                     else {}
                 ),
                 "codigo_exacto": {

@@ -74,6 +74,50 @@ Un código puede pertenecer a dos personas distintas. El servicio decide, en est
 
 Sin las fuentes de proveedores en `SQL_ALLOWED_TABLES`, todo se comporta como antes.
 
+## Bancos
+
+«Bancos» son las 25 cuentas de `CATALOGO_BANCOS_DATA`: instituciones (SANTANDER, BAJIO), efectivo de
+personas (ENRIQUE, DON LEO), CAJA CHICA, créditos (CRET-SANTANDER) y cuentas de ajuste (AJUSTES,
+POR APLICAR). Se resuelven en su propio catálogo, nunca contra clientes o proveedores, aunque una
+cuenta se llame como una persona.
+
+| Pregunta | Operación | Fuente y regla |
+| --- | --- | --- |
+| ¿Cuánto hay en Santander? | `saldo_banco` | `CATALOGO_BANCOS_DATA_V.[SALDO ACTUAL]` y desglose por concepto de `CATALOGO_BANCOS_DATA` |
+| ¿Cuánto hay en cada banco? | `saldos_bancos` | `[SALDO ACTUAL]` de cada cuenta, sin sumar; las inactivas en cero solo se cuentan |
+| Movimientos de caja chica este mes | `movimientos_banco` | Filas activas de las tablas de origen por cuenta; totales por concepto en SQL y los últimos 1 a 10 movimientos |
+
+Reglas confirmadas por el responsable (2026-11-09): importes en pesos, incluida DOLARES; un saldo
+negativo se muestra tal cual, sin interpretarlo; los saldos de varias cuentas nunca se suman.
+
+Resolución: código o nombre de cuenta exacto (sin acentos ni mayúsculas) gana; si no, coincidencia
+parcial, y ante varias se pide elegir. «Santander» es SANTANDER, no CRET-SANTANDER ni NSANTANDER.
+
+### Evidencia (2026-11-09)
+
+| Hecho | Resultado |
+| --- | --- |
+| `[SALDO ACTUAL]` = `SALDO INICIAL` + `DEPOSITOS` − `RETIROS` | 25 de 25 cuentas |
+| `DEPOSITOS` y `RETIROS` = suma de sus columnas por concepto | 25 de 25 |
+| Cada concepto = `SUM(IMPORTE)` de su tabla con `ESTADO='ACTIVA'`, por cuenta | 25 de 25, salvo lo de abajo |
+| Claves duplicadas · filas con cuenta inexistente · fechas inválidas activas | 0 · 0 · 0 |
+| `CONTADO_DATA` | Varias partidas por `FOLIO`: se agrupa por folio |
+
+| Concepto | Tabla y columna de cuenta |
+| --- | --- |
+| Depósitos | `CONTADO_DATA.BANCO`, `COBRANZA_DATA.BANCO`, `RENTAS_DATA.BANCO`, `PAGO_PRESTAMO_DATA.BANCO`, `TRANSFERENCIAS_BANCOS_DATA.[BANCO DESTINO]`, `INSUMO_CONTADO_DATA.BANCO`, `ABONO_DINERO_DATA.BANCO`, `POR_APLICAR_DATA.[BANCO DESTINO]` |
+| Retiros | `PAGO_PROVEEDOR_DATA.BANCO`, `GASTOS_DATA.[RETIRADO DE]`, `PRESTAMO_DATA.BANCO`, `PAGO_TRANSPORTE_DATA.BANCO`, `TRANSFERENCIAS_BANCOS_DATA.[BANCO ORIGEN]`, `PRESTAMO_DINERO_DATA.BANCO`, `POR_APLICAR_DATA.[BANCO ORIGEN]`, `POR_ABONAR_DATA.[BANCO DESTINO]` |
+
+Diferencias conocidas, pendientes de explicar:
+
+- **Maniobras:** `MANIOBRAS_DATA` no tiene columna de cuenta; las 31,286 filas activas (3,964,616.61)
+  forman `RETIROS_MANIOBRAS` de ELEAZAR. Aparecen en su saldo y `movimientos_banco` lo advierte.
+- **Contado de ELEAZAR:** el catálogo marca 15,299.50 menos que sus filas activas de `CONTADO_DATA`;
+  no lo explican devoluciones ni un folio único.
+
+Sin `proadel.CATALOGO_BANCOS_DATA_V` en `SQL_ALLOWED_TABLES`, las operaciones de bancos responden que
+no están habilitadas. Las tablas nuevas son `business_tool`: no se exploran con `consultar_sql`.
+
 ## Estado de cuenta en PDF
 
 `estado_cuenta` aclara primero a la persona con la misma decisión de cliente o proveedor, luego pide las
