@@ -4,6 +4,7 @@ import json
 import sqlite3
 import unittest
 from datetime import date
+from decimal import Decimal
 
 import sqlglot
 
@@ -20,7 +21,7 @@ from dbagg.business.banks import (
 from dbagg.business.evidence import BusinessError
 from dbagg.context.loader import load_business_context
 from dbagg.database.catalog import load_catalog
-from dbagg.limits import MAX_ROWS
+from dbagg.limits import MAX_REPORT_ROWS, MAX_ROWS
 
 TODAY = date(2026, 11, 9)
 
@@ -88,6 +89,9 @@ class BankDatabase:
     def query(self, sql, params=(), row_limit=50):
         if not 1 <= row_limit <= MAX_ROWS:
             raise ValueError("Límite de filas inválido.")  # as the real client
+        return self._run(sql, params, row_limit)
+
+    def _run(self, sql, params, row_limit):
         rendered = sqlglot.transpile(sql, read="tsql", write="sqlite")[0]
         params = tuple(p.isoformat() if isinstance(p, date) else p for p in params)
         cursor = self.conn.execute(rendered, params)
@@ -97,6 +101,11 @@ class BankDatabase:
             "rows": [[None if v is None else str(v) for v in row] for row in rows[:row_limit]],
             "has_more": len(rows) > row_limit,
         }
+
+    def query_report(self, sql, params=(), row_limit=MAX_REPORT_ROWS):
+        if not 1 <= row_limit <= MAX_REPORT_ROWS:
+            raise ValueError("Límite de filas inválido.")  # as the real client
+        return self._run(sql, params, row_limit)
 
     def account(self, code, name, opening="0", state="ACTIVO", **concepts):
         """Catalog row whose totals are derived from the concept columns, as in production."""
@@ -156,11 +165,13 @@ class BankBalanceTests(BankCase):
         self.assertIn("Saldo actual: 800.00.", answer.text)
         self.assertEqual(answer.status, "answered")
 
-    def test_balance_lists_only_nonzero_concepts(self):
-        text = self.run_op("saldo_banco", "SANTANDER").text
-        self.assertIn("• Cobranza: 1,000.00", text)
-        self.assertIn("• Gastos: 300.00", text)
-        self.assertNotIn("Rentas", text)
+    def test_balance_is_short_without_breakdown(self):
+        answer = self.run_op("saldo_banco", "SANTANDER")
+        self.assertEqual(
+            answer.text.splitlines(),
+            ["Cuenta SANTANDER (SANTANDER CUENTA)", "Saldo actual: 800.00.", "Importes en pesos."],
+        )
+        self.assertIsNone(self.queries.report)
 
     def test_negative_balance_is_shown_as_is(self):
         self.db.account(
@@ -270,7 +281,7 @@ class MovementTests(BankCase):
     def test_lists_latest_deposits_and_withdrawals_with_sign(self):
         self.add(self.cobranza, "2026-11-02", 1000, folio=10)
         self.add(self.gastos, "2026-11-03", 300, folio=20)
-        text = self.run_op("movimientos_banco", "SANTANDER", period="este_mes").text
+        text = self.run_op("movimientos_banco", "SANTANDER").text
         self.assertIn("• 2026-11-03 · Gastos · folio 20 · −300.00", text)
         self.assertIn("• 2026-11-02 · Cobranza · folio 10 · +1,000.00", text)
         self.assertLess(text.index("2026-11-03"), text.index("2026-11-02"))
@@ -278,7 +289,7 @@ class MovementTests(BankCase):
     def test_period_totals_cover_all_rows_not_only_the_listed_ones(self):
         for day in range(1, 8):
             self.add(self.cobranza, f"2026-11-0{day}", 100)
-        text = self.run_op("movimientos_banco", "SANTANDER", period="este_mes", limit=2).text
+        text = self.run_op("movimientos_banco", "SANTANDER", limit=2).text
         self.assertIn("Depósitos: 700.00 · Retiros: 0.00.", text)
         self.assertIn("• Cobranza: +700.00 (7)", text)
         self.assertIn("Hay más movimientos", text)
@@ -303,15 +314,19 @@ class MovementTests(BankCase):
             other={"BANCO DESTINO": "BAJIO"},
         )
         text = self.run_op("movimientos_banco", "SANTANDER", period="este_mes").text
-        self.assertIn("Transferencias enviadas · folio", text)
         self.assertIn("Retiros: 250.00", text)
+        (movement,) = self.queries.report.rows
+        self.assertEqual(movement.concepto, "Transferencias enviadas")
+        self.assertEqual(movement.retiro, Decimal("250"))
+        self.assertEqual(movement.deposito, Decimal("0"))
 
     def test_cash_sale_items_group_by_folio(self):
         self.add(self.contado, "2026-11-05", 100, folio=7)
         self.add(self.contado, "2026-11-05", 50, folio=7)
-        text = self.run_op("movimientos_banco", "SANTANDER", period="este_mes").text
-        self.assertIn("Ventas de contado · folio 7 · +150.00", text)
-        self.assertIn("• Ventas de contado: +150.00 (1)", text)
+        self.run_op("movimientos_banco", "SANTANDER", period="este_mes")
+        (movement,) = self.queries.report.rows
+        self.assertEqual((movement.folio, movement.deposito), ("7", Decimal("150")))
+        self.assertEqual(self.queries.report.concepts, (("Ventas de contado", True, 1, 150),))
 
     def test_other_accounts_rows_are_ignored(self):
         self.db.movement(self.cobranza.table, "BANCO", "BAJIO", "2026-11-02", 999)
@@ -334,8 +349,44 @@ class MovementTests(BankCase):
     def test_shows_period_and_current_balance(self):
         self.add(self.cobranza, "2026-11-02", 1000)
         text = self.run_op("movimientos_banco", "SANTANDER", period="este_mes").text
-        self.assertIn("Del 01/11/2026 al 09/11/2026.", text)
+        self.assertIn("Reporte del 01/11/2026 al 09/11/2026.", text)
         self.assertIn("Saldo actual: 800.00.", text)
+
+    def test_period_report_is_short_and_carries_every_movement(self):
+        for day in range(1, 8):
+            self.add(self.cobranza, f"2026-11-0{8 - day}", 100, folio=day)
+        self.add(self.gastos, "2026-11-03", 300, folio=50)
+        answer = self.run_op("movimientos_banco", "SANTANDER", period="este_mes", limit=2)
+        self.assertEqual(
+            answer.text.splitlines(),
+            [
+                "Cuenta SANTANDER (SANTANDER CUENTA)",
+                "Reporte del 01/11/2026 al 09/11/2026.",
+                "Depósitos: 700.00 · Retiros: 300.00.",
+                "Movimientos: 8.",
+                "Saldo actual: 800.00.",
+                "Importes en pesos.",
+            ],
+        )
+        report = self.queries.report
+        self.assertEqual(len(report.rows), 8)
+        days = [row.fecha for row in report.rows]
+        self.assertEqual(days, sorted(days))
+        self.assertEqual((report.start, report.end), (date(2026, 11, 1), date(2026, 11, 9)))
+        self.assertEqual((report.deposits, report.withdrawals), (700, 300))
+
+    def test_history_without_period_lists_text_and_no_report(self):
+        self.add(self.cobranza, "2026-11-02", 1000)
+        self.run_op("movimientos_banco", "SANTANDER")
+        self.assertIsNone(self.queries.report)
+
+    def test_report_with_too_many_movements_asks_for_shorter_dates(self):
+        for _ in range(MAX_REPORT_ROWS):
+            self.add(self.cobranza, "2026-11-02", 1)
+        with self.assertRaises(BusinessError) as raised:
+            self.run_op("movimientos_banco", "SANTANDER", period="este_mes")
+        self.assertIn("fechas más cortas", str(raised.exception))
+        self.assertIsNone(self.queries.report)
 
     def test_balance_rejects_a_period(self):
         with self.assertRaises(BusinessError):

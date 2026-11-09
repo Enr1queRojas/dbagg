@@ -83,9 +83,10 @@ cuenta se llame como una persona.
 
 | Pregunta | Operación | Fuente y regla |
 | --- | --- | --- |
-| ¿Cuánto hay en Santander? | `saldo_banco` | `CATALOGO_BANCOS_DATA_V.[SALDO ACTUAL]` y desglose por concepto de `CATALOGO_BANCOS_DATA` |
+| ¿Cuánto hay en Santander? | `saldo_banco` | Solo `CATALOGO_BANCOS_DATA_V.[SALDO ACTUAL]`; el desglose de `CATALOGO_BANCOS_DATA` se usa para avisar si no cuadra, no se muestra |
 | ¿Cuánto hay en cada banco? | `saldos_bancos` | `[SALDO ACTUAL]` de cada cuenta, sin sumar; las inactivas en cero solo se cuentan |
-| Movimientos de caja chica este mes | `movimientos_banco` | Filas activas de las tablas de origen por cuenta; totales por concepto en SQL y los últimos 1 a 10 movimientos |
+| Reporte del banco de Don Leo de este mes | `movimientos_banco` con período | PDF con todos los movimientos activos del período (hasta 2,000), totales por concepto y saldo actual; el chat recibe solo depósitos, retiros, número de movimientos y saldo |
+| Últimos movimientos de caja chica | `movimientos_banco` sin período | Totales por concepto en SQL y los últimos 1 a 10 movimientos en texto |
 
 Reglas confirmadas por el responsable (2026-11-09): importes en pesos, incluida DOLARES; un saldo
 negativo se muestra tal cual, sin interpretarlo; los saldos de varias cuentas nunca se suman.

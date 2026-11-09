@@ -12,13 +12,13 @@ docs/business-queries.md.
 import json
 import unicodedata
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation
 
 from dbagg.business.calendar import business_today, period_bounds
 from dbagg.business.customers import CatalogQueries, date_expression, decimal_value, like_literal
-from dbagg.business.evidence import BusinessAnswer, BusinessError, amount, label
-from dbagg.limits import MAX_ROWS
+from dbagg.business.evidence import BusinessAnswer, BusinessError, amount, label, records
+from dbagg.limits import MAX_REPORT_ROWS, MAX_ROWS
 
 BANKS = "proadel.catalogo_bancos_data_v"
 BANK_DETAIL = "proadel.catalogo_bancos_data"
@@ -27,6 +27,7 @@ DEPOSIT, WITHDRAWAL = "deposito", "retiro"
 MATCH_LIMIT = 10
 SCHEMA_BATCH = 5
 MAX_ANSWER_CHARS = 2800
+MAX_REPORT_MOVEMENTS = MAX_REPORT_ROWS - 1
 BANK_NOT_FOUND = "No encontré una cuenta con ese nombre o código. ¿Puedes precisarlo?"
 DUPLICATE_KEY = "El catálogo repite una clave de cuenta; no puedo confirmar su identidad."
 
@@ -130,6 +131,38 @@ MOVEMENT_SOURCES = (
         "proadel.por_abonar_data", "BANCO DESTINO", WITHDRAWAL, "Por abonar", "RETIROS_PORABONAR"
     ),
 )
+
+
+@dataclass(frozen=True)
+class BankMovement:
+    fecha: date
+    concepto: str
+    folio: str
+    deposito: Decimal
+    retiro: Decimal
+
+
+@dataclass(frozen=True)
+class BankReport:
+    """Every movement of one account in a period, for the PDF; built from data only."""
+
+    code: str
+    name: str
+    inactive: bool
+    start: date
+    end: date
+    deposits: Decimal
+    withdrawals: Decimal
+    concepts: tuple  # (concept, is_deposit, count, amount)
+    rows: tuple
+    current: Decimal | None
+    warnings: tuple
+
+
+class BankReportTooLarge(BusinessError):
+    """More movements than a report may hold; a partial document would mislead."""
+
+
 # Catalogue concepts without a per-account source table: shown in the balance, warned in
 # movements.
 UNSOURCED = {
@@ -194,6 +227,7 @@ def _signed(value, positive):
 class BankQueries(CatalogQueries):
     def __init__(self, db, allowed_tables, today=None):
         super().__init__(db, allowed_tables, today or business_today())
+        self.report = None
 
     def _schema(self, sources):
         """The client describes at most five tables per call; movements need more."""
@@ -323,22 +357,9 @@ class BankQueries(CatalogQueries):
         if row["saldo"] is None:
             lines.append("Su saldo actual es desconocido; requiere revisión en el catálogo.")
             return self._answer("\n".join(lines), "unavailable")
+        # Only the balance: the breakdown is checked, not shown; the PDF report has the detail.
         detail = self._detail(row)
         lines.append(f"Saldo actual: {amount(row['saldo'])}.")
-        lines.append(
-            f"Saldo inicial {amount(decimal_value(row['inicial']))} · depósitos "
-            f"{amount(decimal_value(row['depositos']))} · retiros "
-            f"{amount(decimal_value(row['retiros']))}."
-        )
-        titles = ((DEPOSIT, "Depósitos por concepto:"), (WITHDRAWAL, "Retiros por concepto:"))
-        for kind, title in titles:
-            items = [
-                f"• {concept}: {amount(detail[column])}"
-                for column, (k, concept) in CONCEPTS.items()
-                if k == kind and detail[column]
-            ]
-            if items:
-                lines += [title, *items]
         warnings = self._square_warnings(row, detail)
         lines += warnings
         lines.append("Importes en pesos.")
@@ -483,6 +504,12 @@ class BankQueries(CatalogQueries):
         withdrawals = sum(
             (decimal_value(t["importe"]) for t in totals if int(t["signo"]) < 0), Decimal("0")
         )
+        if any(int(t["sin_importe"]) for t in totals):
+            warnings.append("Hay movimientos sin importe; los totales están incompletos.")
+        if first:
+            return self._report(
+                row, union, params, first, until, totals, deposits, withdrawals, warnings
+            )
         lines += [
             period_text,
             f"Depósitos: {amount(deposits)} · Retiros: {amount(withdrawals)}.",
@@ -510,8 +537,68 @@ class BankQueries(CatalogQueries):
             lines.append("Saldo actual desconocido; requiere revisión en el catálogo.")
         else:
             lines.append(f"Saldo actual: {amount(row['saldo'])}.")
-        if any(int(t["sin_importe"]) for t in totals):
-            warnings.append("Hay movimientos sin importe; los totales están incompletos.")
         lines += warnings
         lines.append("Importes en pesos.")
+        return self._answer("\n".join(lines), "partial" if warnings else "answered")
+
+    def _report(self, row, union, params, first, until, totals, deposits, withdrawals, warnings):
+        """A period's movements go in a PDF; the chat gets only the totals."""
+        result = self.db.query_report(
+            "SELECT concepto, signo, folio, fecha, importe "
+            f"FROM ({union}) AS movimientos ORDER BY fecha, signo DESC, folio",
+            params=params,
+            row_limit=MAX_REPORT_ROWS,
+        )
+        found = records(result)
+        if result.get("has_more") or len(found) > MAX_REPORT_MOVEMENTS:
+            raise BankReportTooLarge(
+                f"Ese período tiene más de {MAX_REPORT_MOVEMENTS:,} movimientos. "
+                "Indica fechas más cortas."
+            )
+        movements = []
+        for movement in found:
+            value = decimal_value(movement["importe"])
+            deposit = int(movement["signo"]) > 0
+            movements.append(
+                BankMovement(
+                    fecha=date.fromisoformat(str(movement["fecha"])[:10]),
+                    concepto=str(movement["concepto"]),
+                    folio=label(movement["folio"]) if movement["folio"] is not None else "",
+                    deposito=value if deposit else Decimal("0"),
+                    retiro=Decimal("0") if deposit else value,
+                )
+            )
+        end = until - timedelta(days=1)
+        current = None if row["saldo"] is None else decimal_value(row["saldo"])
+        self.report = BankReport(
+            code=label(row["codigo"]),
+            name=" ".join(str(row.get("cuenta") or "").split()),
+            inactive=_inactive(row),
+            start=first,
+            end=end,
+            deposits=deposits,
+            withdrawals=withdrawals,
+            concepts=tuple(
+                (
+                    t["concepto"],
+                    int(t["signo"]) > 0,
+                    int(t["cantidad"]),
+                    decimal_value(t["importe"]),
+                )
+                for t in sorted(totals, key=lambda t: (-int(t["signo"]), t["concepto"]))
+            ),
+            rows=tuple(movements),
+            current=current,
+            warnings=tuple(warnings),
+        )
+        lines = self._opening_lines(row) + [
+            f"Reporte del {first:%d/%m/%Y} al {end:%d/%m/%Y}.",
+            f"Depósitos: {amount(deposits)} · Retiros: {amount(withdrawals)}.",
+            f"Movimientos: {len(movements)}.",
+            "Saldo actual desconocido; requiere revisión en el catálogo."
+            if current is None
+            else f"Saldo actual: {amount(current)}.",
+            *warnings,
+            "Importes en pesos.",
+        ]
         return self._answer("\n".join(lines), "partial" if warnings else "answered")
