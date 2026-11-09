@@ -1,0 +1,55 @@
+name: deploy
+# Cada push a la rama deploy entra por SSH a la VM, actualiza el checkout y reconstruye la imagen.
+# Configuración y secretos: docs/deploy-ssh.md.
+on:
+  push:
+    branches: [deploy]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+      DEPLOY_PORT: ${{ secrets.DEPLOY_PORT || '22' }}
+      DEPLOY_PATH: ${{ secrets.DEPLOY_PATH || '/opt/dbagg' }}
+    steps:
+      - name: Check configuration
+        id: config
+        run: |
+          if [ -z "$DEPLOY_HOST" ] || [ -z "$DEPLOY_USER" ]; then
+            echo "::warning::Faltan los secretos DEPLOY_HOST/DEPLOY_USER; no se despliega. Ver docs/deploy-ssh.md."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.config.outputs.ready == 'true'
+        uses: actions/checkout@v4
+      - if: steps.config.outputs.ready == 'true'
+        name: Configure SSH
+        env:
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          [ -n "$SSH_KEY" ] || { echo "::error::Falta el secreto DEPLOY_SSH_KEY"; exit 1; }
+          [ -n "$KNOWN_HOSTS" ] || { echo "::error::Falta el secreto DEPLOY_KNOWN_HOSTS"; exit 1; }
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+      - if: steps.config.outputs.ready == 'true'
+        name: Deploy
+        # El script viaja por stdin: la VM ejecuta la versión de esta revisión, no la que tenga.
+        run: |
+          ssh -i ~/.ssh/deploy_key -p "$DEPLOY_PORT" \
+            -o BatchMode=yes -o StrictHostKeyChecking=yes -o ServerAliveInterval=30 \
+            "$DEPLOY_USER@$DEPLOY_HOST" \
+            bash -s -- "$DEPLOY_PATH" "$GITHUB_SHA" < scripts/deploy.sh
+      - if: always() && steps.config.outputs.ready == 'true'
+        run: rm -f ~/.ssh/deploy_key

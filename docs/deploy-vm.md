@@ -100,7 +100,8 @@ docker compose --profile tunnel restart dbagg     # tras cambiar .env
 sudo systemctl enable docker                      # arrancar con la VM
 ```
 
-**Actualizar:** crea un paquete nuevo y, en la VM, repite la copia, `tar` y `docker load` del paso 3.
+**Actualizar:** con el despliegue automático por SSH basta hacer push a la rama `deploy`
+([deploy-ssh.md](deploy-ssh.md)). Sin él, crea un paquete nuevo y, en la VM, repite la copia, `tar` y `docker load` del paso 3.
 Luego ejecuta `docker compose --profile tunnel up -d --no-build`. Tu `.env` y el volumen se conservan.
 
 **Datos:** el volumen `dbagg-data` guarda respuestas enviadas con datos del ERP. `down` lo conserva;
