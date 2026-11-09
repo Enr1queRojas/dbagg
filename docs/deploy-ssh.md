@@ -1,9 +1,10 @@
 # Despliegue automático por SSH
 
-Cada push a la rama `deploy` ejecuta [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml):
+Cada push a `main` cuyas pruebas (workflow `checks`) pasan ejecuta
+[`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml):
 GitHub Actions entra por SSH a la VM y corre [`scripts/deploy.sh`](../scripts/deploy.sh), que:
 
-1. Descarga `origin/deploy` y deja el checkout de la VM en esa revisión exacta.
+1. Descarga `origin/main` y deja el checkout de la VM en esa revisión exacta.
 2. Construye la imagen `dbagg:local` en la VM (y la etiqueta también como `dbagg:<revisión>`).
 3. Reinicia los servicios con `docker compose up -d` y espera a que el bot quede `healthy`.
 4. Si la construcción o el arranque fallan, vuelve a la imagen y revisión anteriores.
@@ -51,7 +52,7 @@ En GitHub: *Settings → Deploy keys → Add deploy key*, pega la clave pública
 ### Clonar y configurar
 
 ```sh
-git clone --branch deploy git@github.com:Enr1queRojas/dbagg.git /opt/dbagg
+git clone git@github.com:Enr1queRojas/dbagg.git /opt/dbagg
 cd /opt/dbagg
 cp .env.example .env
 nano .env
@@ -137,13 +138,9 @@ fallaría.
 
 ## 6. Desplegar
 
-```sh
-git checkout deploy
-git merge main
-git push origin deploy
-```
-
-Sigue el progreso en *Actions → deploy*. Antes de desplegar revisa la sección de migración de
+Haz merge de un PR a `main` (o push directo). Cuando el workflow `checks` termina en verde, el
+workflow `deploy` despliega esa revisión; si las pruebas fallan, no despliega. Sigue el progreso en
+*Actions → deploy*. Antes de desplegar revisa la sección de migración de
 [CHANGELOG.md](../CHANGELOG.md): los `GRANT` de SQL y los prompts de `config/prompts/` se aplican
 a mano en la VM.
 
@@ -157,7 +154,7 @@ docker images dbagg                     # revisiones disponibles
 bash scripts/deploy.sh /opt/dbagg <revisión>
 ```
 
-O revierte el commit en la rama `deploy` y haz push: el workflow despliega la reversión.
+O revierte el commit en `main` y haz push: el workflow despliega la reversión.
 
 ## Problemas comunes
 

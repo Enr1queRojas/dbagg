@@ -1,9 +1,11 @@
 name: deploy
-# Cada push a la rama deploy entra por SSH a la VM, actualiza el checkout y reconstruye la imagen.
-# Configuración y secretos: docs/deploy-ssh.md.
+# Cuando las pruebas (workflow checks) pasan en main, entra por SSH a la VM, actualiza el checkout
+# y reconstruye la imagen. Configuración y secretos: docs/deploy-ssh.md.
 on:
-  push:
-    branches: [deploy]
+  workflow_run:
+    workflows: [checks]
+    types: [completed]
+    branches: [main]
   workflow_dispatch:
 permissions:
   contents: read
@@ -12,6 +14,11 @@ concurrency:
   cancel-in-progress: false
 jobs:
   deploy:
+    # Solo un push a main con las pruebas en verde; nunca un PR ni una ejecución fallida.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -19,6 +26,8 @@ jobs:
       DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
       DEPLOY_PORT: ${{ secrets.DEPLOY_PORT || '22' }}
       DEPLOY_PATH: ${{ secrets.DEPLOY_PATH || '/opt/dbagg' }}
+      # La revisión que pasó las pruebas, no la punta de main al momento de desplegar.
+      DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
     steps:
       - name: Check configuration
         id: config
@@ -31,6 +40,8 @@ jobs:
           fi
       - if: steps.config.outputs.ready == 'true'
         uses: actions/checkout@v4
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
       - if: steps.config.outputs.ready == 'true'
         name: Configure SSH
         env:
@@ -50,6 +61,6 @@ jobs:
           ssh -i ~/.ssh/deploy_key -p "$DEPLOY_PORT" \
             -o BatchMode=yes -o StrictHostKeyChecking=yes -o ServerAliveInterval=30 \
             "$DEPLOY_USER@$DEPLOY_HOST" \
-            bash -s -- "$DEPLOY_PATH" "$GITHUB_SHA" < scripts/deploy.sh
+            bash -s -- "$DEPLOY_PATH" "$DEPLOY_SHA" < scripts/deploy.sh
       - if: always() && steps.config.outputs.ready == 'true'
         run: rm -f ~/.ssh/deploy_key

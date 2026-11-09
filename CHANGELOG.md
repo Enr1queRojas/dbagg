@@ -19,7 +19,7 @@
 
 ## Sin publicar — Despliegue automático por SSH
 
-- Cada push a la rama `deploy` entra por SSH a la VM, actualiza el checkout desde git, reconstruye la
+- Cada push a `main` con las pruebas en verde entra por SSH a la VM, actualiza el checkout desde git, reconstruye la
   imagen y reinicia el bot; si no queda sano, vuelve a la versión anterior
   (`.github/workflows/deploy.yml`, `scripts/deploy.sh`).
 - Configuración en producción: deploy key de solo lectura en la VM, secretos `DEPLOY_*` en GitHub y

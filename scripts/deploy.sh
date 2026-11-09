@@ -4,12 +4,12 @@
 #   bash scripts/deploy.sh [directorio] [revisión]
 #
 # Lo ejecuta el workflow .github/workflows/deploy.yml por SSH, pero también sirve a mano en la VM.
-# Por omisión usa /opt/dbagg y la punta de origin/deploy. Si el bot no queda sano, vuelve a la
+# Por omisión usa /opt/dbagg y la punta de origin/main. Si el bot no queda sano, vuelve a la
 # imagen y revisión anteriores. Guía: docs/deploy-ssh.md.
 set -euo pipefail
 
 DIR=${1:-${DBAGG_DIR:-/opt/dbagg}}
-BRANCH=${DBAGG_BRANCH:-deploy}
+BRANCH=${DBAGG_BRANCH:-main}
 REV=${2:-origin/$BRANCH}
 HEALTH_TIMEOUT=${DBAGG_HEALTH_TIMEOUT:-120}
 
