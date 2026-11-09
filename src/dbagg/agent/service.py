@@ -17,6 +17,7 @@ from dbagg.agent.prompts import build_messages, tool_definitions
 from dbagg.agent.prompt_files import load_prompt_bundle
 from dbagg.llm.config import LLMConfig, ModelProfile
 from dbagg.llm.providers import create_provider
+from dbagg.reporting.bank_pdf import bank_report_filename, bank_report_pdf
 from dbagg.reporting.statement_pdf import statement_filename, statement_pdf
 from dbagg.agent.entity import (
     conversation_entity,
@@ -507,7 +508,16 @@ class Assistant:
         bank = arguments.get("banco") or arguments.get("customer")
         if operation != "saldos_bancos":
             bank_arguments["banco"] = bank
-        answer = BankQueries(self.db, self.tables, today=today).execute(operation, **bank_arguments)
+        queries = BankQueries(self.db, self.tables, today=today)
+        answer = queries.execute(operation, **bank_arguments)
+        if queries.report is not None:
+            try:
+                content = bank_report_pdf(queries.report)
+            except Exception as exc:
+                logger.warning("dbagg stage=bank_pdf_failed error_type=%s", type(exc).__name__)
+                raise BusinessError("No pude generar el PDF del reporte de banco.") from None
+            self._local.document = DocumentAttachment(content, bank_report_filename(queries.report))
+            logger.info("dbagg stage=bank_report_ready rows=%s", len(queries.report.rows))
         return self._business_answer(answer)
 
     def _party_entity(self, directory, arguments, model_entity, question, history):

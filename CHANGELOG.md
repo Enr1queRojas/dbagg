@@ -1,5 +1,15 @@
 # Cambios
 
+## Sin publicar — Bancos: saldo corto y reporte en PDF
+
+- `saldo_banco` responde solo la cuenta y su saldo actual; el desglose por concepto ya no se muestra
+  (sigue avisando si no cuadra).
+- `movimientos_banco` con período envía un PDF con todos los movimientos de la cuenta (fecha, concepto,
+  folio, depósito, retiro), totales por concepto y saldo actual; en el chat solo va un resumen corto.
+  Sin período sigue listando los últimos movimientos en texto.
+- Migración en producción: si el servidor usa `config/prompts/`, copia ahí los cambios de bancos de
+  `src/dbagg/agent/templates/system.md` y `tools.json`; reconstruir la imagen.
+
 ## Sin publicar — Despliegue automático por SSH
 
 - Cada push a la rama `deploy` entra por SSH a la VM, actualiza el checkout desde git, reconstruye la

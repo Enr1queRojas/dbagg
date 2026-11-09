@@ -40,8 +40,8 @@ class BankRoutingTests(unittest.TestCase):
             llm=LLMConfig(ModelProfile(model="test-model")),
         )
         provider = OneCallProvider(ModelReply(None, (call,), {}))
-        service = Assistant(settings, db=self.db, provider=provider)
-        return service.answer(question), service.last_trace
+        self.service = Assistant(settings, db=self.db, provider=provider)
+        return self.service.answer(question), self.service.last_trace
 
     def test_balance_of_a_named_account(self):
         text, trace = self.ask(
@@ -69,7 +69,14 @@ class BankRoutingTests(unittest.TestCase):
             banco="Santander",
             period="este_mes",
         )
-        self.assertIn("Cobranza", text)
+        self.assertIn("Depósitos: 500.00 · Retiros: 0.00.", text)
+        document = self.service.pop_document()
+        self.assertTrue(document.content.startswith(b"%PDF"))
+        self.assertTrue(document.filename.startswith("reporte-banco-SANTANDER-"))
+
+    def test_balance_sends_no_document(self):
+        self.ask("¿Cuánto hay en Santander?", operation="saldo_banco", banco="Santander")
+        self.assertIsNone(self.service.pop_document())
 
     def test_without_bank_sources_says_it_is_not_enabled(self):
         text, trace = self.ask(
