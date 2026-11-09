@@ -42,6 +42,7 @@ from dbagg.business.banks import (
     BANK_OPERATIONS,
     BANK_PROTECTED_SOURCES,
     BANKS,
+    REPORT_DATES_QUESTION,
     BankQueries,
     validate_bank_context,
 )
@@ -175,6 +176,32 @@ def chosen_customer(customer, question, history):
     return None if customer_in_conversation(customer, question, None) else codes[position - 1]
 
 
+BANK_REPORT_WORDS = re.compile(
+    r"\b(reporte|movimientos?|depositos?|retiros?|estado de cuenta|entradas|salidas)\b"
+)
+
+
+def bank_in_conversation(question, history):
+    """The account of the latest answer when the question continues with its report.
+
+    «Dame un reporte de este mes» after «Cuenta X» names no account, and a model tends to ask
+    which report; the service already knows. The latest answer decides, so a change of topic
+    in between ends the link.
+    """
+    for message in reversed(history or []):
+        content = message.get("content")
+        if message.get("role") != "assistant" or not isinstance(content, str):
+            continue
+        found = re.match(r"Cuenta (\S.*?)(?: \((?:[^()]*)\))?$", content.splitlines()[0])
+        if not found:
+            return None
+        asked_dates = REPORT_DATES_QUESTION in content
+        if asked_dates or BANK_REPORT_WORDS.search(_normalize(question)):
+            return found.group(1)
+        return None
+    return None
+
+
 def _abandons_result(call):
     """After a successful exploratory query, a generic clarification or a jump to the
     customer operations discards a valid answer; specific clarifications still apply."""
@@ -248,6 +275,7 @@ class Assistant:
         latest_result = None
         latest_sources = []
         period_hinted = False
+        bank_hinted = False
         for round_number in range(MAX_MODEL_ROUNDS):
             message = self.provider.complete(messages, tools)
             calls = message.tool_calls
@@ -284,6 +312,20 @@ class Assistant:
                         ):
                             period_hinted = True
                             raise ToolHint(PERIOD_HINT)
+                        bank = (
+                            bank_in_conversation(question, history)
+                            if BANKS in self.tables and not bank_hinted
+                            else None
+                        )
+                        if bank and arguments["reason"] in {"criterio", "periodo", "cliente"}:
+                            bank_hinted = True
+                            logger.info("dbagg stage=bank_report_hinted")
+                            raise ToolHint(
+                                f"La conversación sigue con la cuenta de banco {bank}. Usa "
+                                'consultar_negocio(operation="movimientos_banco", '
+                                f'banco="{bank}") con el período de la pregunta; sin fechas '
+                                "omite period y el servicio las pide."
+                            )
                         text = self._clarifications()[arguments["reason"]]
                         self.last_trace.update(
                             status="needs_clarification",
@@ -354,6 +396,17 @@ class Assistant:
         arguments = {k: v for k, v in arguments.items() if k != "entidad"}
         if arguments.get("operation") in BANK_OPERATIONS:
             return self._bank(arguments, context, today)
+        bank = bank_in_conversation(question, history) if BANKS in self.tables else None
+        if (
+            bank
+            and arguments.get("operation") == STATEMENT_OPERATION
+            and not customer_in_conversation(arguments.get("customer"), question, None)
+        ):
+            # «Dame un reporte de este mes» right after «Cuenta X» is that account's report.
+            logger.info("dbagg stage=bank_report_continued")
+            return self._bank(
+                {**arguments, "operation": "movimientos_banco", "banco": bank}, context, today
+            )
         arguments = {k: v for k, v in arguments.items() if k != "banco"}
         if arguments.get("operation") in PRODUCT_OPERATIONS:
             answer = ProductQueries(self.db, self.tables, today=today).execute(**arguments)

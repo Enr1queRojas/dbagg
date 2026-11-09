@@ -278,21 +278,15 @@ class MovementTests(BankCase):
     def add(self, source, fecha, value, **kwargs):
         self.db.movement(source.table, source.column, "SANTANDER", fecha, value, **kwargs)
 
-    def test_lists_latest_deposits_and_withdrawals_with_sign(self):
-        self.add(self.cobranza, "2026-11-02", 1000, folio=10)
-        self.add(self.gastos, "2026-11-03", 300, folio=20)
-        text = self.run_op("movimientos_banco", "SANTANDER").text
-        self.assertIn("• 2026-11-03 · Gastos · folio 20 · −300.00", text)
-        self.assertIn("• 2026-11-02 · Cobranza · folio 10 · +1,000.00", text)
-        self.assertLess(text.index("2026-11-03"), text.index("2026-11-02"))
-
-    def test_period_totals_cover_all_rows_not_only_the_listed_ones(self):
-        for day in range(1, 8):
-            self.add(self.cobranza, f"2026-11-0{day}", 100)
-        text = self.run_op("movimientos_banco", "SANTANDER", limit=2).text
-        self.assertIn("Depósitos: 700.00 · Retiros: 0.00.", text)
-        self.assertIn("• Cobranza: +700.00 (7)", text)
-        self.assertIn("Hay más movimientos", text)
+    def test_without_period_confirms_the_account_and_asks_for_dates(self):
+        self.add(self.cobranza, "2026-11-02", 1000)
+        answer = self.run_op("movimientos_banco", "SANTANDER")
+        self.assertEqual(
+            answer.text.splitlines(),
+            ["Cuenta SANTANDER (SANTANDER CUENTA)", "¿De qué fechas quieres el reporte?"],
+        )
+        self.assertEqual(answer.status, "needs_clarification")
+        self.assertIsNone(self.queries.report)
 
     def test_cancelled_and_out_of_period_rows_are_excluded(self):
         self.add(self.cobranza, "2026-11-02", 1000)
@@ -342,7 +336,9 @@ class MovementTests(BankCase):
 
     def test_charges_without_a_source_are_warned(self):
         self.db.account("ELEAZAR", "SALDOS ELEAZAR", RETIROS_MANIOBRAS=40)
-        text = self.run_op("movimientos_banco", "ELEAZAR").text
+        answer = self.run_op("movimientos_banco", "ELEAZAR", period="este_mes")
+        text = answer.text
+        self.assertEqual(answer.status, "partial")
         self.assertIn("Maniobras", text)
         self.assertIn("no aparecen", text)
 
@@ -374,11 +370,6 @@ class MovementTests(BankCase):
         self.assertEqual(days, sorted(days))
         self.assertEqual((report.start, report.end), (date(2026, 11, 1), date(2026, 11, 9)))
         self.assertEqual((report.deposits, report.withdrawals), (700, 300))
-
-    def test_history_without_period_lists_text_and_no_report(self):
-        self.add(self.cobranza, "2026-11-02", 1000)
-        self.run_op("movimientos_banco", "SANTANDER")
-        self.assertIsNone(self.queries.report)
 
     def test_report_with_too_many_movements_asks_for_shorter_dates(self):
         for _ in range(MAX_REPORT_ROWS):
