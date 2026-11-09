@@ -1,5 +1,14 @@
 # Cambios
 
+## Sin publicar — Despliegue automático por SSH
+
+- Cada push a la rama `deploy` entra por SSH a la VM, actualiza el checkout desde git, reconstruye la
+  imagen y reinicia el bot; si no queda sano, vuelve a la versión anterior
+  (`.github/workflows/deploy.yml`, `scripts/deploy.sh`).
+- Configuración en producción: deploy key de solo lectura en la VM, secretos `DEPLOY_*` en GitHub y
+  `COMPOSE_PROFILES=tunnel` en `.env` tras el cambio de equipo. Guía en
+  [docs/deploy-ssh.md](docs/deploy-ssh.md).
+
 ## Sin publicar — Consultas de bancos
 
 - Saldo de una cuenta con su desglose por concepto, saldos de todas las cuentas sin sumar y
