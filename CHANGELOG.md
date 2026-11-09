@@ -1,5 +1,12 @@
 # Cambios
 
+## Sin publicar — Bancos: reporte tras el saldo y fechas
+
+- «Dame un reporte de este mes» justo después de «Cuenta X» genera el PDF de esa cuenta, aunque el
+  servidor use prompts propios en `config/prompts/`.
+- `movimientos_banco` siempre es el PDF: sin fechas confirma la cuenta y pregunta «¿De qué fechas
+  quieres el reporte?»; ya no lista el historial completo en texto.
+
 ## Sin publicar — Bancos: saldo corto y reporte en PDF
 
 - `saldo_banco` responde solo la cuenta y su saldo actual; el desglose por concepto ya no se muestra

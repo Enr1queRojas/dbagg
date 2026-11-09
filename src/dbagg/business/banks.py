@@ -28,6 +28,7 @@ MATCH_LIMIT = 10
 SCHEMA_BATCH = 5
 MAX_ANSWER_CHARS = 2800
 MAX_REPORT_MOVEMENTS = MAX_REPORT_ROWS - 1
+REPORT_DATES_QUESTION = "¿De qué fechas quieres el reporte?"
 BANK_NOT_FOUND = "No encontré una cuenta con ese nombre o código. ¿Puedes precisarlo?"
 DUPLICATE_KEY = "El catálogo repite una clave de cuenta; no puedo confirmar su identidad."
 
@@ -216,14 +217,6 @@ def _identity(row):
     return f"{code} ({name})" if name else code
 
 
-def _day(value):
-    return str(value or "sin fecha")[:10]
-
-
-def _signed(value, positive):
-    return f"{'+' if positive else '−'}{amount(value)}"
-
-
 class BankQueries(CatalogQueries):
     def __init__(self, db, allowed_tables, today=None):
         super().__init__(db, allowed_tables, today or business_today())
@@ -282,7 +275,7 @@ class BankQueries(CatalogQueries):
             return found
         if operation == "saldo_banco":
             return self._balance(found)
-        return self._movements(catalog, found, first, until, limit)
+        return self._movements(catalog, found, first, until)
 
     # -- identity ----------------------------------------------------------------------
 
@@ -460,7 +453,11 @@ class BankQueries(CatalogQueries):
         undated_sql = "SELECT " + " + ".join(undated) + " AS invalid_dates"
         return " UNION ALL ".join(selects), params, undated_sql, undated_params
 
-    def _movements(self, catalog, row, first, until, limit):
+    def _movements(self, catalog, row, first, until):
+        """Always a dated report; without dates the account is confirmed and they are asked."""
+        if first is None:
+            lines = self._opening_lines(row) + [REPORT_DATES_QUESTION]
+            return self._answer("\n".join(lines), "needs_clarification")
         union, params, undated_sql, undated_params = self._movement_union(
             catalog, row["codigo"], first, until
         )
@@ -473,18 +470,6 @@ class BankQueries(CatalogQueries):
             params,
             len(MOVEMENT_SOURCES),
         )
-        rows, more = self._query(
-            f"SELECT TOP {limit + 1} concepto, signo, folio, fecha, importe "
-            f"FROM ({union}) AS movimientos ORDER BY fecha DESC, folio DESC",
-            params,
-            limit,
-        )
-        lines = self._opening_lines(row)
-        period_text = (
-            f"Del {first:%d/%m/%Y} al {until - timedelta(days=1):%d/%m/%Y}."
-            if first
-            else "Historial completo de fechas válidas."
-        )
         warnings = []
         if invalid:
             warnings.append("Hay movimientos activos sin fecha válida; no aparecen aquí.")
@@ -495,7 +480,9 @@ class BankQueries(CatalogQueries):
                     f"{concept} ({amount(detail[column])} en total) se registran sin cuenta por "
                     "movimiento; no aparecen aquí aunque sí forman el saldo."
                 )
-        if not rows:
+        if not totals:
+            period_text = f"Del {first:%d/%m/%Y} al {until - timedelta(days=1):%d/%m/%Y}."
+            lines = self._opening_lines(row)
             lines.append(f"No encontré movimientos activos con fecha válida. {period_text}")
             return self._answer("\n".join(lines + warnings), "partial" if warnings else "empty")
         deposits = sum(
@@ -506,40 +493,9 @@ class BankQueries(CatalogQueries):
         )
         if any(int(t["sin_importe"]) for t in totals):
             warnings.append("Hay movimientos sin importe; los totales están incompletos.")
-        if first:
-            return self._report(
-                row, union, params, first, until, totals, deposits, withdrawals, warnings
-            )
-        lines += [
-            period_text,
-            f"Depósitos: {amount(deposits)} · Retiros: {amount(withdrawals)}.",
-            "Por concepto:",
-        ]
-        for total in sorted(totals, key=lambda t: (-int(t["signo"]), t["concepto"])):
-            value = _signed(decimal_value(total["importe"]), int(total["signo"]) > 0)
-            lines.append(f"• {total['concepto']}: {value} ({int(total['cantidad'])})")
-        lines.append(f"Últimos {len(rows)} movimientos:")
-        for movement in rows:
-            value = (
-                _signed(movement["importe"], int(movement["signo"]) > 0)
-                if movement["importe"] is not None
-                else "importe no disponible"
-            )
-            folio = label(movement["folio"]) if movement["folio"] is not None else "no disponible"
-            line = f"• {_day(movement['fecha'])} · {movement['concepto']} · folio {folio} · {value}"
-            if len("\n".join(lines + [line])) > MAX_ANSWER_CHARS - 300:
-                more = True
-                break
-            lines.append(line)
-        if more:
-            lines.append("Hay más movimientos; los totales sí incluyen todos.")
-        if row["saldo"] is None:
-            lines.append("Saldo actual desconocido; requiere revisión en el catálogo.")
-        else:
-            lines.append(f"Saldo actual: {amount(row['saldo'])}.")
-        lines += warnings
-        lines.append("Importes en pesos.")
-        return self._answer("\n".join(lines), "partial" if warnings else "answered")
+        return self._report(
+            row, union, params, first, until, totals, deposits, withdrawals, warnings
+        )
 
     def _report(self, row, union, params, first, until, totals, deposits, withdrawals, warnings):
         """A period's movements go in a PDF; the chat gets only the totals."""

@@ -89,6 +89,107 @@ class BankRoutingTests(unittest.TestCase):
         self.assertEqual(trace["status"], "unavailable")
 
 
+class SequenceProvider:
+    def __init__(self, *calls):
+        self.calls = list(calls)
+        self.seen = []
+
+    def complete(self, messages, tools, require_tool=False):
+        self.seen.append(messages)
+        name, arguments = self.calls.pop(0)
+        return ModelReply(None, (ToolCall(f"t{len(self.seen)}", name, json.dumps(arguments)),), {})
+
+    def close(self):
+        pass
+
+
+BALANCE_ANSWER = (
+    "Cuenta ENRIQUE (EFECTIVOS ENRIQUE ROJAS)\nSaldo actual: -20.00.\nImportes en pesos."
+)
+
+
+class BankFollowUpTests(unittest.TestCase):
+    def setUp(self):
+        self.db = BankDatabase()
+        self.addCleanup(self.db.conn.close)
+        self.db.account("ENRIQUE", "EFECTIVOS ENRIQUE ROJAS", opening="-20")
+        source = next(s for s in MOVEMENT_SOURCES if s.concept == "Cobranza")
+        self.db.movement(source.table, source.column, "ENRIQUE", "2026-11-02", 40000)
+
+    def ask(self, question, history, *calls, tables=None):
+        settings = SimpleNamespace(
+            model="test-model",
+            api_key="synthetic",
+            tables=tables if tables is not None else set(BANK_SOURCES),
+            llm=LLMConfig(ModelProfile(model="test-model")),
+        )
+        self.provider = SequenceProvider(*calls)
+        self.service = Assistant(settings, db=self.db, provider=self.provider)
+        return self.service.answer(question, history)
+
+    def history(self, answer=BALANCE_ANSWER):
+        return [
+            {"role": "user", "content": "Cual es el saldo del banco de Enrique"},
+            {"role": "assistant", "content": answer},
+        ]
+
+    def test_report_after_a_balance_is_steered_to_that_account(self):
+        text = self.ask(
+            "Dame un reporte de este mes",
+            self.history(),
+            ("pedir_aclaracion", {"reason": "criterio"}),
+            (
+                "consultar_negocio",
+                {"operation": "movimientos_banco", "banco": "ENRIQUE", "period": "este_mes"},
+            ),
+        )
+        self.assertIn("Movimientos: 1.", text)
+        self.assertIn(
+            "cuenta de banco ENRIQUE", json.dumps(self.provider.seen[1], ensure_ascii=False)
+        )
+        self.assertIsNotNone(self.service.pop_document())
+
+    def test_statement_after_a_balance_becomes_the_account_report(self):
+        text = self.ask(
+            "Dame un reporte de este mes",
+            self.history(),
+            ("consultar_negocio", {"operation": "estado_cuenta", "period": "este_mes"}),
+        )
+        self.assertTrue(text.startswith("Cuenta ENRIQUE (EFECTIVOS ENRIQUE ROJAS)"))
+        self.assertIsNotNone(self.service.pop_document())
+
+    def test_dates_answer_after_the_question_is_steered(self):
+        asked = "Cuenta ENRIQUE (EFECTIVOS ENRIQUE ROJAS)\n¿De qué fechas quieres el reporte?"
+        text = self.ask(
+            "este mes",
+            self.history(asked),
+            ("pedir_aclaracion", {"reason": "criterio"}),
+            (
+                "consultar_negocio",
+                {"operation": "movimientos_banco", "banco": "ENRIQUE", "period": "este_mes"},
+            ),
+        )
+        self.assertIn("Reporte del", text)
+
+    def test_unrelated_question_after_a_balance_keeps_the_clarification(self):
+        text = self.ask(
+            "¿Y qué más?",
+            self.history(),
+            ("pedir_aclaracion", {"reason": "criterio"}),
+        )
+        self.assertEqual(len(self.provider.seen), 1)
+        self.assertNotIn("Cuenta", text)
+
+    def test_hint_is_given_once(self):
+        self.ask(
+            "Dame un reporte de este mes",
+            self.history(),
+            ("pedir_aclaracion", {"reason": "criterio"}),
+            ("pedir_aclaracion", {"reason": "criterio"}),
+        )
+        self.assertEqual(len(self.provider.seen), 2)
+
+
 class BankToolTests(unittest.TestCase):
     def properties(self, **kwargs):
         tools = tool_definitions(**kwargs)
