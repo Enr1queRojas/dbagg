@@ -12,6 +12,11 @@ def normalize(text):
 
 def route_is_consistent(question, route):
     text = normalize(question)
+    # The latest question may change domains. Never turn an explicit expense
+    # request into another customer operation because of the preceding payment.
+    # This is a veto only: the full interpreter resolves ambiguous/mixed requests.
+    if route.domain == "clientes" and re.search(r"\b(gastos|gastamos|gastado)\b", text):
+        return False
     if re.fullmatch(r"\W*(si|no|ok|gracias)\W*", text):
         return False
     if route.operation == "ultimo_pago" and not re.search(r"\b(ultim[oa]|reciente)\b", text):

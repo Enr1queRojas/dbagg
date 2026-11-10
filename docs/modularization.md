@@ -55,7 +55,7 @@ seleccionado tienen huellas reproducibles. El inventario lista dependencias y
 líneas exactamente duplicadas; no atribuye equivalencias semánticas automáticamente.
 
 Con este catálogo completo, saldo reduce 61.67% de caracteres; total de pagos,
-56.04%; gastos, 66.90%. Estado de cuenta y notas pendientes conservan más dependencias
+56.04%; gastos, 65.96%. Estado de cuenta y notas pendientes conservan más dependencias
 (y reducen aproximadamente 45%). No son porcentajes de ahorro facturado.
 
 ## Flujo y restricciones
@@ -205,3 +205,18 @@ Carga `OPENAI_API_KEY` y `TYPESAFE_API_KEY` de `.env`. Genera `comparison.html`,
 `comparison.json` y los manifiestos/JSONL de cada variante. `--mock` verifica la
 instrumentación con números artificiales; no mide ahorro. Esta integración no
 modifica ni reemplaza los resultados de desarrollo registrados anteriormente.
+
+## Diagnóstico de cambios de tema
+
+El manifiesto de cada consulta ahora conserva `route`, `routing_events` (proveedor,
+confianza y opciones), `context_selection`, `clarification`, `answer_status` y
+`modular_fallback`. El HTML comparativo muestra las consultas con problemas y sus
+diagnósticos. Estos campos permiten distinguir una clasificación incorrecta de una
+aclaración posterior sin deducir la ruta a partir de los tokens consumidos.
+
+Una pregunta explícita de gastos veta rutas de clientes, incluso con confianza alta;
+el intérprete completo resuelve la consulta o pide precisión. Es un veto conservador,
+no una autorización para ejecutar SQL ni una sustitución automática de preguntas
+mixtas. Las instrucciones del enrutador priorizan la pregunta actual sobre el
+historial. Un total exploratorio de gastos sin fechas usa movimientos activos de
+todo el historial; conserva negativos y no se presenta como reporte contable verificado.

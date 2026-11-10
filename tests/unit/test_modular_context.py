@@ -586,3 +586,67 @@ class CalendarContinuityTests(unittest.TestCase):
         )
         self.assertFalse(needs_expense_year("¿Y septiembre?", history, state))
         self.assertTrue(needs_expense_year("Gastos en octubre", history, state))
+
+
+class ExpenseTopicChangeTests(unittest.TestCase):
+    def test_jev_cannot_keep_customer_payments_after_explicit_expense_question(self):
+        from scripts.benchmark_usage import DemoDatabase, EXPENSES
+
+        db = DemoDatabase()
+        self.addCleanup(db.conn.close)
+        provider = Mock()
+        provider.complete.side_effect = [
+            reply("describir_tablas", {"tables": [EXPENSES]}),
+            reply(
+                "consultar_sql",
+                {"sql": f"SELECT SUM(IMPORTE) AS total FROM {EXPENSES} WHERE ESTADO = 'ACTIVA'"},
+            ),
+            ModelReply(None, (), {"role": "assistant", "content": None}),
+        ]
+        config = LLMConfig(
+            ModelProfile(), modular=ModularConfig(enabled=True, router="jev", min_confidence=0.8)
+        )
+        assistant = Assistant(
+            SimpleNamespace(model="test", tables={CUSTOMERS, PAYMENTS, EXPENSES}, llm=config),
+            db=db,
+            provider=provider,
+        )
+        assistant.router.close()
+        assistant.router = Mock()
+        assistant.router.decide.return_value = RoutingDecision("clientes.total_pagos", "jev", 0.99)
+        history = [
+            {"role": "user", "content": "¿Y cuánto ha pagado en total?"},
+            {
+                "role": "assistant",
+                "content": "Total de pagos activos de Cliente Demo (código DEMO1): 25.00.",
+            },
+        ]
+        answer = assistant.answer("¿Cuál es el total de gastos registrados?", history=history)
+        self.assertIn("42", answer)
+        self.assertNotIn("999", answer)
+        self.assertEqual(assistant.last_trace["status"], "exploratory")
+        self.assertEqual(assistant.last_trace["modular_fallback"], "route_inconsistent")
+        self.assertTrue(all(EXPENSES in sql for sql, _, _ in db.calls))
+        self.assertTrue(
+            any(
+                e.get("rejected_route") == "clientes.total_pagos"
+                for e in assistant.last_trace["events"]
+            )
+        )
+
+    def test_veto_does_not_override_ambiguous_requests_or_bank_routing(self):
+        from dbagg.routing.contracts import Route
+        from dbagg.routing.policy import route_is_consistent
+
+        customers = available_routes(load_catalog(), {CUSTOMERS, PAYMENTS})
+        for operation in customers.values():
+            self.assertFalse(
+                route_is_consistent("¿Cuál es el total de gastos registrados?", operation)
+            )
+        self.assertTrue(
+            route_is_consistent("¿Y cuánto ha pagado en total?", customers["clientes.total_pagos"])
+        )
+        bank = Route(
+            "bancos.movimientos", "bancos", "movimientos_banco", "", (), frozenset(), (), "business"
+        )
+        self.assertTrue(route_is_consistent("¿Qué gastos salieron de caja chica?", bank))

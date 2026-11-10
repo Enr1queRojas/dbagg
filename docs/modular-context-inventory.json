@@ -337,7 +337,7 @@
     },
     {
       "route": "gastos.exploracion",
-      "version": "modular-v1:2307fac5c1fd1bec",
+      "version": "modular-v1:74b28f846aac1c1c",
       "modules": [
         "core",
         "domains/expenses"
@@ -350,13 +350,13 @@
         "proadel.total_gastos_gastos_v"
       ],
       "characters": {
-        "system": 9415,
+        "system": 9898,
         "business": 4371,
         "schema": 1315,
         "tools": 1805,
-        "total": 16906
+        "total": 17389
       },
-      "reduction_percent": 66.9
+      "reduction_percent": 65.96
     }
   ]
 }

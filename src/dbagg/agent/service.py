@@ -384,6 +384,16 @@ class Assistant:
                 return None
             try:
                 decision = reference.decide(question, history, routes)
+                self.last_trace.setdefault("events", []).append(
+                    {
+                        "event": "routing",
+                        "provider": decision.provider,
+                        "route": decision.route,
+                        "confidence": decision.confidence,
+                        "probabilities": decision.probabilities,
+                        "fallback": True,
+                    }
+                )
             except Exception:
                 self.last_trace["modular_fallback"] = "routing_unavailable"
                 return None
@@ -393,6 +403,15 @@ class Assistant:
             return None
         if not route_is_consistent(question, route):
             self.last_trace["modular_fallback"] = "route_inconsistent"
+            self.last_trace.setdefault("events", []).append(
+                {
+                    "event": "fallback",
+                    "task": "routing",
+                    "reason": "route_inconsistent",
+                    "rejected_route": route.name,
+                    "destination": "legacy",
+                }
+            )
             return None
         selected = select_context(route, context, bundle, self.catalog, self.tables)
         self._local.next_state = self.next_state.for_route(route.name)

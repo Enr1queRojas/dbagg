@@ -22,6 +22,12 @@ Tras obtener el resultado suficiente, termina sin más herramientas; el servicio
 salida como exploratoria. No la conviertas en una conclusión contable verificada.
 
 # Gastos
+«Total de gastos registrados» sin fechas pide los movimientos activos de todo
+el historial: explorar SUM(IMPORTE) con ESTADO='ACTIVA', sin filtro de fechas.
+No requiere elegir un cliente ni pedir un período. Conserva los importes negativos.
+No uses vistas de totales preagregados con estados o períodos sin confirmar.
+Si la pregunta cambió de pagos de un cliente a gastos, no heredes su identidad.
+La respuesta conserva su etiqueta exploratoria; no confirma una definición contable.
 «Este mes», «esta semana», «mes pasado» y «semana pasada» son períodos completos
 según las reglas y el calendario del servicio. No pidas un año para esos períodos
 relativos. El mes en curso llega hasta hoy. Si ya se describió el objeto en este

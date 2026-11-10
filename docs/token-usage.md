@@ -64,10 +64,12 @@ conservando los archivos para revisión.
 
 Artefactos:
 
-- `comparison.html` y `comparison.json`: resumen por variante/repetición con llamadas,
+- `comparison.html` y `comparison.json`: resumen y consultas fallidas con ruta, aclaración
+  y motivos de respaldo, además de llamadas,
   entrada, salida, caché, uso desconocido, duración de proveedores y costo estimado.
 - `<variante>-<repetición>/benchmark.json`: preguntas/respuestas **sintéticas**, validación
-  de importes y fallos/respaldos observados.
+  de importes, ruta elegida, propuestas del enrutador, módulos de contexto, aclaraciones
+  y fallos/respaldos observados.
 - `<variante>-<repetición>/usage.jsonl`: eventos sin contenido de consultas, claves,
   SQL ni identificadores de remitente. Es el mismo formato de la rama de medición.
 

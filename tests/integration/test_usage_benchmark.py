@@ -138,6 +138,16 @@ class UsageComparisonTests(unittest.TestCase):
             self.assertEqual(jev["totals"]["providers"], {"jev": 3, "openai": 4})
             self.assertEqual(jev["totals"]["known_total_tokens"], 4506)
             self.assertEqual(jev["totals"]["unknown_total_tokens_calls"], 0)
+            manifest = json.loads(
+                (Path(directory) / "jev-1" / "benchmark.json").read_text(encoding="utf-8")
+            )
+            expense = manifest["messages"][3]
+            self.assertEqual(expense["route"], "gastos.exploracion")
+            self.assertEqual(expense["answer_status"], "exploratory")
+            self.assertEqual(expense["routing_events"][0]["provider"], "jev")
+            self.assertEqual(expense["routing_events"][0]["route"], "gastos.exploracion")
+            self.assertTrue(expense["context_selection"])
+            self.assertEqual(jev["failures"], [])
             events = [
                 json.loads(line)
                 for line in (Path(directory) / "jev-1" / "usage.jsonl")

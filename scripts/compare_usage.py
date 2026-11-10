@@ -57,6 +57,7 @@ def render_report(report):
         else "APIs reales: conteos informados por proveedor"
     )
     rows = []
+    failures = []
     for variant in report["variants"]:
         data = variant["totals"]
         rows.append(
@@ -80,6 +81,11 @@ def render_report(report):
             )
             + "</tr>"
         )
+        for failure in variant.get("failures", []):
+            failures.append(
+                f"<details><summary>{html.escape(variant['variant'])}: consulta {failure['id']}</summary>"
+                f"<pre>{html.escape(json.dumps(failure, ensure_ascii=False, indent=2))}</pre></details>"
+            )
     return (
         "<!doctype html><html lang='es'><meta charset='utf-8'><title>Comparación de usage</title>"
         "<style>body{font:15px system-ui;margin:32px}td,th{padding:10px;text-align:left;border-bottom:1px solid #ddd}table{border-collapse:collapse}</style>"
@@ -93,7 +99,9 @@ def render_report(report):
         "<th>Llamadas</th><th>Entrada conocida</th><th>Salida conocida</th><th>Caché conocida</th>"
         "<th>Uso desconocido</th><th>USD conocidos</th><th>Costo desconocido</th><th>ms proveedores</th></tr>"
         + "".join(rows)
-        + "</table></html>"
+        + "</table><h2>Consultas con problemas</h2>"
+        + ("".join(failures) or "<p>Ninguna.</p>")
+        + "</html>"
     )
 
 
@@ -175,6 +183,28 @@ def main(argv=None):
                 "correct_answers": sum(m.get("answer_valid") is True for m in manifest["messages"]),
                 "totals": totals(events),
                 "artifacts": folder.name,
+                "failures": [
+                    {
+                        key: message.get(key)
+                        for key in (
+                            "id",
+                            "question",
+                            "answer",
+                            "answer_status",
+                            "route",
+                            "modular_fallback",
+                            "clarification",
+                            "routing_events",
+                            "fallbacks",
+                            "error_calls",
+                            "error_stages",
+                        )
+                    }
+                    for message in manifest["messages"]
+                    if not message.get("answer_valid")
+                    or message.get("error_calls")
+                    or message.get("error_stages")
+                ],
             }
             report["variants"].append(result)
             (args.output / "comparison.json").write_text(

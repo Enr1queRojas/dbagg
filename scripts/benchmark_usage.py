@@ -247,6 +247,20 @@ def main():
                     "request_id": events[0]["request_id"],
                     "calls": len(calls),
                     "answer_valid": answer_valid,
+                    "answer_status": assistant.last_trace.get("status"),
+                    "route": assistant.last_trace.get("route"),
+                    "modular_fallback": assistant.last_trace.get("modular_fallback"),
+                    "clarification": assistant.last_trace.get("clarification"),
+                    "routing_events": [
+                        e
+                        for e in assistant.last_trace.get("events", [])
+                        if e.get("event") == "routing"
+                    ],
+                    "context_selection": [
+                        e
+                        for e in assistant.last_trace.get("events", [])
+                        if e.get("event") == "context_selection"
+                    ],
                     "fallbacks": [
                         e
                         for e in assistant.last_trace.get("events", [])
