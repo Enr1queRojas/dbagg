@@ -79,6 +79,7 @@ def main():
         ax.invert_yaxis()
         ax.grid(axis="x", alpha=.15)
     fig.savefig(args.output / "etapas.svg")
+    fig.savefig(args.output / "etapas.png", dpi=150)
     plt.close(fig)
 
     fig, ax = plt.subplots(figsize=(12, 11))

@@ -1,0 +1,53 @@
+{
+  "mode": "live",
+  "model": "gpt-4.1-mini",
+  "database": "synthetic",
+  "messages": [
+    {
+      "id": 1,
+      "question": "Hola",
+      "answer": "Necesito precisar el concepto. De clientes: saldo actual, saldos de varios clientes con un nombre, pagos, último pago o ranking de deuda. También puedo consultar existencias de inventario, gastos registrados y compras a proveedores. ¿Qué quieres revisar?",
+      "request_id": "350ba3f8885a47baa8e61e3d8546886b",
+      "calls": 1,
+      "known_total_tokens": 10142,
+      "missing_usage_calls": 0,
+      "error_calls": 0,
+      "error_stages": 0
+    },
+    {
+      "id": 2,
+      "question": "¿Cuál es el saldo del Cliente Demo?",
+      "answer": "Saldo actual de Cliente Demo (código DEMO1): 100.00.\nImporte sin moneda confirmada.",
+      "request_id": "028e5a6b674e4250aa2d4479b73d3182",
+      "calls": 1,
+      "known_total_tokens": 10212,
+      "missing_usage_calls": 0,
+      "error_calls": 0,
+      "error_stages": 0
+    },
+    {
+      "id": 3,
+      "question": "¿Y cuánto ha pagado en total?",
+      "answer": "Total de pagos activos de Cliente Demo (código DEMO1): 25.00. Historial completo de fechas válidas.\nImporte sin moneda confirmada.",
+      "request_id": "342ff7457be54b49a6ee2dd0bdbbf6bc",
+      "calls": 1,
+      "known_total_tokens": 10267,
+      "missing_usage_calls": 0,
+      "error_calls": 0,
+      "error_stages": 0
+    },
+    {
+      "id": 4,
+      "question": "¿Cuál es el total de gastos registrados?",
+      "answer": "No pude completar la consulta. Revisa la conexión y la configuración del servicio.",
+      "request_id": "d18f0e0223604a9690d8849b0fe74890",
+      "calls": 2,
+      "known_total_tokens": 20702,
+      "missing_usage_calls": 0,
+      "error_calls": 0,
+      "error_stages": 2
+    }
+  ],
+  "status": "completed_with_errors",
+  "review_note": "Original benchmark incorrectly reported completed; reviewed stage events show SQL failure: synthetic expenses lacked ESTADO."
+}

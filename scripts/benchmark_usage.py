@@ -31,14 +31,16 @@ class DemoDatabase(SyntheticDatabase):
         super().__init__()
         self.customer("DEMO1", "Cliente Demo", 100)
         self.payment(1, "2026-11-01", 25, customer="DEMO1")
-        self.conn.execute(f"CREATE TABLE {EXPENSES} (ID INTEGER, IMPORTE NUMERIC)")
-        self.conn.execute(f"INSERT INTO {EXPENSES} VALUES (1, 42)")
+        self.conn.execute(f"CREATE TABLE {EXPENSES} (ID INTEGER, IMPORTE NUMERIC, ESTADO TEXT)")
+        self.conn.execute(f"INSERT INTO {EXPENSES} VALUES (1, 42, 'ACTIVA')")
+        self.conn.execute(f"INSERT INTO {EXPENSES} VALUES (2, 999, 'CANCELADA')")
 
     def schema(self, sources):
         entries = json.loads(super().schema(sources))
         if EXPENSES in sources:
             entries.append({"table": EXPENSES, "columns": [
-                {"name": "ID", "type": "int"}, {"name": "IMPORTE", "type": "decimal"}
+                {"name": "ID", "type": "int"}, {"name": "IMPORTE", "type": "decimal"},
+                {"name": "ESTADO", "type": "nvarchar"}
             ]})
         return json.dumps(entries)
 
@@ -71,7 +73,7 @@ def main():
             ("consultar_negocio", {"operation": "saldo", "customer": "Cliente Demo"}),
             ("consultar_negocio", {"operation": "total_pagos", "customer": "Cliente Demo"}),
             ("describir_tablas", {"tables": [EXPENSES]}),
-            ("consultar_sql", {"sql": f"SELECT SUM(IMPORTE) AS total FROM {EXPENSES}"}),
+            ("consultar_sql", {"sql": f"SELECT SUM(IMPORTE) AS total FROM {EXPENSES} WHERE ESTADO = 'ACTIVA'"}),
             (None, {}),
         ]
 
@@ -109,9 +111,10 @@ def main():
                 "known_total_tokens": sum(c["total_tokens"] or 0 for c in calls),
                 "missing_usage_calls": sum(c["total_tokens"] is None for c in calls),
                 "error_calls": sum(c["status"] == "error" for c in calls),
+                "error_stages": sum(e["event"] == "stage" and e["status"] == "error" for e in events),
             })
         manifest["status"] = (
-            "completed_with_errors" if any(m["error_calls"] for m in manifest["messages"])
+            "completed_with_errors" if any(m["error_calls"] or m["error_stages"] for m in manifest["messages"])
             else "completed"
         )
     finally:

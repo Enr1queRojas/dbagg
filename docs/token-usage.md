@@ -62,15 +62,52 @@ para evitar mezclar resultados. Si falta la clave, termina con código 2 y estad
 
 ## Resultado de esta revisión
 
+### Medición real del 10 de noviembre de 2026
+
+Se ejecutaron las cuatro consultas contra la API de OpenAI con `gpt-4.1-mini`,
+temperatura 0 y sin reintentos de transporte, usando únicamente SQLite sintético.
+La ejecución final completó las cuatro respuestas sin errores de modelo ni de etapas:
+
+| Consulta | Llamadas | Tokens totales |
+| --- | ---: | ---: |
+| Saludo / aclaración | 2 | 20,276 |
+| Saldo del Cliente Demo | 1 | 10,212 |
+| Total de pagos con historial | 1 | 10,267 |
+| Gastos exploratorios | 3 | 31,173 |
+| **Total** | **7** | **71,928** |
+
+Entrada: 71,766 tokens; salida: 162; entrada en caché: 60,416 (incluida en entrada).
+Las llamadas al modelo acumularon 6,234 ms; las conversaciones completas, 6,266 ms.
+Son observaciones de una ejecución, no promedios de rendimiento ni un importe facturado.
+El saludo requirió una segunda llamada para exigir herramienta; los gastos siguieron
+la secuencia esquema → SQL → renderizado. Se comprobaron saldo 100, pagos 25 y gastos
+activos 42, excluyendo el gasto cancelado de 999.
+
+[Reporte real HTML](usage-live/reporte.html) · [Consumo real](usage-live/consumo.svg) ·
+[Etapas reales](usage-live/etapas.svg) · [Eventos](usage-live/usage.jsonl) ·
+[Resultados](usage-live/benchmark.json).
+También se generan versiones PNG de consumo, etapas y flujo.
+
+Dos intentos previos hicieron llamadas reales y fallaron en SQL porque la fixture de
+gastos no tenía la columna ESTADO que requieren las reglas de negocio.
+Sus eventos y resultados se conservan en `usage-live/attempts/`; no se incluyen en
+los totales ni gráficos de la ejecución final. Se corrigió la fixture y el benchmark
+ahora devuelve código 1 y `completed_with_errors` cuando falla cualquier etapa,
+aunque las llamadas al proveedor hayan tenido éxito. Los estados de esos dos
+manifiestos se corrigieron al revisar los eventos; contienen una nota explícita.
+
+Validación: 564 pruebas unittest y `ruff check src tests scripts` aprobados.
+
+### Ejemplo simulado anterior
+
 Se verificaron cuatro mensajes con transporte HTTP simulado y seis respuestas del
 proveedor: 1, 1, 1 y 3 llamadas respectivamente. **Los 1,050 tokens por llamada son
 valores artificiales de prueba y no representan el consumo de gpt-4.1-mini.**
 El tamaño de los mensajes enviados y los tiempos del proceso sí se observaron durante
 esa ejecución local; los tiempos simulados no representan latencia de una API remota.
 
-La prueba real se intentó, pero no se hicieron llamadas por faltar `OPENAI_API_KEY`.
-El dominio `api.openai.com` tampoco figura en la lista permitida del entorno.
-No hay una medición real de consumo o costo para estos cuatro mensajes todavía.
+En la revisión inicial la prueba real estaba bloqueada por falta de clave y permiso
+de red. Ese bloqueo quedó resuelto para la medición real documentada arriba.
 
 [Reporte HTML](usage-example/reporte.html) · [Consumo](usage-example/consumo.svg) ·
 [Etapas](usage-example/etapas.svg) · [Diagrama de flujo](usage-example/flujo.svg)

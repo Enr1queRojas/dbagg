@@ -6,6 +6,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 
 class UsageBenchmarkTests(unittest.TestCase):
@@ -20,6 +21,8 @@ class UsageBenchmarkTests(unittest.TestCase):
             manifest = json.loads((Path(directory) / "benchmark.json").read_text())
             events = [json.loads(line) for line in (Path(directory) / "usage.jsonl").read_text().splitlines()]
         self.assertEqual(manifest["mode"], "mock")
+        self.assertEqual(manifest["status"], "completed")
+        self.assertTrue(all(m["error_stages"] == 0 for m in manifest["messages"]))
         self.assertEqual([m["calls"] for m in manifest["messages"]], [1, 1, 1, 3])
         self.assertEqual(len({m["request_id"] for m in manifest["messages"]}), 4)
         self.assertTrue(all(m["error_calls"] == 0 for m in manifest["messages"]))
@@ -33,3 +36,33 @@ class UsageBenchmarkTests(unittest.TestCase):
         self.assertEqual([c["after_tool"] for c in calls], [None, "describir_tablas", "consultar_sql"])
         self.assertTrue(all(c["system_chars_by_section"]["business_context"] > 0 for c in calls))
         self.assertGreater(calls[-1]["message_chars_by_role"]["tool"], 0)
+
+    def test_synthetic_expenses_exclude_cancelled_rows(self):
+        from scripts.benchmark_usage import DemoDatabase, EXPENSES
+
+        db = DemoDatabase()
+        self.addCleanup(db.conn.close)
+        result = db.query(f"SELECT SUM(IMPORTE) AS total FROM {EXPENSES} WHERE ESTADO = 'ACTIVA'")
+        self.assertEqual(result["rows"], [["42"]])
+        schema = json.loads(db.schema([EXPENSES]))
+        self.assertIn("ESTADO", [c["name"] for c in schema[0]["columns"]])
+
+    def test_sql_failure_does_not_report_completed(self):
+        from scripts.benchmark_usage import DemoDatabase, EXPENSES, main
+
+        original = DemoDatabase.query
+
+        def fail_expenses(db, sql, *args, **kwargs):
+            if EXPENSES in sql:
+                raise RuntimeError("Synthetic SQL failure")
+            return original(db, sql, *args, **kwargs)
+
+        with tempfile.TemporaryDirectory() as directory:
+            with patch.dict("os.environ"), patch.object(DemoDatabase, "query", fail_expenses), patch.object(
+                sys, "argv", ["benchmark_usage.py", "--mock", "--output", directory]
+            ):
+                self.assertEqual(main(), 1)
+            manifest = json.loads((Path(directory) / "benchmark.json").read_text())
+        self.assertEqual(manifest["status"], "completed_with_errors")
+        self.assertGreater(manifest["messages"][-1]["error_stages"], 0)
+        self.assertEqual(manifest["messages"][-1]["error_calls"], 0)
