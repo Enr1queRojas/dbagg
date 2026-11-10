@@ -1,6 +1,7 @@
 """Voice-note transcription. Audio stays in memory; transcripts are never logged here."""
 
 import httpx
+from dbagg.llm.usage import measured, record_response
 
 OPUS_SAMPLE_RATE = 48000
 # Short domain hint; it biases spelling of common words, it never adds instructions.
@@ -28,6 +29,7 @@ class Transcriber:
         self.api_key = api_key
         self.transport = transport
 
+    @measured("transcription")
     def transcribe(self, data, mime_type):
         """Return the transcript text; raises httpx errors on provider failures."""
         extension = "ogg" if "ogg" in mime_type else "mp3" if "mpeg" in mime_type else "m4a"
@@ -44,5 +46,7 @@ class Transcriber:
                 },
             )
             response.raise_for_status()
-            text = response.json().get("text", "")
+            payload = response.json()
+            record_response(payload.get("usage"))
+            text = payload.get("text", "")
         return " ".join(str(text).split())

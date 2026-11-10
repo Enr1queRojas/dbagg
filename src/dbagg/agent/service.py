@@ -17,6 +17,7 @@ from dbagg.agent.prompts import build_messages, tool_definitions
 from dbagg.agent.prompt_files import load_prompt_bundle
 from dbagg.llm.config import LLMConfig, ModelProfile
 from dbagg.llm.providers import create_provider
+from dbagg.llm.usage import stage
 from dbagg.reporting.bank_pdf import bank_report_filename, bank_report_pdf
 from dbagg.reporting.statement_pdf import statement_filename, statement_pdf
 from dbagg.agent.entity import (
@@ -246,6 +247,7 @@ class Assistant:
     def close(self):
         self.provider.close()
 
+    @stage("answer")
     def answer(self, question, history=None):
         schema = json.dumps(self.catalog.cards(self.tables), ensure_ascii=False)
         self._customer_missed = False
@@ -391,6 +393,7 @@ class Assistant:
         self.last_trace.update(status="needs_clarification", sources=[], gap="limite_consultas")
         return "No pude resolver la pregunta dentro del límite de consultas. ¿Puedes precisar el nombre o período?"
 
+    @stage("business")
     def _consult_business(self, arguments, context, question, history, today):
         model_entity = arguments.get("entidad")
         arguments = {k: v for k, v in arguments.items() if k != "entidad"}
@@ -709,6 +712,7 @@ class Assistant:
         logger.info("dbagg stage=business_answer status=%s", answer.status)
         return answer.text
 
+    @stage("schema")
     def _describe_tables(self, selected, described):
         if not isinstance(selected, list) or not 1 <= len(selected) <= 5:
             raise ValueError("Describe entre uno y cinco objetos.")
@@ -723,6 +727,7 @@ class Assistant:
         logger.info("dbagg stage=schema_ok")
         return result
 
+    @stage("sql")
     def _query_sql(self, statement, described):
         sql = validate_sql(statement, self.tables, self.catalog)
         referenced = {
@@ -738,6 +743,7 @@ class Assistant:
         logger.info("dbagg stage=query_ok")
         return result, sorted(referenced)
 
+    @stage("render")
     def _finish_exploration(self, result, sources):
         if result is None:
             logger.info("dbagg stage=clarification_no_query")
