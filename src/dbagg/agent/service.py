@@ -27,6 +27,7 @@ from dbagg.routing.policy import needs_expense_year, route_is_consistent
 from dbagg.llm.types import ModelProtocolError, ModelReply, ToolCall
 from dbagg.llm.config import LLMConfig, ModelProfile
 from dbagg.llm.providers import create_provider
+from dbagg.llm.usage import stage, task_scope
 from dbagg.reporting.bank_pdf import bank_report_filename, bank_report_pdf
 from dbagg.reporting.statement_pdf import statement_filename, statement_pdf
 from dbagg.agent.entity import (
@@ -298,7 +299,8 @@ class Assistant:
         if isinstance(profile, ModelProfile):
             event.update(provider=profile.provider, model=profile.model)
         try:
-            reply = provider.complete(messages, tools, require_tool=require_tool)
+            with task_scope(task):
+                reply = provider.complete(messages, tools, require_tool=require_tool)
             event.update(status="ok", usage=reply.usage)
             return reply
         finally:
@@ -409,6 +411,7 @@ class Assistant:
         )
         return selected
 
+    @stage("answer")
     def answer(self, question, history=None, conversation_state=None):
         self._local.route_tables = None
         self._local.next_state = (
@@ -688,6 +691,7 @@ class Assistant:
         self.last_trace.update(status="needs_clarification", sources=[], gap="limite_consultas")
         return "No pude resolver la pregunta dentro del límite de consultas. ¿Puedes precisar el nombre o período?"
 
+    @stage("business")
     def _consult_business(self, arguments, context, question, history, today):
         model_entity = arguments.get("entidad")
         arguments = {k: v for k, v in arguments.items() if k != "entidad"}
@@ -1007,6 +1011,7 @@ class Assistant:
         logger.info("dbagg stage=business_answer status=%s", answer.status)
         return answer.text
 
+    @stage("schema")
     def _describe_tables(self, selected, described):
         if not isinstance(selected, list) or not 1 <= len(selected) <= 5:
             raise ValueError("Describe entre uno y cinco objetos.")
@@ -1023,6 +1028,7 @@ class Assistant:
         logger.info("dbagg stage=schema_ok")
         return result
 
+    @stage("sql")
     def _query_sql(self, statement, described):
         allowed = getattr(self._local, "route_tables", None)
         allowed = self.tables if allowed is None else allowed
@@ -1040,6 +1046,7 @@ class Assistant:
         logger.info("dbagg stage=query_ok")
         return result, sorted(referenced)
 
+    @stage("render")
     def _finish_exploration(self, result, sources):
         if result is None:
             logger.info("dbagg stage=clarification_no_query")

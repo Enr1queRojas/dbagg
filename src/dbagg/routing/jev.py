@@ -6,17 +6,20 @@ has one bounded reference fallback, including when the API key is unavailable.
 """
 
 import math
+from types import SimpleNamespace
 
 import httpx
 
 from dbagg.routing.contracts import RoutingDecision
 from dbagg.routing.registry import route_options
 from dbagg.routing.service import INSTRUCTIONS, routing_state
+from dbagg.llm.usage import measured, record_response
 
 
 class JevRouter:
     def __init__(self, config, api_key, client=None):
         self.config = config
+        self.profile = SimpleNamespace(provider="jev", model=config.jev_model)
         self.api_key = api_key
         self.owns_client = client is None
         self.client = (
@@ -32,6 +35,7 @@ class JevRouter:
         if self.owns_client:
             self.client.close()
 
+    @measured("routing")
     def decide(self, question, history, routes):
         if not self.api_key:
             raise ValueError("Credencial Jev no disponible.")
@@ -49,6 +53,7 @@ class JevRouter:
         )
         response.raise_for_status()
         data = response.json()
+        record_response(data.get("usage"))
         answer = data["answers"]["route"]
         route = answer["choice"]
         confidence = answer.get("confidence")

@@ -190,3 +190,18 @@ con reintentos internos no aporta desglose de esos intentos en esta primera vers
 Para aceptar la cascada faltan Jev real, nano disponible, casos finales separados,
 repeticiones comparables, el benchmark real del PR #20, prueba contra SQL Server y
 exactitud de respuesta/costo por consulta correcta incluyendo todos los respaldos.
+
+## Medición integrada de conversaciones completas
+
+La instrumentación de `feat/token-usage` está integrada, incluido el consumo real
+informado por Jev y la separación por tarea. Ver `token-usage.md` para la comparación
+reproducible del flujo completo con SQLite sintético, sin usar SQL de producción:
+
+```sh
+python scripts/compare_usage.py --output work/usage-compare-001
+```
+
+Carga `OPENAI_API_KEY` y `TYPESAFE_API_KEY` de `.env`. Genera `comparison.html`,
+`comparison.json` y los manifiestos/JSONL de cada variante. `--mock` verifica la
+instrumentación con números artificiales; no mide ahorro. Esta integración no
+modifica ni reemplaza los resultados de desarrollo registrados anteriormente.

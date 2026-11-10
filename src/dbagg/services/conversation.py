@@ -13,6 +13,7 @@ from dbagg.evaluation.store import FeedbackStore, utc_now
 from dbagg.integrations.meta import meta_error_codes
 from dbagg.paths import project_root
 from dbagg.services.memory import ConversationMemory
+from dbagg.llm.usage import stage
 from dbagg.services.outbox import OutboxStore
 from dbagg.services.voice import DISABLED as VOICE_DISABLED, VoiceError
 
@@ -113,9 +114,11 @@ class ConversationService:
             if release:
                 release(sender)
 
+    @stage("conversation")
     def process(self, sender, question):
         self._handle(sender, question)
 
+    @stage("conversation_voice")
     def process_voice(self, sender, media_id):
         """Transcribe a voice note, then answer it like text with an echo of what was heard."""
         if self.voice is None:
@@ -128,6 +131,7 @@ class ConversationService:
             return
         self._handle(sender, question, voice=True)
 
+    @stage("delivery")
     def _send(self, sender, text, row_id=None):
         try:
             if self.outbox is not None:
