@@ -12,7 +12,9 @@ import subprocess
 import sys
 from pathlib import Path
 
+# This checkout uses a src layout. Prefer its code to an older installed wheel.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from dotenv import load_dotenv
 

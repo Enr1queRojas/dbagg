@@ -13,7 +13,9 @@ import sys
 from pathlib import Path
 from types import SimpleNamespace
 
+# Keep tests/ fixtures importable, but load dbagg from this checkout's src layout.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 import httpx
 from dotenv import load_dotenv

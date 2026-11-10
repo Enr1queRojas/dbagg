@@ -1,6 +1,7 @@
 """Four complete conversations verify metering across history and SQL rounds."""
 
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -81,6 +82,36 @@ class UsageBenchmarkTests(unittest.TestCase):
 
 
 class UsageComparisonTests(unittest.TestCase):
+    def test_checkout_sources_override_an_old_installed_package_in_parent_and_children(self):
+        root = Path(__file__).resolve().parents[2]
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+            stale = folder / "old-install" / "dbagg"
+            stale.mkdir(parents=True)
+            (stale / "__init__.py").write_text(
+                "raise RuntimeError('Old installed dbagg was selected')\n", encoding="utf-8"
+            )
+            output = folder / "results"
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(root / "scripts" / "compare_usage.py"),
+                    "--mock",
+                    "--output",
+                    str(output),
+                ],
+                # Also exercise invocation outside the checkout's working directory.
+                cwd=folder,
+                env=dict(os.environ, PYTHONPATH=str(stale.parent)),
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            report = json.loads((output / "comparison.json").read_text(encoding="utf-8"))
+            self.assertEqual(len(report["variants"]), 3)
+            self.assertTrue(all(v["correct_answers"] == 4 for v in report["variants"]))
+
     def test_all_variants_measure_complete_answers_and_jev(self):
         root = Path(__file__).resolve().parents[2]
         with tempfile.TemporaryDirectory() as directory:

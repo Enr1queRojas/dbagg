@@ -27,13 +27,17 @@ llamada; las llamadas Jev usan `provider=jev`, `stage=routing`, `task=routing`.
 El uso se registra antes de validar la respuesta también en Jev: una respuesta
 malformada conserva sus tokens informados; un error sin uso conserva `null`.
 
-Desde la raíz del checkout, con la `.venv` activada en Windows:
+Desde la raíz del checkout en PowerShell, usando explícitamente el Python de `.venv`:
 
 ```bat
 git pull --ff-only origin feat/modularization
-python scripts/compare_usage.py --output work/usage-compare-001
+.\.venv\Scripts\python.exe scripts/compare_usage.py --output work/usage-compare-001
 start work\usage-compare-001\comparison.html
 ```
+
+Los scripts priorizan `src/` del checkout, aunque haya una versión anterior de
+`dbagg` instalada. Si aparece `ModuleNotFoundError: dbagg.evaluation.cost`, actualiza
+la rama y usa el Python de `.venv`; el reporte no se genera cuando falla esa importación.
 
 El script carga `OPENAI_API_KEY` y `TYPESAFE_API_KEY` desde `.env` (las variables ya
 exportadas tienen prioridad). No pongas claves en comandos ni las agregues a Git.
