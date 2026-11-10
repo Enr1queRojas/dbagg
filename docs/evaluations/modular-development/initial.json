@@ -1,0 +1,3709 @@
+{
+  "scope": "Synthetic first-tool routing and parameters; no database, no answer accuracy.",
+  "jev_threshold": "0.8 is evaluation-only, uncalibrated; not a production recommendation.",
+  "business_today": "2026-10-08",
+  "repeat": 1,
+  "variants": {
+    "legacy_mini": {
+      "status": "measured",
+      "passed": 15,
+      "runs": 16,
+      "cost": {
+        "usd_known": 0.0250832,
+        "unknown_attempts": 0,
+        "complete": true,
+        "rates_date": "2026-11-10"
+      },
+      "results": [
+        {
+          "case": "ranking-after-customer",
+          "passed": true,
+          "tool": "consultar_negocio",
+          "arguments": {
+            "operation": "ranking_deuda",
+            "limit": 3
+          },
+          "error": null,
+          "route": null,
+          "events": [
+            {
+              "event": "usage",
+              "task": "interpretation",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 22,
+                "prompt_tokens": 13020,
+                "total_tokens": 13042,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 3968
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 2122.014
+            }
+          ],
+          "cost": {
+            "usd_known": 0.0040528000000000005,
+            "unknown_attempts": 0,
+            "complete": true,
+            "rates_date": "2026-11-10"
+          },
+          "repetition": 1
+        },
+        {
+          "case": "payment-followup",
+          "passed": true,
+          "tool": "consultar_negocio",
+          "arguments": {
+            "operation": "total_pagos",
+            "customer": "DEMO1",
+            "codigo_exacto": true,
+            "period": "esta_semana"
+          },
+          "error": null,
+          "route": null,
+          "events": [
+            {
+              "event": "usage",
+              "task": "interpretation",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 36,
+                "prompt_tokens": 13017,
+                "total_tokens": 13053,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 12800
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 1242.89
+            }
+          ],
+          "cost": {
+            "usd_known": 0.0014244,
+            "unknown_attempts": 0,
+            "complete": true,
+            "rates_date": "2026-11-10"
+          },
+          "repetition": 1
+        },
+        {
+          "case": "ambiguous-yes",
+          "passed": true,
+          "tool": "pedir_aclaracion",
+          "arguments": {
+            "reason": "cliente"
+          },
+          "error": null,
+          "route": null,
+          "events": [
+            {
+              "event": "usage",
+              "task": "interpretation",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 17,
+                "prompt_tokens": 13022,
+                "total_tokens": 13039,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 12800
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 1119.637
+            }
+          ],
+          "cost": {
+            "usd_known": 0.001396,
+            "unknown_attempts": 0,
+            "complete": true,
+            "rates_date": "2026-11-10"
+          },
+          "repetition": 1
+        },
+        {
+          "case": "short-selection",
+          "passed": true,
+          "tool": "consultar_negocio",
+          "arguments": {
+            "operation": "total_pagos",
+            "customer": "DEMO2",
+            "codigo_exacto": true,
+            "period": "este_mes"
+          },
+          "error": null,
+          "route": null,
+          "events": [
+            {
+              "event": "usage",
+              "task": "interpretation",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 35,
+                "prompt_tokens": 13029,
+                "total_tokens": 13064,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 12800
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 1120.483
+            }
+          ],
+          "cost": {
+            "usd_known": 0.0014276,
+            "unknown_attempts": 0,
+            "complete": true,
+            "rates_date": "2026-11-10"
+          },
+          "repetition": 1
+        },
+        {
+          "case": "historical-balance",
+          "passed": true,
+          "tool": "pedir_aclaracion",
+          "arguments": {
+            "reason": "fuera_alcance"
+          },
+          "error": null,
+          "route": null,
+          "events": [
+            {
+              "event": "usage",
+              "task": "interpretation",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 21,
+                "prompt_tokens": 12996,
+                "total_tokens": 13017,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 12800
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 789.071
+            }
+          ],
+          "cost": {
+            "usd_known": 0.001392,
+            "unknown_attempts": 0,
+            "complete": true,
+            "rates_date": "2026-11-10"
+          },
+          "repetition": 1
+        },
+        {
+          "case": "last-payment-period",
+          "passed": true,
+          "tool": "pedir_aclaracion",
+          "arguments": {
+            "reason": "fuera_alcance"
+          },
+          "error": null,
+          "route": null,
+          "events": [
+            {
+              "event": "usage",
+              "task": "interpretation",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 21,
+                "prompt_tokens": 12998,
+                "total_tokens": 13019,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 12800
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 1185.99
+            }
+          ],
+          "cost": {
+            "usd_known": 0.0013928,
+            "unknown_attempts": 0,
+            "complete": true,
+            "rates_date": "2026-11-10"
+          },
+          "repetition": 1
+        },
+        {
+          "case": "whole-statement",
+          "passed": true,
+          "tool": "consultar_negocio",
+          "arguments": {
+            "operation": "estado_cuenta",
+            "customer": "DEMO1",
+            "codigo_exacto": false
+          },
+          "error": null,
+          "route": null,
+          "events": [
+            {
+              "event": "usage",
+              "task": "interpretation",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 30,
+                "prompt_tokens": 13000,
+                "total_tokens": 13030,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 12800
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 828.819
+            }
+          ],
+          "cost": {
+            "usd_known": 0.001408,
+            "unknown_attempts": 0,
+            "complete": true,
+            "rates_date": "2026-11-10"
+          },
+          "repetition": 1
+        },
+        {
+          "case": "today-payments",
+          "passed": true,
+          "tool": "consultar_negocio",
+          "arguments": {
+            "operation": "total_pagos",
+            "customer": "DEMO1",
+            "period": "rango",
+            "start": "2026-10-08",
+            "end": "2026-10-08",
+            "codigo_exacto": false
+          },
+          "error": null,
+          "route": null,
+          "events": [
+            {
+              "event": "usage",
+              "task": "interpretation",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 53,
+                "prompt_tokens": 12990,
+                "total_tokens": 13043,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 12800
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 1482.055
+            }
+          ],
+          "cost": {
+            "usd_known": 0.0014408,
+            "unknown_attempts": 0,
+            "complete": true,
+            "rates_date": "2026-11-10"
+          },
+          "repetition": 1
+        },
+        {
+          "case": "ambiguous-date",
+          "passed": true,
+          "tool": "pedir_aclaracion",
+          "arguments": {
+            "reason": "periodo"
+          },
+          "error": null,
+          "route": null,
+          "events": [
+            {
+              "event": "usage",
+              "task": "interpretation",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 18,
+                "prompt_tokens": 12993,
+                "total_tokens": 13011,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 12800
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 708.385
+            }
+          ],
+          "cost": {
+            "usd_known": 0.001386,
+            "unknown_attempts": 0,
+            "complete": true,
+            "rates_date": "2026-11-10"
+          },
+          "repetition": 1
+        },
+        {
+          "case": "write-disguised",
+          "passed": true,
+          "tool": "pedir_aclaracion",
+          "arguments": {
+            "reason": "escritura"
+          },
+          "error": null,
+          "route": null,
+          "events": [
+            {
+              "event": "usage",
+              "task": "interpretation",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 19,
+                "prompt_tokens": 12997,
+                "total_tokens": 13016,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 12800
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 844.336
+            }
+          ],
+          "cost": {
+            "usd_known": 0.0013892,
+            "unknown_attempts": 0,
+            "complete": true,
+            "rates_date": "2026-11-10"
+          },
+          "repetition": 1
+        },
+        {
+          "case": "rank-is-not-selection",
+          "passed": true,
+          "tool": "pedir_aclaracion",
+          "arguments": {
+            "reason": "cliente"
+          },
+          "error": null,
+          "route": null,
+          "events": [
+            {
+              "event": "usage",
+              "task": "interpretation",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 17,
+                "prompt_tokens": 13032,
+                "total_tokens": 13049,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 12800
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 912.71
+            }
+          ],
+          "cost": {
+            "usd_known": 0.0014,
+            "unknown_attempts": 0,
+            "complete": true,
+            "rates_date": "2026-11-10"
+          },
+          "repetition": 1
+        },
+        {
+          "case": "count-customers-by-name",
+          "passed": true,
+          "tool": "consultar_negocio",
+          "arguments": {
+            "operation": "contar_coincidencias",
+            "customer": "Demo"
+          },
+          "error": null,
+          "route": null,
+          "events": [
+            {
+              "event": "usage",
+              "task": "interpretation",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 25,
+                "prompt_tokens": 12991,
+                "total_tokens": 13016,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 12800
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 863.92
+            }
+          ],
+          "cost": {
+            "usd_known": 0.0013964000000000001,
+            "unknown_attempts": 0,
+            "complete": true,
+            "rates_date": "2026-11-10"
+          },
+          "repetition": 1
+        },
+        {
+          "case": "greeting-plus-question",
+          "passed": true,
+          "tool": "consultar_negocio",
+          "arguments": {
+            "operation": "saldo",
+            "customer": "Cliente Demo"
+          },
+          "error": null,
+          "route": null,
+          "events": [
+            {
+              "event": "usage",
+              "task": "interpretation",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 21,
+                "prompt_tokens": 12993,
+                "total_tokens": 13014,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 12800
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 812.868
+            }
+          ],
+          "cost": {
+            "usd_known": 0.0013908,
+            "unknown_attempts": 0,
+            "complete": true,
+            "rates_date": "2026-11-10"
+          },
+          "repetition": 1
+        },
+        {
+          "case": "expense-month",
+          "passed": true,
+          "tool": "describir_tablas",
+          "arguments": {
+            "tables": [
+              "proadel.GASTOS_DATA"
+            ]
+          },
+          "error": null,
+          "route": null,
+          "events": [
+            {
+              "event": "usage",
+              "task": "interpretation",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 22,
+                "prompt_tokens": 12991,
+                "total_tokens": 13013,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 12800
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 741.542
+            }
+          ],
+          "cost": {
+            "usd_known": 0.0013916000000000002,
+            "unknown_attempts": 0,
+            "complete": true,
+            "rates_date": "2026-11-10"
+          },
+          "repetition": 1
+        },
+        {
+          "case": "expense-missing-year",
+          "passed": false,
+          "tool": "describir_tablas",
+          "arguments": {
+            "tables": [
+              "proadel.GASTOS_DATA"
+            ]
+          },
+          "error": null,
+          "route": null,
+          "events": [
+            {
+              "event": "usage",
+              "task": "interpretation",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 22,
+                "prompt_tokens": 12991,
+                "total_tokens": 13013,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 12800
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 722.63
+            }
+          ],
+          "cost": {
+            "usd_known": 0.0013916000000000002,
+            "unknown_attempts": 0,
+            "complete": true,
+            "rates_date": "2026-11-10"
+          },
+          "repetition": 1
+        },
+        {
+          "case": "topic-change-expenses",
+          "passed": true,
+          "tool": "describir_tablas",
+          "arguments": {
+            "tables": [
+              "proadel.GASTOS_DATA"
+            ]
+          },
+          "error": null,
+          "route": null,
+          "events": [
+            {
+              "event": "usage",
+              "task": "interpretation",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 22,
+                "prompt_tokens": 13020,
+                "total_tokens": 13042,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 12800
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 774.049
+            }
+          ],
+          "cost": {
+            "usd_known": 0.0014032,
+            "unknown_attempts": 0,
+            "complete": true,
+            "rates_date": "2026-11-10"
+          },
+          "repetition": 1
+        }
+      ]
+    },
+    "reference_mini": {
+      "status": "measured",
+      "passed": 11,
+      "runs": 16,
+      "cost": {
+        "usd_known": 0.0266716,
+        "unknown_attempts": 0,
+        "complete": true,
+        "rates_date": "2026-11-10"
+      },
+      "results": [
+        {
+          "case": "ranking-after-customer",
+          "passed": true,
+          "tool": "consultar_negocio",
+          "arguments": {
+            "operation": "ranking_deuda",
+            "limit": 3
+          },
+          "error": null,
+          "route": "clientes.ranking_deuda",
+          "events": [
+            {
+              "event": "usage",
+              "task": "routing",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 18,
+                "prompt_tokens": 544,
+                "total_tokens": 562,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 0
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 837.996
+            },
+            {
+              "event": "routing",
+              "provider": "reference",
+              "route": "clientes.ranking_deuda",
+              "confidence": null,
+              "probabilities": {},
+              "duration_ms": 838.051,
+              "shadow": false
+            },
+            {
+              "event": "context_selection",
+              "modules": [
+                "core",
+                "domains/customers"
+              ],
+              "version": "modular-v1:d249179594ec2146",
+              "system_chars": 10444,
+              "business_chars": 11722,
+              "schema_chars": 4283,
+              "tools_chars": 3224
+            },
+            {
+              "event": "usage",
+              "task": "interpretation",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 22,
+                "prompt_tokens": 7322,
+                "total_tokens": 7344,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 0
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 881.639
+            }
+          ],
+          "cost": {
+            "usd_known": 0.0032104,
+            "unknown_attempts": 0,
+            "complete": true,
+            "rates_date": "2026-11-10"
+          },
+          "repetition": 1
+        },
+        {
+          "case": "payment-followup",
+          "passed": true,
+          "tool": "consultar_negocio",
+          "arguments": {
+            "operation": "total_pagos",
+            "customer": "DEMO1",
+            "codigo_exacto": true,
+            "period": "esta_semana"
+          },
+          "error": null,
+          "route": "clientes.total_pagos",
+          "events": [
+            {
+              "event": "usage",
+              "task": "routing",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 17,
+                "prompt_tokens": 542,
+                "total_tokens": 559,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 0
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 675.312
+            },
+            {
+              "event": "routing",
+              "provider": "reference",
+              "route": "clientes.total_pagos",
+              "confidence": null,
+              "probabilities": {},
+              "duration_ms": 675.371,
+              "shadow": false
+            },
+            {
+              "event": "context_selection",
+              "modules": [
+                "core",
+                "domains/customers"
+              ],
+              "version": "modular-v1:d249179594ec2146",
+              "system_chars": 10444,
+              "business_chars": 11722,
+              "schema_chars": 4283,
+              "tools_chars": 3222
+            },
+            {
+              "event": "usage",
+              "task": "interpretation",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 36,
+                "prompt_tokens": 7319,
+                "total_tokens": 7355,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 6016
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 1023.199
+            }
+          ],
+          "cost": {
+            "usd_known": 0.0014244000000000001,
+            "unknown_attempts": 0,
+            "complete": true,
+            "rates_date": "2026-11-10"
+          },
+          "repetition": 1
+        },
+        {
+          "case": "ambiguous-yes",
+          "passed": false,
+          "tool": null,
+          "arguments": {},
+          "error": null,
+          "route": "clientes.saldos_coincidencias",
+          "events": [
+            {
+              "event": "usage",
+              "task": "routing",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 21,
+                "prompt_tokens": 547,
+                "total_tokens": 568,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 0
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 885.205
+            },
+            {
+              "event": "routing",
+              "provider": "reference",
+              "route": "clientes.saldos_coincidencias",
+              "confidence": null,
+              "probabilities": {},
+              "duration_ms": 885.254,
+              "shadow": false
+            },
+            {
+              "event": "context_selection",
+              "modules": [
+                "core",
+                "domains/customers"
+              ],
+              "version": "modular-v1:d249179594ec2146",
+              "system_chars": 10444,
+              "business_chars": 11722,
+              "schema_chars": 4283,
+              "tools_chars": 3231
+            },
+            {
+              "event": "usage",
+              "task": "interpretation",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 28,
+                "prompt_tokens": 7328,
+                "total_tokens": 7356,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 6016
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 839.371
+            },
+            {
+              "event": "usage",
+              "task": "interpretation",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 28,
+                "prompt_tokens": 7459,
+                "total_tokens": 7487,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 7168
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 1022.322
+            }
+          ],
+          "cost": {
+            "usd_known": 0.0023016,
+            "unknown_attempts": 0,
+            "complete": true,
+            "rates_date": "2026-11-10"
+          },
+          "repetition": 1
+        },
+        {
+          "case": "short-selection",
+          "passed": true,
+          "tool": "consultar_negocio",
+          "arguments": {
+            "operation": "total_pagos",
+            "customer": "DEMO2",
+            "codigo_exacto": true,
+            "period": "este_mes"
+          },
+          "error": null,
+          "route": "clientes.total_pagos",
+          "events": [
+            {
+              "event": "usage",
+              "task": "routing",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 17,
+                "prompt_tokens": 555,
+                "total_tokens": 572,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 0
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 849.898
+            },
+            {
+              "event": "routing",
+              "provider": "reference",
+              "route": "clientes.total_pagos",
+              "confidence": null,
+              "probabilities": {},
+              "duration_ms": 849.945,
+              "shadow": false
+            },
+            {
+              "event": "context_selection",
+              "modules": [
+                "core",
+                "domains/customers"
+              ],
+              "version": "modular-v1:d249179594ec2146",
+              "system_chars": 10444,
+              "business_chars": 11722,
+              "schema_chars": 4283,
+              "tools_chars": 3222
+            },
+            {
+              "event": "usage",
+              "task": "interpretation",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 35,
+                "prompt_tokens": 7331,
+                "total_tokens": 7366,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 7040
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 1332.062
+            }
+          ],
+          "cost": {
+            "usd_known": 0.0011256,
+            "unknown_attempts": 0,
+            "complete": true,
+            "rates_date": "2026-11-10"
+          },
+          "repetition": 1
+        },
+        {
+          "case": "historical-balance",
+          "passed": true,
+          "tool": "pedir_aclaracion",
+          "arguments": {
+            "reason": "fuera_alcance"
+          },
+          "error": null,
+          "route": "clientes.saldo",
+          "events": [
+            {
+              "event": "usage",
+              "task": "routing",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 16,
+                "prompt_tokens": 508,
+                "total_tokens": 524,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 0
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 613.259
+            },
+            {
+              "event": "routing",
+              "provider": "reference",
+              "route": "clientes.saldo",
+              "confidence": null,
+              "probabilities": {},
+              "duration_ms": 613.303,
+              "shadow": false
+            },
+            {
+              "event": "context_selection",
+              "modules": [
+                "core",
+                "domains/customers"
+              ],
+              "version": "modular-v1:d249179594ec2146",
+              "system_chars": 10444,
+              "business_chars": 11722,
+              "schema_chars": 4283,
+              "tools_chars": 3216
+            },
+            {
+              "event": "usage",
+              "task": "interpretation",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 21,
+                "prompt_tokens": 7296,
+                "total_tokens": 7317,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 6016
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 762.819
+            }
+          ],
+          "cost": {
+            "usd_known": 0.0013759999999999998,
+            "unknown_attempts": 0,
+            "complete": true,
+            "rates_date": "2026-11-10"
+          },
+          "repetition": 1
+        },
+        {
+          "case": "last-payment-period",
+          "passed": true,
+          "tool": "pedir_aclaracion",
+          "arguments": {
+            "reason": "fuera_alcance"
+          },
+          "error": null,
+          "route": "clientes.ultimo_pago",
+          "events": [
+            {
+              "event": "usage",
+              "task": "routing",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 17,
+                "prompt_tokens": 509,
+                "total_tokens": 526,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 0
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 706.162
+            },
+            {
+              "event": "routing",
+              "provider": "reference",
+              "route": "clientes.ultimo_pago",
+              "confidence": null,
+              "probabilities": {},
+              "duration_ms": 706.21,
+              "shadow": false
+            },
+            {
+              "event": "context_selection",
+              "modules": [
+                "core",
+                "domains/customers"
+              ],
+              "version": "modular-v1:d249179594ec2146",
+              "system_chars": 10444,
+              "business_chars": 11722,
+              "schema_chars": 4283,
+              "tools_chars": 3222
+            },
+            {
+              "event": "usage",
+              "task": "interpretation",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 21,
+                "prompt_tokens": 7299,
+                "total_tokens": 7320,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 6016
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 991.657
+            }
+          ],
+          "cost": {
+            "usd_known": 0.0013792000000000001,
+            "unknown_attempts": 0,
+            "complete": true,
+            "rates_date": "2026-11-10"
+          },
+          "repetition": 1
+        },
+        {
+          "case": "whole-statement",
+          "passed": true,
+          "tool": "consultar_negocio",
+          "arguments": {
+            "operation": "estado_cuenta",
+            "customer": "DEMO1",
+            "codigo_exacto": false
+          },
+          "error": null,
+          "route": "clientes.estado_cuenta",
+          "events": [
+            {
+              "event": "usage",
+              "task": "routing",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 17,
+                "prompt_tokens": 512,
+                "total_tokens": 529,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 0
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 806.143
+            },
+            {
+              "event": "routing",
+              "provider": "reference",
+              "route": "clientes.estado_cuenta",
+              "confidence": null,
+              "probabilities": {},
+              "duration_ms": 806.196,
+              "shadow": false
+            },
+            {
+              "event": "context_selection",
+              "modules": [
+                "core",
+                "domains/customers"
+              ],
+              "version": "modular-v1:d249179594ec2146",
+              "system_chars": 10444,
+              "business_chars": 11722,
+              "schema_chars": 4283,
+              "tools_chars": 3224
+            },
+            {
+              "event": "usage",
+              "task": "interpretation",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 30,
+                "prompt_tokens": 7302,
+                "total_tokens": 7332,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 0
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 1745.705
+            }
+          ],
+          "cost": {
+            "usd_known": 0.0032008,
+            "unknown_attempts": 0,
+            "complete": true,
+            "rates_date": "2026-11-10"
+          },
+          "repetition": 1
+        },
+        {
+          "case": "today-payments",
+          "passed": false,
+          "tool": null,
+          "arguments": {},
+          "error": null,
+          "route": "clientes.ultimo_pago",
+          "events": [
+            {
+              "event": "usage",
+              "task": "routing",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 17,
+                "prompt_tokens": 502,
+                "total_tokens": 519,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 0
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 753.745
+            },
+            {
+              "event": "routing",
+              "provider": "reference",
+              "route": "clientes.ultimo_pago",
+              "confidence": null,
+              "probabilities": {},
+              "duration_ms": 753.79,
+              "shadow": false
+            },
+            {
+              "event": "context_selection",
+              "modules": [
+                "core",
+                "domains/customers"
+              ],
+              "version": "modular-v1:d249179594ec2146",
+              "system_chars": 10444,
+              "business_chars": 11722,
+              "schema_chars": 4283,
+              "tools_chars": 3222
+            },
+            {
+              "event": "usage",
+              "task": "interpretation",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 53,
+                "prompt_tokens": 7291,
+                "total_tokens": 7344,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 7040
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 1275.151
+            },
+            {
+              "event": "usage",
+              "task": "interpretation",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 47,
+                "prompt_tokens": 7447,
+                "total_tokens": 7494,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 7168
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 1007.497
+            }
+          ],
+          "cost": {
+            "usd_known": 0.0020208,
+            "unknown_attempts": 0,
+            "complete": true,
+            "rates_date": "2026-11-10"
+          },
+          "repetition": 1
+        },
+        {
+          "case": "ambiguous-date",
+          "passed": true,
+          "tool": "pedir_aclaracion",
+          "arguments": {
+            "reason": "periodo"
+          },
+          "error": null,
+          "route": "clientes.pagos",
+          "events": [
+            {
+              "event": "usage",
+              "task": "routing",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 16,
+                "prompt_tokens": 505,
+                "total_tokens": 521,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 0
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 723.355
+            },
+            {
+              "event": "routing",
+              "provider": "reference",
+              "route": "clientes.pagos",
+              "confidence": null,
+              "probabilities": {},
+              "duration_ms": 723.399,
+              "shadow": false
+            },
+            {
+              "event": "context_selection",
+              "modules": [
+                "core",
+                "domains/customers"
+              ],
+              "version": "modular-v1:d249179594ec2146",
+              "system_chars": 10444,
+              "business_chars": 11722,
+              "schema_chars": 4283,
+              "tools_chars": 3216
+            },
+            {
+              "event": "usage",
+              "task": "interpretation",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 18,
+                "prompt_tokens": 7294,
+                "total_tokens": 7312,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 6016
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 808.338
+            }
+          ],
+          "cost": {
+            "usd_known": 0.0013692,
+            "unknown_attempts": 0,
+            "complete": true,
+            "rates_date": "2026-11-10"
+          },
+          "repetition": 1
+        },
+        {
+          "case": "write-disguised",
+          "passed": true,
+          "tool": "pedir_aclaracion",
+          "arguments": {
+            "reason": "escritura"
+          },
+          "error": null,
+          "route": null,
+          "events": [
+            {
+              "event": "usage",
+              "task": "routing",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 14,
+                "prompt_tokens": 509,
+                "total_tokens": 523,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 0
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 642.878
+            },
+            {
+              "event": "routing",
+              "provider": "reference",
+              "route": "legacy",
+              "confidence": null,
+              "probabilities": {},
+              "duration_ms": 642.924,
+              "shadow": false
+            },
+            {
+              "event": "usage",
+              "task": "interpretation",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 19,
+                "prompt_tokens": 12997,
+                "total_tokens": 13016,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 12800
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 876.111
+            }
+          ],
+          "cost": {
+            "usd_known": 0.0016152,
+            "unknown_attempts": 0,
+            "complete": true,
+            "rates_date": "2026-11-10"
+          },
+          "repetition": 1
+        },
+        {
+          "case": "rank-is-not-selection",
+          "passed": true,
+          "tool": "pedir_aclaracion",
+          "arguments": {
+            "reason": "cliente"
+          },
+          "error": null,
+          "route": "clientes.ultimo_pago",
+          "events": [
+            {
+              "event": "usage",
+              "task": "routing",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 17,
+                "prompt_tokens": 556,
+                "total_tokens": 573,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 0
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 681.09
+            },
+            {
+              "event": "routing",
+              "provider": "reference",
+              "route": "clientes.ultimo_pago",
+              "confidence": null,
+              "probabilities": {},
+              "duration_ms": 681.141,
+              "shadow": false
+            },
+            {
+              "event": "context_selection",
+              "modules": [
+                "core",
+                "domains/customers"
+              ],
+              "version": "modular-v1:d249179594ec2146",
+              "system_chars": 10444,
+              "business_chars": 11722,
+              "schema_chars": 4283,
+              "tools_chars": 3222
+            },
+            {
+              "event": "usage",
+              "task": "interpretation",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 17,
+                "prompt_tokens": 7333,
+                "total_tokens": 7350,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 6016
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 785.529
+            }
+          ],
+          "cost": {
+            "usd_known": 0.0014052000000000001,
+            "unknown_attempts": 0,
+            "complete": true,
+            "rates_date": "2026-11-10"
+          },
+          "repetition": 1
+        },
+        {
+          "case": "count-customers-by-name",
+          "passed": true,
+          "tool": "consultar_negocio",
+          "arguments": {
+            "operation": "contar_coincidencias",
+            "customer": "Demo"
+          },
+          "error": null,
+          "route": "clientes.contar_coincidencias",
+          "events": [
+            {
+              "event": "usage",
+              "task": "routing",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 20,
+                "prompt_tokens": 503,
+                "total_tokens": 523,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 0
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 690.951
+            },
+            {
+              "event": "routing",
+              "provider": "reference",
+              "route": "clientes.contar_coincidencias",
+              "confidence": null,
+              "probabilities": {},
+              "duration_ms": 691.022,
+              "shadow": false
+            },
+            {
+              "event": "context_selection",
+              "modules": [
+                "core",
+                "domains/customers"
+              ],
+              "version": "modular-v1:d249179594ec2146",
+              "system_chars": 10444,
+              "business_chars": 11722,
+              "schema_chars": 4283,
+              "tools_chars": 3231
+            },
+            {
+              "event": "usage",
+              "task": "interpretation",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 25,
+                "prompt_tokens": 7296,
+                "total_tokens": 7321,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 6016
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 873.037
+            }
+          ],
+          "cost": {
+            "usd_known": 0.0013867999999999999,
+            "unknown_attempts": 0,
+            "complete": true,
+            "rates_date": "2026-11-10"
+          },
+          "repetition": 1
+        },
+        {
+          "case": "greeting-plus-question",
+          "passed": true,
+          "tool": "consultar_negocio",
+          "arguments": {
+            "operation": "saldo",
+            "customer": "Cliente Demo"
+          },
+          "error": null,
+          "route": "clientes.saldo",
+          "events": [
+            {
+              "event": "usage",
+              "task": "routing",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 16,
+                "prompt_tokens": 504,
+                "total_tokens": 520,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 0
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 631.168
+            },
+            {
+              "event": "routing",
+              "provider": "reference",
+              "route": "clientes.saldo",
+              "confidence": null,
+              "probabilities": {},
+              "duration_ms": 631.243,
+              "shadow": false
+            },
+            {
+              "event": "context_selection",
+              "modules": [
+                "core",
+                "domains/customers"
+              ],
+              "version": "modular-v1:d249179594ec2146",
+              "system_chars": 10444,
+              "business_chars": 11722,
+              "schema_chars": 4283,
+              "tools_chars": 3216
+            },
+            {
+              "event": "usage",
+              "task": "interpretation",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 21,
+                "prompt_tokens": 7293,
+                "total_tokens": 7314,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 6016
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 992.611
+            }
+          ],
+          "cost": {
+            "usd_known": 0.0013732000000000002,
+            "unknown_attempts": 0,
+            "complete": true,
+            "rates_date": "2026-11-10"
+          },
+          "repetition": 1
+        },
+        {
+          "case": "expense-month",
+          "passed": false,
+          "tool": "consultar_sql",
+          "arguments": {
+            "sql": "SELECT SUM(IMPORTE) AS TotalGasto FROM proadel.GASTOS_DATA WHERE DESTINO LIKE '%Plaza Demo%' AND ESTADO = 'ACTIVA' AND TRY_CONVERT(date, FECHA, 103) >= '2026-10-01' AND TRY_CONVERT(date, FECHA, 103) <= '2026-10-08'"
+          },
+          "error": null,
+          "route": "gastos.exploracion",
+          "events": [
+            {
+              "event": "usage",
+              "task": "routing",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 19,
+                "prompt_tokens": 503,
+                "total_tokens": 522,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 0
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 793.255
+            },
+            {
+              "event": "routing",
+              "provider": "reference",
+              "route": "gastos.exploracion",
+              "confidence": null,
+              "probabilities": {},
+              "duration_ms": 793.298,
+              "shadow": false
+            },
+            {
+              "event": "context_selection",
+              "modules": [
+                "core",
+                "domains/expenses"
+              ],
+              "version": "modular-v1:c9907a542d26a075",
+              "system_chars": 9086,
+              "business_chars": 4371,
+              "schema_chars": 1315,
+              "tools_chars": 1805
+            },
+            {
+              "event": "usage",
+              "task": "interpretation",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 90,
+                "prompt_tokens": 3828,
+                "total_tokens": 3918,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 0
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 1512.614
+            }
+          ],
+          "cost": {
+            "usd_known": 0.0019068,
+            "unknown_attempts": 0,
+            "complete": true,
+            "rates_date": "2026-11-10"
+          },
+          "repetition": 1
+        },
+        {
+          "case": "expense-missing-year",
+          "passed": false,
+          "tool": "consultar_sql",
+          "arguments": {
+            "sql": "SELECT SUM(IMPORTE) AS TotalGasto FROM proadel.GASTOS_DATA WHERE DESTINO LIKE '%Plaza Demo%' AND ESTADO = 'ACTIVA' AND TRY_CONVERT(date, FECHA, 103) >= '2026-10-01' AND TRY_CONVERT(date, FECHA, 103) <= '2026-10-31'"
+          },
+          "error": null,
+          "route": "gastos.exploracion",
+          "events": [
+            {
+              "event": "usage",
+              "task": "routing",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 19,
+                "prompt_tokens": 503,
+                "total_tokens": 522,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 0
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 830.788
+            },
+            {
+              "event": "routing",
+              "provider": "reference",
+              "route": "gastos.exploracion",
+              "confidence": null,
+              "probabilities": {},
+              "duration_ms": 832.879,
+              "shadow": false
+            },
+            {
+              "event": "context_selection",
+              "modules": [
+                "core",
+                "domains/expenses"
+              ],
+              "version": "modular-v1:c9907a542d26a075",
+              "system_chars": 9086,
+              "business_chars": 4371,
+              "schema_chars": 1315,
+              "tools_chars": 1805
+            },
+            {
+              "event": "usage",
+              "task": "interpretation",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 90,
+                "prompt_tokens": 3828,
+                "total_tokens": 3918,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 3584
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 1507.782
+            }
+          ],
+          "cost": {
+            "usd_known": 0.0008315999999999999,
+            "unknown_attempts": 0,
+            "complete": true,
+            "rates_date": "2026-11-10"
+          },
+          "repetition": 1
+        },
+        {
+          "case": "topic-change-expenses",
+          "passed": false,
+          "tool": "pedir_aclaracion",
+          "arguments": {
+            "reason": "periodo"
+          },
+          "error": null,
+          "route": "gastos.exploracion",
+          "events": [
+            {
+              "event": "usage",
+              "task": "routing",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 19,
+                "prompt_tokens": 545,
+                "total_tokens": 564,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 0
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 630.079
+            },
+            {
+              "event": "routing",
+              "provider": "reference",
+              "route": "gastos.exploracion",
+              "confidence": null,
+              "probabilities": {},
+              "duration_ms": 630.128,
+              "shadow": false
+            },
+            {
+              "event": "context_selection",
+              "modules": [
+                "core",
+                "domains/expenses"
+              ],
+              "version": "modular-v1:c9907a542d26a075",
+              "system_chars": 9086,
+              "business_chars": 4371,
+              "schema_chars": 1315,
+              "tools_chars": 1805
+            },
+            {
+              "event": "usage",
+              "task": "interpretation",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 18,
+                "prompt_tokens": 3857,
+                "total_tokens": 3875,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 3584
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 787.605
+            }
+          ],
+          "cost": {
+            "usd_known": 0.0007448000000000001,
+            "unknown_attempts": 0,
+            "complete": true,
+            "rates_date": "2026-11-10"
+          },
+          "repetition": 1
+        }
+      ]
+    },
+    "reference_nano": {
+      "status": "measured",
+      "passed": 9,
+      "runs": 16,
+      "cost": {
+        "usd_known": 0.0169732,
+        "unknown_attempts": 12,
+        "complete": false,
+        "rates_date": "2026-11-10"
+      },
+      "results": [
+        {
+          "case": "ranking-after-customer",
+          "passed": true,
+          "tool": "consultar_negocio",
+          "arguments": {
+            "operation": "ranking_deuda",
+            "limit": 3
+          },
+          "error": null,
+          "route": "clientes.ranking_deuda",
+          "events": [
+            {
+              "event": "usage",
+              "task": "routing",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 18,
+                "prompt_tokens": 544,
+                "total_tokens": 562,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 0
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 729.709
+            },
+            {
+              "event": "routing",
+              "provider": "reference",
+              "route": "clientes.ranking_deuda",
+              "confidence": null,
+              "probabilities": {},
+              "duration_ms": 729.758,
+              "shadow": false
+            },
+            {
+              "event": "context_selection",
+              "modules": [
+                "core",
+                "domains/customers"
+              ],
+              "version": "modular-v1:d249179594ec2146",
+              "system_chars": 10444,
+              "business_chars": 11722,
+              "schema_chars": 4283,
+              "tools_chars": 3224
+            },
+            {
+              "event": "usage",
+              "task": "extraction",
+              "status": "error",
+              "usage": null,
+              "provider": "openai",
+              "model": "gpt-4.1-nano",
+              "duration_ms": 215.184
+            },
+            {
+              "event": "fallback",
+              "task": "extraction",
+              "reason": "NotFoundError"
+            },
+            {
+              "event": "usage",
+              "task": "extraction_fallback",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 22,
+                "prompt_tokens": 7322,
+                "total_tokens": 7344,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 7168
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 845.327
+            }
+          ],
+          "cost": {
+            "usd_known": 0.0010600000000000002,
+            "unknown_attempts": 1,
+            "complete": false,
+            "rates_date": "2026-11-10"
+          },
+          "repetition": 1
+        },
+        {
+          "case": "payment-followup",
+          "passed": true,
+          "tool": "consultar_negocio",
+          "arguments": {
+            "operation": "total_pagos",
+            "customer": "DEMO1",
+            "codigo_exacto": true,
+            "period": "esta_semana"
+          },
+          "error": null,
+          "route": "clientes.total_pagos",
+          "events": [
+            {
+              "event": "usage",
+              "task": "routing",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 17,
+                "prompt_tokens": 542,
+                "total_tokens": 559,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 0
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 671.269
+            },
+            {
+              "event": "routing",
+              "provider": "reference",
+              "route": "clientes.total_pagos",
+              "confidence": null,
+              "probabilities": {},
+              "duration_ms": 671.319,
+              "shadow": false
+            },
+            {
+              "event": "context_selection",
+              "modules": [
+                "core",
+                "domains/customers"
+              ],
+              "version": "modular-v1:d249179594ec2146",
+              "system_chars": 10444,
+              "business_chars": 11722,
+              "schema_chars": 4283,
+              "tools_chars": 3222
+            },
+            {
+              "event": "usage",
+              "task": "extraction",
+              "status": "error",
+              "usage": null,
+              "provider": "openai",
+              "model": "gpt-4.1-nano",
+              "duration_ms": 186.982
+            },
+            {
+              "event": "fallback",
+              "task": "extraction",
+              "reason": "NotFoundError"
+            },
+            {
+              "event": "usage",
+              "task": "extraction_fallback",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 36,
+                "prompt_tokens": 7319,
+                "total_tokens": 7355,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 7168
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 904.364
+            }
+          ],
+          "cost": {
+            "usd_known": 0.0010788,
+            "unknown_attempts": 1,
+            "complete": false,
+            "rates_date": "2026-11-10"
+          },
+          "repetition": 1
+        },
+        {
+          "case": "ambiguous-yes",
+          "passed": false,
+          "tool": null,
+          "arguments": {},
+          "error": null,
+          "route": "clientes.saldos_coincidencias",
+          "events": [
+            {
+              "event": "usage",
+              "task": "routing",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 21,
+                "prompt_tokens": 547,
+                "total_tokens": 568,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 0
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 725.148
+            },
+            {
+              "event": "routing",
+              "provider": "reference",
+              "route": "clientes.saldos_coincidencias",
+              "confidence": null,
+              "probabilities": {},
+              "duration_ms": 725.197,
+              "shadow": false
+            },
+            {
+              "event": "context_selection",
+              "modules": [
+                "core",
+                "domains/customers"
+              ],
+              "version": "modular-v1:d249179594ec2146",
+              "system_chars": 10444,
+              "business_chars": 11722,
+              "schema_chars": 4283,
+              "tools_chars": 3231
+            },
+            {
+              "event": "usage",
+              "task": "extraction",
+              "status": "error",
+              "usage": null,
+              "provider": "openai",
+              "model": "gpt-4.1-nano",
+              "duration_ms": 194.534
+            },
+            {
+              "event": "fallback",
+              "task": "extraction",
+              "reason": "NotFoundError"
+            },
+            {
+              "event": "usage",
+              "task": "extraction_fallback",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 28,
+                "prompt_tokens": 7328,
+                "total_tokens": 7356,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 7040
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 770.131
+            }
+          ],
+          "cost": {
+            "usd_known": 0.0011164,
+            "unknown_attempts": 1,
+            "complete": false,
+            "rates_date": "2026-11-10"
+          },
+          "repetition": 1
+        },
+        {
+          "case": "short-selection",
+          "passed": true,
+          "tool": "consultar_negocio",
+          "arguments": {
+            "operation": "total_pagos",
+            "customer": "DEMO2",
+            "codigo_exacto": true,
+            "period": "este_mes"
+          },
+          "error": null,
+          "route": "clientes.total_pagos",
+          "events": [
+            {
+              "event": "usage",
+              "task": "routing",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 17,
+                "prompt_tokens": 555,
+                "total_tokens": 572,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 0
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 674.637
+            },
+            {
+              "event": "routing",
+              "provider": "reference",
+              "route": "clientes.total_pagos",
+              "confidence": null,
+              "probabilities": {},
+              "duration_ms": 674.685,
+              "shadow": false
+            },
+            {
+              "event": "context_selection",
+              "modules": [
+                "core",
+                "domains/customers"
+              ],
+              "version": "modular-v1:d249179594ec2146",
+              "system_chars": 10444,
+              "business_chars": 11722,
+              "schema_chars": 4283,
+              "tools_chars": 3222
+            },
+            {
+              "event": "usage",
+              "task": "extraction",
+              "status": "error",
+              "usage": null,
+              "provider": "openai",
+              "model": "gpt-4.1-nano",
+              "duration_ms": 178.419
+            },
+            {
+              "event": "fallback",
+              "task": "extraction",
+              "reason": "NotFoundError"
+            },
+            {
+              "event": "usage",
+              "task": "extraction_fallback",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 35,
+                "prompt_tokens": 7331,
+                "total_tokens": 7366,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 7168
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 886.579
+            }
+          ],
+          "cost": {
+            "usd_known": 0.0010872,
+            "unknown_attempts": 1,
+            "complete": false,
+            "rates_date": "2026-11-10"
+          },
+          "repetition": 1
+        },
+        {
+          "case": "historical-balance",
+          "passed": true,
+          "tool": "pedir_aclaracion",
+          "arguments": {
+            "reason": "fuera_alcance"
+          },
+          "error": null,
+          "route": "clientes.saldo",
+          "events": [
+            {
+              "event": "usage",
+              "task": "routing",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 16,
+                "prompt_tokens": 508,
+                "total_tokens": 524,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 0
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 671.587
+            },
+            {
+              "event": "routing",
+              "provider": "reference",
+              "route": "clientes.saldo",
+              "confidence": null,
+              "probabilities": {},
+              "duration_ms": 671.631,
+              "shadow": false
+            },
+            {
+              "event": "context_selection",
+              "modules": [
+                "core",
+                "domains/customers"
+              ],
+              "version": "modular-v1:d249179594ec2146",
+              "system_chars": 10444,
+              "business_chars": 11722,
+              "schema_chars": 4283,
+              "tools_chars": 3216
+            },
+            {
+              "event": "usage",
+              "task": "extraction",
+              "status": "error",
+              "usage": null,
+              "provider": "openai",
+              "model": "gpt-4.1-nano",
+              "duration_ms": 177.728
+            },
+            {
+              "event": "fallback",
+              "task": "extraction",
+              "reason": "NotFoundError"
+            },
+            {
+              "event": "usage",
+              "task": "extraction_fallback",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 21,
+                "prompt_tokens": 7296,
+                "total_tokens": 7317,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 7040
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 758.271
+            }
+          ],
+          "cost": {
+            "usd_known": 0.0010688,
+            "unknown_attempts": 1,
+            "complete": false,
+            "rates_date": "2026-11-10"
+          },
+          "repetition": 1
+        },
+        {
+          "case": "last-payment-period",
+          "passed": false,
+          "tool": "consultar_negocio",
+          "arguments": {
+            "operation": "ultimo_pago",
+            "customer": "DEMO1",
+            "codigo_exacto": false
+          },
+          "error": null,
+          "route": "clientes.ultimo_pago",
+          "events": [
+            {
+              "event": "usage",
+              "task": "routing",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 17,
+                "prompt_tokens": 509,
+                "total_tokens": 526,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 0
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 845.874
+            },
+            {
+              "event": "routing",
+              "provider": "reference",
+              "route": "clientes.ultimo_pago",
+              "confidence": null,
+              "probabilities": {},
+              "duration_ms": 845.918,
+              "shadow": false
+            },
+            {
+              "event": "context_selection",
+              "modules": [
+                "core",
+                "domains/customers"
+              ],
+              "version": "modular-v1:d249179594ec2146",
+              "system_chars": 10444,
+              "business_chars": 11722,
+              "schema_chars": 4283,
+              "tools_chars": 3222
+            },
+            {
+              "event": "usage",
+              "task": "extraction",
+              "status": "error",
+              "usage": null,
+              "provider": "openai",
+              "model": "gpt-4.1-nano",
+              "duration_ms": 196.662
+            },
+            {
+              "event": "fallback",
+              "task": "extraction",
+              "reason": "NotFoundError"
+            },
+            {
+              "event": "usage",
+              "task": "extraction_fallback",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 29,
+                "prompt_tokens": 7299,
+                "total_tokens": 7328,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 7168
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 926.538
+            }
+          ],
+          "cost": {
+            "usd_known": 0.0010464,
+            "unknown_attempts": 1,
+            "complete": false,
+            "rates_date": "2026-11-10"
+          },
+          "repetition": 1
+        },
+        {
+          "case": "whole-statement",
+          "passed": true,
+          "tool": "consultar_negocio",
+          "arguments": {
+            "operation": "estado_cuenta",
+            "customer": "DEMO1",
+            "codigo_exacto": false
+          },
+          "error": null,
+          "route": "clientes.estado_cuenta",
+          "events": [
+            {
+              "event": "usage",
+              "task": "routing",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 17,
+                "prompt_tokens": 512,
+                "total_tokens": 529,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 0
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 766.114
+            },
+            {
+              "event": "routing",
+              "provider": "reference",
+              "route": "clientes.estado_cuenta",
+              "confidence": null,
+              "probabilities": {},
+              "duration_ms": 766.161,
+              "shadow": false
+            },
+            {
+              "event": "context_selection",
+              "modules": [
+                "core",
+                "domains/customers"
+              ],
+              "version": "modular-v1:d249179594ec2146",
+              "system_chars": 10444,
+              "business_chars": 11722,
+              "schema_chars": 4283,
+              "tools_chars": 3224
+            },
+            {
+              "event": "usage",
+              "task": "extraction",
+              "status": "error",
+              "usage": null,
+              "provider": "openai",
+              "model": "gpt-4.1-nano",
+              "duration_ms": 174.03
+            },
+            {
+              "event": "fallback",
+              "task": "extraction",
+              "reason": "NotFoundError"
+            },
+            {
+              "event": "usage",
+              "task": "extraction_fallback",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 30,
+                "prompt_tokens": 7302,
+                "total_tokens": 7332,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 7168
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 808.39
+            }
+          ],
+          "cost": {
+            "usd_known": 0.0010504,
+            "unknown_attempts": 1,
+            "complete": false,
+            "rates_date": "2026-11-10"
+          },
+          "repetition": 1
+        },
+        {
+          "case": "today-payments",
+          "passed": false,
+          "tool": null,
+          "arguments": {},
+          "error": null,
+          "route": "clientes.ultimo_pago",
+          "events": [
+            {
+              "event": "usage",
+              "task": "routing",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 17,
+                "prompt_tokens": 502,
+                "total_tokens": 519,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 0
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 997.136
+            },
+            {
+              "event": "routing",
+              "provider": "reference",
+              "route": "clientes.ultimo_pago",
+              "confidence": null,
+              "probabilities": {},
+              "duration_ms": 997.181,
+              "shadow": false
+            },
+            {
+              "event": "context_selection",
+              "modules": [
+                "core",
+                "domains/customers"
+              ],
+              "version": "modular-v1:d249179594ec2146",
+              "system_chars": 10444,
+              "business_chars": 11722,
+              "schema_chars": 4283,
+              "tools_chars": 3222
+            },
+            {
+              "event": "usage",
+              "task": "extraction",
+              "status": "error",
+              "usage": null,
+              "provider": "openai",
+              "model": "gpt-4.1-nano",
+              "duration_ms": 186.397
+            },
+            {
+              "event": "fallback",
+              "task": "extraction",
+              "reason": "NotFoundError"
+            },
+            {
+              "event": "usage",
+              "task": "extraction_fallback",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 53,
+                "prompt_tokens": 7291,
+                "total_tokens": 7344,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 7040
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 1084.322
+            }
+          ],
+          "cost": {
+            "usd_known": 0.0011172,
+            "unknown_attempts": 1,
+            "complete": false,
+            "rates_date": "2026-11-10"
+          },
+          "repetition": 1
+        },
+        {
+          "case": "ambiguous-date",
+          "passed": true,
+          "tool": "pedir_aclaracion",
+          "arguments": {
+            "reason": "periodo"
+          },
+          "error": null,
+          "route": "clientes.pagos",
+          "events": [
+            {
+              "event": "usage",
+              "task": "routing",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 16,
+                "prompt_tokens": 505,
+                "total_tokens": 521,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 0
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 759.192
+            },
+            {
+              "event": "routing",
+              "provider": "reference",
+              "route": "clientes.pagos",
+              "confidence": null,
+              "probabilities": {},
+              "duration_ms": 759.236,
+              "shadow": false
+            },
+            {
+              "event": "context_selection",
+              "modules": [
+                "core",
+                "domains/customers"
+              ],
+              "version": "modular-v1:d249179594ec2146",
+              "system_chars": 10444,
+              "business_chars": 11722,
+              "schema_chars": 4283,
+              "tools_chars": 3216
+            },
+            {
+              "event": "usage",
+              "task": "extraction",
+              "status": "error",
+              "usage": null,
+              "provider": "openai",
+              "model": "gpt-4.1-nano",
+              "duration_ms": 184.993
+            },
+            {
+              "event": "fallback",
+              "task": "extraction",
+              "reason": "NotFoundError"
+            },
+            {
+              "event": "usage",
+              "task": "extraction_fallback",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 18,
+                "prompt_tokens": 7294,
+                "total_tokens": 7312,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 7168
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 839.37
+            }
+          ],
+          "cost": {
+            "usd_known": 0.0010236,
+            "unknown_attempts": 1,
+            "complete": false,
+            "rates_date": "2026-11-10"
+          },
+          "repetition": 1
+        },
+        {
+          "case": "write-disguised",
+          "passed": true,
+          "tool": "pedir_aclaracion",
+          "arguments": {
+            "reason": "escritura"
+          },
+          "error": null,
+          "route": null,
+          "events": [
+            {
+              "event": "usage",
+              "task": "routing",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 14,
+                "prompt_tokens": 509,
+                "total_tokens": 523,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 0
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 609.27
+            },
+            {
+              "event": "routing",
+              "provider": "reference",
+              "route": "legacy",
+              "confidence": null,
+              "probabilities": {},
+              "duration_ms": 609.318,
+              "shadow": false
+            },
+            {
+              "event": "usage",
+              "task": "interpretation",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 19,
+                "prompt_tokens": 12997,
+                "total_tokens": 13016,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 12800
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 750.563
+            }
+          ],
+          "cost": {
+            "usd_known": 0.0016152,
+            "unknown_attempts": 0,
+            "complete": true,
+            "rates_date": "2026-11-10"
+          },
+          "repetition": 1
+        },
+        {
+          "case": "rank-is-not-selection",
+          "passed": false,
+          "tool": "consultar_negocio",
+          "arguments": {
+            "operation": "ultimo_pago",
+            "customer": "DEMO1",
+            "codigo_exacto": false
+          },
+          "error": null,
+          "route": "clientes.ultimo_pago",
+          "events": [
+            {
+              "event": "usage",
+              "task": "routing",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 17,
+                "prompt_tokens": 556,
+                "total_tokens": 573,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 0
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 702.71
+            },
+            {
+              "event": "routing",
+              "provider": "reference",
+              "route": "clientes.ultimo_pago",
+              "confidence": null,
+              "probabilities": {},
+              "duration_ms": 702.759,
+              "shadow": false
+            },
+            {
+              "event": "context_selection",
+              "modules": [
+                "core",
+                "domains/customers"
+              ],
+              "version": "modular-v1:d249179594ec2146",
+              "system_chars": 10444,
+              "business_chars": 11722,
+              "schema_chars": 4283,
+              "tools_chars": 3222
+            },
+            {
+              "event": "usage",
+              "task": "extraction",
+              "status": "error",
+              "usage": null,
+              "provider": "openai",
+              "model": "gpt-4.1-nano",
+              "duration_ms": 176.703
+            },
+            {
+              "event": "fallback",
+              "task": "extraction",
+              "reason": "NotFoundError"
+            },
+            {
+              "event": "usage",
+              "task": "extraction_fallback",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 29,
+                "prompt_tokens": 7333,
+                "total_tokens": 7362,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 7168
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 881.287
+            }
+          ],
+          "cost": {
+            "usd_known": 0.0010788000000000002,
+            "unknown_attempts": 1,
+            "complete": false,
+            "rates_date": "2026-11-10"
+          },
+          "repetition": 1
+        },
+        {
+          "case": "count-customers-by-name",
+          "passed": true,
+          "tool": "consultar_negocio",
+          "arguments": {
+            "operation": "contar_coincidencias",
+            "customer": "Demo"
+          },
+          "error": null,
+          "route": "clientes.contar_coincidencias",
+          "events": [
+            {
+              "event": "usage",
+              "task": "routing",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 20,
+                "prompt_tokens": 503,
+                "total_tokens": 523,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 0
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 660.001
+            },
+            {
+              "event": "routing",
+              "provider": "reference",
+              "route": "clientes.contar_coincidencias",
+              "confidence": null,
+              "probabilities": {},
+              "duration_ms": 660.044,
+              "shadow": false
+            },
+            {
+              "event": "context_selection",
+              "modules": [
+                "core",
+                "domains/customers"
+              ],
+              "version": "modular-v1:d249179594ec2146",
+              "system_chars": 10444,
+              "business_chars": 11722,
+              "schema_chars": 4283,
+              "tools_chars": 3231
+            },
+            {
+              "event": "usage",
+              "task": "extraction",
+              "status": "error",
+              "usage": null,
+              "provider": "openai",
+              "model": "gpt-4.1-nano",
+              "duration_ms": 499.809
+            },
+            {
+              "event": "fallback",
+              "task": "extraction",
+              "reason": "NotFoundError"
+            },
+            {
+              "event": "usage",
+              "task": "extraction_fallback",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 25,
+                "prompt_tokens": 7296,
+                "total_tokens": 7321,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 7168
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 1074.32
+            }
+          ],
+          "cost": {
+            "usd_known": 0.0010412000000000002,
+            "unknown_attempts": 1,
+            "complete": false,
+            "rates_date": "2026-11-10"
+          },
+          "repetition": 1
+        },
+        {
+          "case": "greeting-plus-question",
+          "passed": true,
+          "tool": "consultar_negocio",
+          "arguments": {
+            "operation": "saldo",
+            "customer": "Cliente Demo"
+          },
+          "error": null,
+          "route": "clientes.saldo",
+          "events": [
+            {
+              "event": "usage",
+              "task": "routing",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 16,
+                "prompt_tokens": 504,
+                "total_tokens": 520,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 0
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 739.467
+            },
+            {
+              "event": "routing",
+              "provider": "reference",
+              "route": "clientes.saldo",
+              "confidence": null,
+              "probabilities": {},
+              "duration_ms": 739.513,
+              "shadow": false
+            },
+            {
+              "event": "context_selection",
+              "modules": [
+                "core",
+                "domains/customers"
+              ],
+              "version": "modular-v1:d249179594ec2146",
+              "system_chars": 10444,
+              "business_chars": 11722,
+              "schema_chars": 4283,
+              "tools_chars": 3216
+            },
+            {
+              "event": "usage",
+              "task": "extraction",
+              "status": "error",
+              "usage": null,
+              "provider": "openai",
+              "model": "gpt-4.1-nano",
+              "duration_ms": 181.401
+            },
+            {
+              "event": "fallback",
+              "task": "extraction",
+              "reason": "NotFoundError"
+            },
+            {
+              "event": "usage",
+              "task": "extraction_fallback",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 21,
+                "prompt_tokens": 7293,
+                "total_tokens": 7314,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 7168
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 763.204
+            }
+          ],
+          "cost": {
+            "usd_known": 0.0010276,
+            "unknown_attempts": 1,
+            "complete": false,
+            "rates_date": "2026-11-10"
+          },
+          "repetition": 1
+        },
+        {
+          "case": "expense-month",
+          "passed": false,
+          "tool": "consultar_sql",
+          "arguments": {
+            "sql": "SELECT SUM(IMPORTE) AS TotalGasto FROM proadel.GASTOS_DATA WHERE DESTINO LIKE '%Plaza Demo%' AND ESTADO = 'ACTIVA' AND TRY_CONVERT(date, FECHA, 103) >= '2026-10-01' AND TRY_CONVERT(date, FECHA, 103) <= '2026-10-08'"
+          },
+          "error": null,
+          "route": "gastos.exploracion",
+          "events": [
+            {
+              "event": "usage",
+              "task": "routing",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 19,
+                "prompt_tokens": 503,
+                "total_tokens": 522,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 0
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 1350.496
+            },
+            {
+              "event": "routing",
+              "provider": "reference",
+              "route": "gastos.exploracion",
+              "confidence": null,
+              "probabilities": {},
+              "duration_ms": 1350.548,
+              "shadow": false
+            },
+            {
+              "event": "context_selection",
+              "modules": [
+                "core",
+                "domains/expenses"
+              ],
+              "version": "modular-v1:c9907a542d26a075",
+              "system_chars": 9086,
+              "business_chars": 4371,
+              "schema_chars": 1315,
+              "tools_chars": 1805
+            },
+            {
+              "event": "usage",
+              "task": "interpretation",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 90,
+                "prompt_tokens": 3828,
+                "total_tokens": 3918,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 2944
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 1557.665
+            }
+          ],
+          "cost": {
+            "usd_known": 0.0010236,
+            "unknown_attempts": 0,
+            "complete": true,
+            "rates_date": "2026-11-10"
+          },
+          "repetition": 1
+        },
+        {
+          "case": "expense-missing-year",
+          "passed": false,
+          "tool": "consultar_sql",
+          "arguments": {
+            "sql": "SELECT SUM(IMPORTE) AS TotalGasto FROM proadel.GASTOS_DATA WHERE DESTINO LIKE '%Plaza Demo%' AND ESTADO = 'ACTIVA' AND TRY_CONVERT(date, FECHA, 103) >= '2026-10-01' AND TRY_CONVERT(date, FECHA, 103) <= '2026-10-31'"
+          },
+          "error": null,
+          "route": "gastos.exploracion",
+          "events": [
+            {
+              "event": "usage",
+              "task": "routing",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 19,
+                "prompt_tokens": 503,
+                "total_tokens": 522,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 0
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 705.297
+            },
+            {
+              "event": "routing",
+              "provider": "reference",
+              "route": "gastos.exploracion",
+              "confidence": null,
+              "probabilities": {},
+              "duration_ms": 705.341,
+              "shadow": false
+            },
+            {
+              "event": "context_selection",
+              "modules": [
+                "core",
+                "domains/expenses"
+              ],
+              "version": "modular-v1:c9907a542d26a075",
+              "system_chars": 9086,
+              "business_chars": 4371,
+              "schema_chars": 1315,
+              "tools_chars": 1805
+            },
+            {
+              "event": "usage",
+              "task": "interpretation",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 90,
+                "prompt_tokens": 3828,
+                "total_tokens": 3918,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 3584
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 1343.064
+            }
+          ],
+          "cost": {
+            "usd_known": 0.0008315999999999999,
+            "unknown_attempts": 0,
+            "complete": true,
+            "rates_date": "2026-11-10"
+          },
+          "repetition": 1
+        },
+        {
+          "case": "topic-change-expenses",
+          "passed": false,
+          "tool": "pedir_aclaracion",
+          "arguments": {
+            "reason": "periodo"
+          },
+          "error": null,
+          "route": "gastos.exploracion",
+          "events": [
+            {
+              "event": "usage",
+              "task": "routing",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 19,
+                "prompt_tokens": 545,
+                "total_tokens": 564,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 0
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 628.021
+            },
+            {
+              "event": "routing",
+              "provider": "reference",
+              "route": "gastos.exploracion",
+              "confidence": null,
+              "probabilities": {},
+              "duration_ms": 628.069,
+              "shadow": false
+            },
+            {
+              "event": "context_selection",
+              "modules": [
+                "core",
+                "domains/expenses"
+              ],
+              "version": "modular-v1:c9907a542d26a075",
+              "system_chars": 9086,
+              "business_chars": 4371,
+              "schema_chars": 1315,
+              "tools_chars": 1805
+            },
+            {
+              "event": "usage",
+              "task": "interpretation",
+              "status": "ok",
+              "usage": {
+                "completion_tokens": 18,
+                "prompt_tokens": 3857,
+                "total_tokens": 3875,
+                "completion_tokens_details": {
+                  "accepted_prediction_tokens": 0,
+                  "audio_tokens": 0,
+                  "reasoning_tokens": 0,
+                  "rejected_prediction_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cached_tokens": 3712
+                }
+              },
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "duration_ms": 765.055
+            }
+          ],
+          "cost": {
+            "usd_known": 0.0007064,
+            "unknown_attempts": 0,
+            "complete": true,
+            "rates_date": "2026-11-10"
+          },
+          "repetition": 1
+        }
+      ]
+    },
+    "jev_mini": {
+      "status": "unavailable",
+      "reason": "TYPESAFE_API_KEY missing"
+    },
+    "jev_nano": {
+      "status": "unavailable",
+      "reason": "TYPESAFE_API_KEY missing"
+    }
+  }
+}

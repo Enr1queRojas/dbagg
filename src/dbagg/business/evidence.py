@@ -1,6 +1,6 @@
 """Results are rendered from data; ungrounded model prose is never a final answer."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
 from uuid import uuid4
 
@@ -16,10 +16,11 @@ class BusinessAnswer:
     operation: str
     sources: tuple[str, ...]
     evidence_id: str
+    metadata: dict = field(default_factory=dict, repr=False)
 
     @classmethod
-    def make(cls, text, status, operation, sources):
-        return cls(text, status, operation, tuple(sources), uuid4().hex)
+    def make(cls, text, status, operation, sources, metadata=None):
+        return cls(text, status, operation, tuple(sources), uuid4().hex, metadata or {})
 
 
 def records(result):

@@ -1,6 +1,7 @@
 """Coordinate one authorized conversation independently of HTTP transport."""
 
 import logging
+import threading
 from uuid import uuid4
 
 import httpx
@@ -52,6 +53,8 @@ class ConversationService:
         if self.gaps is None and getattr(settings, "gap_log_enabled", False):
             self.gaps = GapStore(project_root() / "data" / "gaps.sqlite3")
         self.memory = ConversationMemory()
+        self._sender_locks = {}
+        self._sender_locks_guard = threading.Lock()
         self.feedback = feedback_store
         if self.feedback is None and settings.feedback_enabled:
             self.feedback = FeedbackStore(
@@ -183,6 +186,12 @@ class ConversationService:
         logger.info("dbagg stage=outbox_recovered rows=%s stale=%s", len(rows), stale)
 
     def _handle(self, sender, question, voice=False):
+        with self._sender_locks_guard:
+            lock = self._sender_locks.setdefault(sender, threading.RLock())
+        with lock:
+            self._handle_turn(sender, question, voice)
+
+    def _handle_turn(self, sender, question, voice=False):
         save_turn = False
         answer_failed = False
         history = []
@@ -207,11 +216,17 @@ class ConversationService:
                 )
             else:
                 history = self.memory.history(sender)
-                answer = (
-                    self.assistant.answer(question, history=history)
-                    if history
-                    else self.assistant.answer(question)
-                )
+                modular = getattr(getattr(self.settings, "llm", None), "modular", None)
+                if getattr(modular, "enabled", False) is True:
+                    answer = self.assistant.answer(
+                        question, history=history, conversation_state=self.memory.state(sender)
+                    )
+                else:
+                    answer = (
+                        self.assistant.answer(question, history=history)
+                        if history
+                        else self.assistant.answer(question)
+                    )
                 save_turn = True
                 document = self._take_document()
                 if document is not None and not self._send_document(sender, document):
@@ -268,4 +283,5 @@ class ConversationService:
                     "prompt_version": trace.get("prompt_version", PROMPT_VERSION),
                     "context_version": trace.get("context_version"),
                 },
+                state=getattr(self.assistant, "next_state", None),
             )

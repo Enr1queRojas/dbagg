@@ -2,9 +2,12 @@
 
 import json
 import logging
+import os
 import re
 import threading
+import time
 import unicodedata
+from dataclasses import replace
 from datetime import timedelta
 import pyodbc
 import sqlglot
@@ -15,6 +18,13 @@ from dbagg.database.validation import validate_sql
 from dbagg.context.loader import load_business_context, context_version
 from dbagg.agent.prompts import build_messages, tool_definitions
 from dbagg.agent.prompt_files import load_prompt_bundle
+from dbagg.agent.context_builder import select_context, validate_tool_call
+from dbagg.routing.registry import available_routes
+from dbagg.routing.service import ReferenceRouter
+from dbagg.routing.jev import JevRouter
+from dbagg.routing.state import ConversationState
+from dbagg.routing.policy import needs_expense_year, route_is_consistent
+from dbagg.llm.types import ModelProtocolError, ModelReply, ToolCall
 from dbagg.llm.config import LLMConfig, ModelProfile
 from dbagg.llm.providers import create_provider
 from dbagg.reporting.bank_pdf import bank_report_filename, bank_report_pdf
@@ -237,6 +247,36 @@ class Assistant:
         self.catalog = load_catalog()
         # Each background task answers and delivers on its own thread.
         self._local = threading.local()
+        self.extraction_provider = None
+        modular = self.llm_config.modular
+        if modular.enabled and modular.extraction_profile:
+            extraction = self.llm_config.profiles[modular.extraction_profile]
+            key = os.getenv(extraction.api_key_env)
+            if key:
+                self.extraction_provider = create_provider(extraction, key)
+        self.router = None
+        if modular.enabled and modular.router == "jev":
+            self.router = JevRouter(modular, os.getenv(modular.jev_api_key_env, ""))
+
+    @property
+    def last_trace(self):
+        return getattr(self._local, "trace", {})
+
+    @last_trace.setter
+    def last_trace(self, value):
+        self._local.trace = value
+
+    @property
+    def _customer_missed(self):
+        return getattr(self._local, "customer_missed", False)
+
+    @_customer_missed.setter
+    def _customer_missed(self, value):
+        self._local.customer_missed = value
+
+    @property
+    def next_state(self):
+        return getattr(self._local, "next_state", ConversationState())
 
     @property
     def tables(self):
@@ -245,8 +285,137 @@ class Assistant:
 
     def close(self):
         self.provider.close()
+        if self.extraction_provider is not None:
+            self.extraction_provider.close()
+        if self.router is not None:
+            self.router.close()
 
-    def answer(self, question, history=None):
+    def _complete(self, messages, tools, require_tool=False, provider=None, task="interpretation"):
+        provider = self.provider if provider is None else provider
+        started = time.monotonic()
+        event = {"event": "usage", "task": task, "status": "error", "usage": None}
+        profile = getattr(provider, "profile", None)
+        if isinstance(profile, ModelProfile):
+            event.update(provider=profile.provider, model=profile.model)
+        try:
+            reply = provider.complete(messages, tools, require_tool=require_tool)
+            event.update(status="ok", usage=reply.usage)
+            return reply
+        finally:
+            event["duration_ms"] = round((time.monotonic() - started) * 1000, 3)
+            self.last_trace.setdefault("events", []).append(event)
+
+    def _select_modular(self, question, history, context, bundle):
+        config = self.llm_config.modular
+        if not config.enabled:
+            return None
+        # Custom prompts are complete local policies. Do not override them with packaged modules.
+        if self.llm_config.system_prompt or self.llm_config.tool_descriptions:
+            self.last_trace["modular_fallback"] = "custom_prompts"
+            return None
+        routes = available_routes(self.catalog, self.tables, config.domains)
+        if not routes:
+            return None
+
+        assistant = self
+
+        class ObservedReference:
+            def complete(self, messages, tools, require_tool=False):
+                return assistant._complete(messages, tools, require_tool, task="routing")
+
+        reference = ReferenceRouter(ObservedReference())
+        started = time.monotonic()
+        decision = None
+        reason = None
+        try:
+            decision = (self.router or reference).decide(question, history, routes)
+        except Exception as exc:
+            reason = type(exc).__name__
+        elapsed = round((time.monotonic() - started) * 1000, 3)
+        if self.router is not None:
+            self.last_trace.setdefault("events", []).append(
+                {
+                    "event": "usage",
+                    "task": "routing",
+                    "provider": "jev",
+                    "model": decision.model if decision else config.jev_model,
+                    "status": "ok" if decision else "error",
+                    "usage": decision.usage if decision else None,
+                    "duration_ms": elapsed,
+                }
+            )
+        if decision is not None:
+            self.last_trace.setdefault("events", []).append(
+                {
+                    "event": "routing",
+                    "provider": decision.provider,
+                    "route": decision.route,
+                    "confidence": decision.confidence,
+                    "probabilities": decision.probabilities,
+                    "duration_ms": elapsed,
+                    "shadow": config.shadow,
+                }
+            )
+        if config.shadow:
+            if reason:
+                self.last_trace["modular_fallback"] = reason
+            return None
+        if (
+            self.router is not None
+            and decision is not None
+            and (
+                decision.confidence is None
+                or config.min_confidence is None
+                or decision.confidence < config.min_confidence
+            )
+        ):
+            reason = "low_confidence"
+        if reason:
+            self.last_trace.setdefault("events", []).append(
+                {
+                    "event": "fallback",
+                    "task": "routing",
+                    "reason": reason,
+                }
+            )
+            if self.router is None:
+                return None
+            try:
+                decision = reference.decide(question, history, routes)
+            except Exception:
+                self.last_trace["modular_fallback"] = "routing_unavailable"
+                return None
+        route = routes.get(decision.route)
+        if route is None:
+            self.last_trace["modular_fallback"] = "legacy_route"
+            return None
+        if not route_is_consistent(question, route):
+            self.last_trace["modular_fallback"] = "route_inconsistent"
+            return None
+        selected = select_context(route, context, bundle, self.catalog, self.tables)
+        self._local.next_state = self.next_state.for_route(route.name)
+        self._local.route_tables = selected.tables
+        self.last_trace.update(route=route.name, prompt_version=selected.bundle.version)
+        self.last_trace.setdefault("events", []).append(
+            {
+                "event": "context_selection",
+                "modules": list(selected.modules),
+                "version": selected.bundle.version,
+                "system_chars": len(selected.bundle.system),
+                "business_chars": len(selected.context),
+                "schema_chars": len(selected.schema),
+                "tools_chars": len(json.dumps(selected.tools, ensure_ascii=False)),
+            }
+        )
+        return selected
+
+    def answer(self, question, history=None, conversation_state=None):
+        self._local.route_tables = None
+        self._local.next_state = (
+            conversation_state
+            if isinstance(conversation_state, ConversationState)
+            else ConversationState()
+        )
         schema = json.dumps(self.catalog.cards(self.tables), ensure_ascii=False)
         self._customer_missed = False
         self._local.document = None
@@ -262,34 +431,157 @@ class Assistant:
             "profile": profile.name,
             "model": profile.model,
         }
+        if self.llm_config.modular.enabled and re.fullmatch(
+            r"[\s¡!¿?.,]*(hola|buenos dias|buenas tardes|buenas noches|gracias)[\s¡!¿?.,]*",
+            _normalize(question),
+        ):
+            self.last_trace.update(status="local", sources=[])
+            return (
+                "Hola. Puedes consultar saldos, pagos, gastos o inventario. ¿Qué quieres revisar?"
+            )
         if requests_candidate_comparison(question):
-            self.last_trace.update(status="needs_clarification", sources=[])
+            self.last_trace.update(
+                status="needs_clarification", sources=[], clarification="comparacion"
+            )
             return COMPARISON_CLARIFICATION
         today = business_today(getattr(self.settings, "business_timezone", "America/Mexico_City"))
-        messages = build_messages(schema, context, question, history, today=today, bundle=bundle)
+        selected = self._select_modular(question, history, context, bundle)
+        if selected is None:
+            self._local.next_state = ConversationState()
+        model_context = context
+        if selected is not None:
+            bundle, model_context, schema = selected.bundle, selected.context, selected.schema
+        messages = build_messages(
+            schema, model_context, question, history, today=today, bundle=bundle
+        )
+        if selected is not None:
+            messages[0]["content"] += "\nEstado conversacional confirmado (datos): " + json.dumps(
+                self.next_state.payload(), ensure_ascii=False
+            )
         tools = tool_definitions(
             bundle, suppliers=SUPPLIERS in self.tables, banks=BANKS in self.tables
         )
+        if selected is not None:
+            tools = selected.tools
+            needs_dates = self.last_trace.get(
+                "route"
+            ) == "gastos.exploracion" or self.last_trace.get("route") in {
+                "clientes.pagos",
+                "clientes.total_pagos",
+                "clientes.estado_cuenta",
+            }
+            if needs_dates and needs_expense_year(question, history, self.next_state):
+                self.last_trace.update(
+                    status="needs_clarification", sources=[], clarification="periodo"
+                )
+                self._local.next_state = replace(self.next_state, pending_clarification="periodo")
+                return self._clarifications()["periodo"]
         attempts, descriptions = 0, 0
         described = set()
         latest_result = None
         latest_sources = []
         period_hinted = False
         bank_hinted = False
+        extraction = (
+            self.extraction_provider
+            if selected is not None
+            and "consultar_negocio" in {t["function"]["name"] for t in tools}
+            else None
+        )
+        interpretation_calls = 0
+        bounded_extraction = selected is not None and any(
+            t["function"]["name"] == "consultar_negocio" for t in tools
+        )
+        local_expense_source = (
+            selected is not None
+            and self.last_trace.get("route") == "gastos.exploracion"
+            and "proadel.gastos_data" in selected.tables
+            and re.search(r"\b(gastamos|gastos|gastado)\b", _normalize(question))
+            and not re.search(r"\bsaldo\b", _normalize(question))
+        )
         for round_number in range(MAX_MODEL_ROUNDS):
-            message = self.provider.complete(messages, tools)
+            round_tools = [
+                t
+                for t in tools
+                if not (
+                    selected is not None
+                    and not described
+                    and t["function"]["name"] == "consultar_sql"
+                )
+            ]
+            if bounded_extraction and interpretation_calls >= 2:
+                break
+            interpretation_calls += 1
+            if local_expense_source and round_number == 0:
+                arguments = json.dumps(
+                    {"tables": [self.catalog.sources["proadel.gastos_data"].display]}
+                )
+                call = ToolCall("local_expense_schema", "describir_tablas", arguments)
+                message = ModelReply(
+                    None,
+                    (call,),
+                    {
+                        "role": "assistant",
+                        "content": None,
+                        "tool_calls": [
+                            {
+                                "id": call.id,
+                                "type": "function",
+                                "function": {"name": call.name, "arguments": arguments},
+                            }
+                        ],
+                    },
+                )
+            elif extraction is not None:
+                try:
+                    message = self._complete(messages, round_tools, True, extraction, "extraction")
+                    if len(message.tool_calls) != 1:
+                        raise ModelProtocolError("Extracción inválida.")
+                    validate_tool_call(message.tool_calls[0], tools)
+                    self.last_trace.setdefault("events", []).append(
+                        {
+                            "event": "extraction",
+                            "validation": "ok",
+                        }
+                    )
+                except Exception as exc:
+                    self.last_trace.setdefault("events", []).append(
+                        {
+                            "event": "fallback",
+                            "task": "extraction",
+                            "reason": type(exc).__name__,
+                        }
+                    )
+                    interpretation_calls += 1
+                    message = self._complete(
+                        messages, round_tools, True, task="extraction_fallback"
+                    )
+                # Never retry nano; all corrective rounds use the reference profile.
+                extraction = None
+            else:
+                message = self._complete(messages, round_tools)
             calls = message.tool_calls
-            if not calls and round_number == 0:
+            if (
+                not calls
+                and round_number == 0
+                and (not bounded_extraction or interpretation_calls < 2)
+            ):
                 # Long conversations can make a model reply in prose; its text never reaches the
                 # user, so ask once for the decision. Providers may not support forcing a tool.
                 logger.info("dbagg stage=model_skipped_tools")
                 try:
-                    message = self.provider.complete(messages, tools, require_tool=True)
+                    interpretation_calls += 1
+                    message = self._complete(messages, round_tools, require_tool=True)
                     calls = message.tool_calls
                 except Exception as exc:
                     logger.info("dbagg stage=require_tool_failed error_type=%s", type(exc).__name__)
             if not calls:
                 return self._finish_exploration(latest_result, latest_sources)
+            if selected is not None and len(calls) != 1:
+                self.last_trace.update(
+                    status="needs_clarification", sources=[], clarification="criterio"
+                )
+                return self._clarifications()["criterio"]
             messages.append(message.history_message)
             for call in calls:
                 if latest_result is not None and _abandons_result(call):
@@ -302,6 +594,8 @@ class Assistant:
                     arguments = json.loads(call.arguments)
                     if not isinstance(arguments, dict):
                         raise ValueError("Los argumentos deben ser un objeto JSON.")
+                    if selected is not None:
+                        arguments = validate_tool_call(call, tools)
                     if call.name == "consultar_negocio":
                         return self._consult_business(arguments, context, question, history, today)
                     elif call.name == "pedir_aclaracion":
@@ -331,6 +625,9 @@ class Assistant:
                             status="needs_clarification",
                             sources=[],
                             clarification=arguments["reason"],
+                        )
+                        self._local.next_state = replace(
+                            self.next_state, pending_clarification=arguments["reason"]
                         )
                         if arguments["reason"] == "fuera_alcance":
                             self.last_trace["gap"] = "fuera_alcance"
@@ -700,6 +997,7 @@ class Assistant:
         return CLARIFICATIONS
 
     def _business_answer(self, answer):
+        self._local.next_state = self.next_state.after_result(answer.metadata, answer.status)
         self.last_trace.update(
             status=answer.status,
             operation=answer.operation,
@@ -715,7 +1013,9 @@ class Assistant:
         if any(not isinstance(table, str) for table in selected):
             raise ValueError("Los nombres de objetos deben ser texto.")
         selected = [table.lower() for table in selected]
-        if not set(selected).issubset(self.tables):
+        allowed = getattr(self._local, "route_tables", None)
+        allowed = self.tables if allowed is None else allowed
+        if not set(selected).issubset(allowed):
             raise ValueError("Objetos no autorizados.")
         logger.info("dbagg stage=schema_start")
         result = self.catalog.filter_schema(json.loads(self.db.schema(selected)))
@@ -724,7 +1024,9 @@ class Assistant:
         return result
 
     def _query_sql(self, statement, described):
-        sql = validate_sql(statement, self.tables, self.catalog)
+        allowed = getattr(self._local, "route_tables", None)
+        allowed = self.tables if allowed is None else allowed
+        sql = validate_sql(statement, allowed, self.catalog)
         referenced = {
             f"{table.db}.{table.name}".lower()
             for table in sqlglot.parse_one(sql, read="tsql").find_all(exp.Table)

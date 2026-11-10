@@ -105,3 +105,6 @@ score_riesgo.html
 *.sqlite3
 config/llm.toml
 config/prompts/
+
+# Intermediate experiments and synthetic API runs
+/work/

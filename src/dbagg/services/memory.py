@@ -2,23 +2,39 @@
 
 import threading
 import time
+from functools import wraps
+from dbagg.routing.state import ConversationState
 from dbagg.limits import MAX_QUESTION_CHARS
+
+
+def _locked(method):
+    @wraps(method)
+    def call(self, *args, **kwargs):
+        with self.lock:
+            return method(self, *args, **kwargs)
+
+    return call
 
 
 class ConversationMemory:
     """Bounded volatile memory, isolated by authorized sender; no SQL results stored."""
 
     def __init__(self):
+        self.lock = threading.RLock()
         self.sessions = {}
         self.interactions = {}
+        self.states = {}
 
+    @_locked
     def history(self, sender):
         now = time.monotonic()
         self.sessions = {k: v for k, v in self.sessions.items() if now - v[0] < 1800}
         self.interactions = {k: v for k, v in self.interactions.items() if k in self.sessions}
+        self.states = {k: v for k, v in self.states.items() if k in self.sessions}
         return [dict(message) for message in self.sessions.get(sender, (now, []))[1]]
 
-    def remember(self, sender, question, answer, interaction=None):
+    @_locked
+    def remember(self, sender, question, answer, interaction=None, state=None):
         history = self.history(sender)
         history.extend(
             [
@@ -27,22 +43,36 @@ class ConversationMemory:
             ]
         )
         self.sessions[sender] = (time.monotonic(), history[-8:])
+        if isinstance(state, ConversationState):
+            self.states[sender] = state
+        else:
+            self.states.pop(sender, None)
         if interaction is not None:
             self.interactions[sender] = interaction
         else:
             self.interactions.pop(sender, None)
 
+    @_locked
     def last_interaction(self, sender):
         self.history(sender)
         return self.interactions.get(sender)
 
+    @_locked
+    def state(self, sender):
+        self.history(sender)
+        return self.states.get(sender, ConversationState())
+
+    @_locked
     def invalidate_rating(self, sender):
         """A delivered error must not make the previous answer the target of a new vote."""
         self.interactions.pop(sender, None)
+        self.states.pop(sender, None)
 
+    @_locked
     def clear(self, sender):
         self.sessions.pop(sender, None)
         self.interactions.pop(sender, None)
+        self.states.pop(sender, None)
 
 
 class UnauthorizedNotices:

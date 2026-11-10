@@ -70,7 +70,9 @@ class OpenAICompatibleProvider:
         reasoning = getattr(message, "reasoning_content", None)
         if reasoning is not None:
             history["reasoning_content"] = reasoning
-        return ModelReply(message.content, calls, history)
+        usage = getattr(response, "usage", None)
+        usage = usage.model_dump() if hasattr(usage, "model_dump") else {}
+        return ModelReply(message.content, calls, history, usage)
 
 
 def anthropic_messages(messages):
@@ -204,7 +206,7 @@ class AnthropicProvider:
                 "content": content,
                 "_anthropic_content": copy.deepcopy(blocks),
             }
-            return ModelReply(content, tuple(calls), history)
+            return ModelReply(content, tuple(calls), history, data.get("usage", {}))
         except (KeyError, TypeError, AttributeError, json.JSONDecodeError):
             raise ModelProtocolError("Claude devolvió una respuesta inválida.") from None
 

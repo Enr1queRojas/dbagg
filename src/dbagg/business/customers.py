@@ -144,7 +144,9 @@ class CatalogQueries:
         return records(result), bool(result.get("has_more"))
 
     def _answer(self, text, status="answered"):
-        return BusinessAnswer.make(text, status, self.operation, self.sources)
+        return BusinessAnswer.make(
+            text, status, self.operation, self.sources, getattr(self, "confirmed_state", {})
+        )
 
 
 class CustomerQueries(CatalogQueries):
@@ -228,6 +230,7 @@ class CustomerQueries(CatalogQueries):
                 "El ranking corresponde al conjunto de clientes, no a un cliente particular."
             )
         self.operation = operation
+        self.confirmed_state = {}
         self.sources = [CUSTOMERS] + (
             [PAYMENTS]
             if operation in {"pagos", "ultimo_pago", "total_pagos"}
@@ -261,6 +264,13 @@ class CustomerQueries(CatalogQueries):
         if len(identity) != 1 or more:
             raise BusinessError("No pude confirmar un registro único para ese cliente.")
         client = identity[0]
+        self.confirmed_state = {
+            "entity": "cliente",
+            "code": label(client["codigo"]),
+            "period": period,
+            "start": start,
+            "end": end,
+        }
         heading = f"{label(client['nombre'])} (código {label(client['codigo'])})"
         if operation == "notas_pendientes":
             return self._pending_notes(catalog, client, heading)

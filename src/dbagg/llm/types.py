@@ -1,6 +1,6 @@
 """The agent consumes these types, independently of an SDK or HTTP provider."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Protocol
 
 
@@ -20,6 +20,7 @@ class ModelReply:
     content: str | None
     tool_calls: tuple[ToolCall, ...]
     history_message: dict
+    usage: dict = field(default_factory=dict)
 
 
 class ModelProvider(Protocol):
