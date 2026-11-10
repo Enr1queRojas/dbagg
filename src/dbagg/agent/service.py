@@ -347,6 +347,13 @@ class Assistant:
                 }
             )
         if decision is not None:
+            logger.info(
+                "dbagg stage=routing_selected provider=%s route=%s confidence=%s shadow=%s",
+                decision.provider,
+                decision.route,
+                decision.confidence,
+                config.shadow,
+            )
             self.last_trace.setdefault("events", []).append(
                 {
                     "event": "routing",

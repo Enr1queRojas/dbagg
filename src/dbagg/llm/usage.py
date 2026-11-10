@@ -211,6 +211,21 @@ def measured(kind):
                     event["duration_ms"] = round((time.perf_counter() - started) * 1000, 3)
                     _call.reset(token)
                     emit(event)
+                    logger.info(
+                        "dbagg stage=provider_usage request_id=%s task=%s provider=%s model=%s "
+                        "status=%s input_tokens=%s output_tokens=%s cached_input_tokens=%s "
+                        "total_tokens=%s duration_ms=%s",
+                        trace["request_id"],
+                        event["task"],
+                        event["provider"],
+                        event["model"],
+                        event["status"],
+                        event["input_tokens"],
+                        event["output_tokens"],
+                        event["cached_input_tokens"],
+                        event["total_tokens"],
+                        event["duration_ms"],
+                    )
 
         return wrapped
 
