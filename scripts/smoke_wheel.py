@@ -35,7 +35,17 @@ validate_context(load_business_context(), 'ultimo_pago')
 assert business_today('America/Mexico_City')
 assert PROMPT_VERSION == 'catalog-domains-v6'
 from dbagg.database.catalog import load_catalog
-assert load_catalog().restrict({'proadel.gastos_data', 'proadel.rentas_data'}) == {'proadel.gastos_data'}
+assert load_catalog().restrict({'proadel.gastos_data', 'proadel.unregistered_source'}) == {'proadel.gastos_data'}
+from dbagg.routing.registry import available_routes
+from dbagg.agent.context_builder import select_context
+from dbagg.agent.prompt_files import load_prompt_bundle
+catalog = load_catalog()
+routes = available_routes(catalog, set(catalog.sources))
+for route in routes.values():
+    selected = select_context(route, load_business_context(), load_prompt_bundle(), catalog, set(catalog.sources))
+    assert selected.bundle.version.startswith('modular-v1:')
+    assert selected.tables <= set(catalog.sources)
+assert 'operations/saldo' in select_context(routes['clientes.saldo'], load_business_context(), load_prompt_bundle(), catalog, set(catalog.sources)).modules
 from dbagg.llm.__main__ import initialize
 from dbagg.llm.config import load_llm_config
 from dbagg.agent.prompt_files import load_prompt_bundle

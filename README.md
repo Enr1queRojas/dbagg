@@ -28,6 +28,19 @@ En otra consola ejecuta `cloudflared tunnel --url http://127.0.0.1:8000` y confi
 en Meta la URL del túnel terminada en `/webhook`. La guía de
 [WhatsApp](docs/whatsapp-setup.md) explica las credenciales, suscripciones y diagnóstico.
 
+## Piloto local con Jev
+
+Para probar WhatsApp con Jev, mini como respaldo y medición de tokens:
+
+```powershell
+.\.venv\Scripts\python.exe scripts/run_local_jev.py --check
+.\.venv\Scripts\python.exe scripts/run_local_jev.py
+```
+
+Usa tu `.env` existente con `TYPESAFE_API_KEY` y las credenciales habituales. No
+sobrescribe la configuración LLM local. La [guía del piloto](docs/whatsapp-jev-local.md)
+explica el túnel, el diagnóstico de WhatsApp, las consultas y el registro de consumo.
+
 ## Organización
 
 | Carpeta | Responsabilidad |

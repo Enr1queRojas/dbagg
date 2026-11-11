@@ -1,0 +1,362 @@
+{
+  "measurement": "characters, packaged context, full catalog; not billed tokens",
+  "baseline": {
+    "system": 18624,
+    "business": 16635,
+    "schema": 10663,
+    "tools": 5159,
+    "total": 51081
+  },
+  "sections": [
+    {
+      "section": "Función y límites",
+      "characters": 958
+    },
+    {
+      "section": "Decisión por turno",
+      "characters": 1144
+    },
+    {
+      "section": "Comprobaciones antes de llamar a consultar_negocio",
+      "characters": 1187
+    },
+    {
+      "section": "Operaciones verificadas: consultar_negocio",
+      "characters": 3076
+    },
+    {
+      "section": "Identidad y continuidad",
+      "characters": 1553
+    },
+    {
+      "section": "Tiempo",
+      "characters": 995
+    },
+    {
+      "section": "Aclaraciones disponibles",
+      "characters": 858
+    },
+    {
+      "section": "Clientes y proveedores",
+      "characters": 1291
+    },
+    {
+      "section": "Bancos",
+      "characters": 1199
+    },
+    {
+      "section": "Exploración acotada",
+      "characters": 1936
+    },
+    {
+      "section": "Ejemplos de elección (identidades ficticias, no datos consultados)",
+      "characters": 4397
+    }
+  ],
+  "exact_duplicate_lines": [
+    {
+      "line": "{\"tables\":[\"proadel.GASTOS_DATA\"]} y después consultar_sql con",
+      "count": 2
+    }
+  ],
+  "routes": [
+    {
+      "route": "clientes.saldo",
+      "version": "modular-v1:67598a46d793ed7f",
+      "modules": [
+        "core",
+        "domains/customers",
+        "operations/saldo"
+      ],
+      "topics": [
+        "customer_balance",
+        "supplier_balance"
+      ],
+      "tables": [
+        "proadel.catalogo_clientes_data_v",
+        "proadel.catalogo_proveedores_data_v"
+      ],
+      "characters": {
+        "system": 8602,
+        "business": 6992,
+        "schema": 767,
+        "tools": 3216,
+        "total": 19577
+      },
+      "reduction_percent": 61.67
+    },
+    {
+      "route": "clientes.saldos_coincidencias",
+      "version": "modular-v1:662ea20da21b7ac3",
+      "modules": [
+        "core",
+        "domains/customers",
+        "operations/saldos_coincidencias"
+      ],
+      "topics": [
+        "customer_balance",
+        "supplier_balance"
+      ],
+      "tables": [
+        "proadel.catalogo_clientes_data_v",
+        "proadel.catalogo_proveedores_data_v"
+      ],
+      "characters": {
+        "system": 8804,
+        "business": 6992,
+        "schema": 767,
+        "tools": 3231,
+        "total": 19794
+      },
+      "reduction_percent": 61.25
+    },
+    {
+      "route": "clientes.contar_coincidencias",
+      "version": "modular-v1:03e6af0d084f3688",
+      "modules": [
+        "core",
+        "domains/customers",
+        "operations/contar_coincidencias"
+      ],
+      "topics": [
+        "customer_balance",
+        "supplier_balance"
+      ],
+      "tables": [
+        "proadel.catalogo_clientes_data_v",
+        "proadel.catalogo_proveedores_data_v"
+      ],
+      "characters": {
+        "system": 8799,
+        "business": 6992,
+        "schema": 767,
+        "tools": 3231,
+        "total": 19789
+      },
+      "reduction_percent": 61.26
+    },
+    {
+      "route": "clientes.ranking_deuda",
+      "version": "modular-v1:ea0440c066f9a1bc",
+      "modules": [
+        "core",
+        "domains/customers",
+        "operations/ranking_deuda"
+      ],
+      "topics": [
+        "customer_balance",
+        "supplier_balance"
+      ],
+      "tables": [
+        "proadel.catalogo_clientes_data_v",
+        "proadel.catalogo_proveedores_data_v"
+      ],
+      "characters": {
+        "system": 8911,
+        "business": 6992,
+        "schema": 767,
+        "tools": 3224,
+        "total": 19894
+      },
+      "reduction_percent": 61.05
+    },
+    {
+      "route": "clientes.pagos",
+      "version": "modular-v1:eb4bbd61f5df3b95",
+      "modules": [
+        "core",
+        "domains/customers",
+        "operations/pagos"
+      ],
+      "topics": [
+        "customer_balance",
+        "supplier_balance",
+        "collections",
+        "supplier_payments"
+      ],
+      "tables": [
+        "proadel.catalogo_clientes_data_v",
+        "proadel.catalogo_proveedores_data_v",
+        "proadel.cobranza_data",
+        "proadel.pago_proveedor_data"
+      ],
+      "characters": {
+        "system": 8593,
+        "business": 9311,
+        "schema": 1198,
+        "tools": 3216,
+        "total": 22318
+      },
+      "reduction_percent": 56.31
+    },
+    {
+      "route": "clientes.ultimo_pago",
+      "version": "modular-v1:adb08bb7cd8f2444",
+      "modules": [
+        "core",
+        "domains/customers",
+        "operations/ultimo_pago"
+      ],
+      "topics": [
+        "customer_balance",
+        "supplier_balance",
+        "collections",
+        "supplier_payments"
+      ],
+      "tables": [
+        "proadel.catalogo_clientes_data_v",
+        "proadel.catalogo_proveedores_data_v",
+        "proadel.cobranza_data",
+        "proadel.pago_proveedor_data"
+      ],
+      "characters": {
+        "system": 8804,
+        "business": 9311,
+        "schema": 1198,
+        "tools": 3222,
+        "total": 22535
+      },
+      "reduction_percent": 55.88
+    },
+    {
+      "route": "clientes.total_pagos",
+      "version": "modular-v1:a7b87444a5277c08",
+      "modules": [
+        "core",
+        "domains/customers",
+        "operations/total_pagos"
+      ],
+      "topics": [
+        "customer_balance",
+        "supplier_balance",
+        "collections",
+        "supplier_payments"
+      ],
+      "tables": [
+        "proadel.catalogo_clientes_data_v",
+        "proadel.catalogo_proveedores_data_v",
+        "proadel.cobranza_data",
+        "proadel.pago_proveedor_data"
+      ],
+      "characters": {
+        "system": 8725,
+        "business": 9311,
+        "schema": 1198,
+        "tools": 3222,
+        "total": 22456
+      },
+      "reduction_percent": 56.04
+    },
+    {
+      "route": "clientes.notas_pendientes",
+      "version": "modular-v1:f367801353e20e6a",
+      "modules": [
+        "core",
+        "domains/customers",
+        "operations/notas_pendientes"
+      ],
+      "topics": [
+        "customer_balance",
+        "customer_statement",
+        "collections",
+        "supplier_balance",
+        "supplier_payments"
+      ],
+      "tables": [
+        "proadel.catalogo_clientes_data_v",
+        "proadel.catalogo_proveedores_data_v",
+        "proadel.cobranza_data",
+        "proadel.contado_data",
+        "proadel.credito_data",
+        "proadel.dev_venta_data",
+        "proadel.frecuencia_pedidos_v",
+        "proadel.pago_proveedor_data",
+        "proadel.proxima_compra_maiz_v",
+        "proadel.proyeccion_agotamiento_producto_v",
+        "proadel.resumen_cobranza_v",
+        "proadel.resumen_consumo_maiz",
+        "proadel.total_cobranza_clientes_v",
+        "proadel.total_credito_clientes_v",
+        "proadel.total_dev_venta_clientes_v",
+        "proadel.ultimo_pedido_producto_v",
+        "proadel.ventas_diarias_v",
+        "proadel.vw_alertascobranza"
+      ],
+      "characters": {
+        "system": 8793,
+        "business": 11722,
+        "schema": 4283,
+        "tools": 3227,
+        "total": 28025
+      },
+      "reduction_percent": 45.14
+    },
+    {
+      "route": "clientes.estado_cuenta",
+      "version": "modular-v1:2a7977e616813889",
+      "modules": [
+        "core",
+        "domains/customers",
+        "operations/estado_cuenta"
+      ],
+      "topics": [
+        "customer_balance",
+        "customer_statement",
+        "collections",
+        "supplier_balance",
+        "supplier_payments"
+      ],
+      "tables": [
+        "proadel.catalogo_clientes_data_v",
+        "proadel.catalogo_proveedores_data_v",
+        "proadel.cobranza_data",
+        "proadel.contado_data",
+        "proadel.credito_data",
+        "proadel.dev_venta_data",
+        "proadel.frecuencia_pedidos_v",
+        "proadel.pago_proveedor_data",
+        "proadel.proxima_compra_maiz_v",
+        "proadel.proyeccion_agotamiento_producto_v",
+        "proadel.resumen_cobranza_v",
+        "proadel.resumen_consumo_maiz",
+        "proadel.total_cobranza_clientes_v",
+        "proadel.total_credito_clientes_v",
+        "proadel.total_dev_venta_clientes_v",
+        "proadel.ultimo_pedido_producto_v",
+        "proadel.ventas_diarias_v",
+        "proadel.vw_alertascobranza"
+      ],
+      "characters": {
+        "system": 8756,
+        "business": 11722,
+        "schema": 4283,
+        "tools": 3224,
+        "total": 27985
+      },
+      "reduction_percent": 45.21
+    },
+    {
+      "route": "gastos.exploracion",
+      "version": "modular-v1:74b28f846aac1c1c",
+      "modules": [
+        "core",
+        "domains/expenses"
+      ],
+      "topics": [],
+      "tables": [
+        "proadel.catalogo_gastos_data_v",
+        "proadel.gastos_data",
+        "proadel.total_gastos_bancos_v",
+        "proadel.total_gastos_gastos_v"
+      ],
+      "characters": {
+        "system": 9898,
+        "business": 4371,
+        "schema": 1315,
+        "tools": 1805,
+        "total": 17389
+      },
+      "reduction_percent": 65.96
+    }
+  ]
+}

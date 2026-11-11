@@ -1,0 +1,34 @@
+version = 1
+active_profile = "openai"
+
+[profiles.openai]
+provider = "openai"
+model = "gpt-4.1-mini"
+api_key_env = "OPENAI_API_KEY"
+base_url = "https://api.openai.com/v1"
+max_output_tokens = 1200
+temperature = 0.0
+timeout_seconds = 30
+max_retries = 0
+
+[profiles.nano]
+provider = "openai"
+model = "gpt-4.1-nano"
+api_key_env = "OPENAI_API_KEY"
+base_url = "https://api.openai.com/v1"
+max_output_tokens = 1200
+temperature = 0.0
+timeout_seconds = 30
+max_retries = 0
+
+[modular]
+enabled = false
+domains = ["clientes", "gastos"]
+router = "reference"
+shadow = false
+jev_model = "jev-1.14.0"
+jev_api_key_env = "TYPESAFE_API_KEY"
+timeout_seconds = 5
+# extraction_profile = "nano" # No disponible en la cuenta probada: HTTP 404.
+# Para observar Jev: enabled=true, router="jev", shadow=true.
+# Para Jev activo: shadow=false y min_confidence explícito, calibrado con tus casos.

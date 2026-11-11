@@ -178,6 +178,7 @@ class SupplierQueries(CatalogQueries):
                 "El ranking corresponde al conjunto de proveedores, no a uno en particular."
             )
         self.operation = operation
+        self.confirmed_state = {}
         self.sources = [SUPPLIERS]
         if operation in {"pagos", "ultimo_pago", "total_pagos"}:
             self.sources.append(SUPPLIER_PAYMENTS)
@@ -213,6 +214,13 @@ class SupplierQueries(CatalogQueries):
         if len(identity) != 1 or more:
             raise BusinessError("No pude confirmar un registro único para ese proveedor.")
         row = identity[0]
+        self.confirmed_state = {
+            "entity": "proveedor",
+            "code": label(row["codigo"]),
+            "period": period,
+            "start": start,
+            "end": end,
+        }
         if operation == "saldo":
             return self._balance(row)
         if operation in {"pagos", "ultimo_pago", "total_pagos"}:

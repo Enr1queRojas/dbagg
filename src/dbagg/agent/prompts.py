@@ -1,6 +1,7 @@
 """Versioned intent interpretation; financial answers are rendered by business code."""
 
 import json
+from dbagg.llm.usage import stage
 from datetime import timedelta
 from dbagg.business.banks import BANK_OPERATIONS
 from dbagg.business.calendar import business_today
@@ -21,6 +22,7 @@ def reporting_calendar(today=None):
     }
 
 
+@stage("prompt_build")
 def build_messages(schema, context, question, history=None, today=None, bundle=None):
     bundle = bundle or load_prompt_bundle()
     messages = [

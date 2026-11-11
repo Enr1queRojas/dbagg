@@ -1,0 +1,52 @@
+{
+  "mode": "live",
+  "model": "gpt-4.1-mini",
+  "database": "synthetic",
+  "messages": [
+    {
+      "id": 1,
+      "question": "Hola",
+      "answer": "Necesito precisar el concepto. De clientes: saldo actual, saldos de varios clientes con un nombre, pagos, último pago o ranking de deuda. También puedo consultar existencias de inventario, gastos registrados y compras a proveedores. ¿Qué quieres revisar?",
+      "request_id": "154ece45a5cc43aeb977505067dd8cce",
+      "calls": 2,
+      "known_total_tokens": 20276,
+      "missing_usage_calls": 0,
+      "error_calls": 0,
+      "error_stages": 0
+    },
+    {
+      "id": 2,
+      "question": "¿Cuál es el saldo del Cliente Demo?",
+      "answer": "Saldo actual de Cliente Demo (código DEMO1): 100.00.\nImporte sin moneda confirmada.",
+      "request_id": "4aba55d3c82c44ed8b6f76c36f20ddb8",
+      "calls": 1,
+      "known_total_tokens": 10212,
+      "missing_usage_calls": 0,
+      "error_calls": 0,
+      "error_stages": 0
+    },
+    {
+      "id": 3,
+      "question": "¿Y cuánto ha pagado en total?",
+      "answer": "Total de pagos activos de Cliente Demo (código DEMO1): 25.00. Historial completo de fechas válidas.\nImporte sin moneda confirmada.",
+      "request_id": "a99c3acc9ca94d50bbc31dc3ce2530fd",
+      "calls": 1,
+      "known_total_tokens": 10267,
+      "missing_usage_calls": 0,
+      "error_calls": 0,
+      "error_stages": 0
+    },
+    {
+      "id": 4,
+      "question": "¿Cuál es el total de gastos registrados?",
+      "answer": "Resultado de consulta exploratoria; su definición de negocio requiere revisión:\n```\ntotal_gastos\n------------\n          42\n```",
+      "request_id": "a195b918f21f4f8ab38702696bda059d",
+      "calls": 3,
+      "known_total_tokens": 31173,
+      "missing_usage_calls": 0,
+      "error_calls": 0,
+      "error_stages": 0
+    }
+  ],
+  "status": "completed"
+}

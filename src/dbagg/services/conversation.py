@@ -1,6 +1,7 @@
 """Coordinate one authorized conversation independently of HTTP transport."""
 
 import logging
+import threading
 from uuid import uuid4
 
 import httpx
@@ -12,6 +13,7 @@ from dbagg.evaluation.store import FeedbackStore, utc_now
 from dbagg.integrations.meta import meta_error_codes
 from dbagg.paths import project_root
 from dbagg.services.memory import ConversationMemory
+from dbagg.llm.usage import stage
 from dbagg.services.outbox import OutboxStore
 from dbagg.services.voice import DISABLED as VOICE_DISABLED, VoiceError
 
@@ -52,6 +54,8 @@ class ConversationService:
         if self.gaps is None and getattr(settings, "gap_log_enabled", False):
             self.gaps = GapStore(project_root() / "data" / "gaps.sqlite3")
         self.memory = ConversationMemory()
+        self._sender_locks = {}
+        self._sender_locks_guard = threading.Lock()
         self.feedback = feedback_store
         if self.feedback is None and settings.feedback_enabled:
             self.feedback = FeedbackStore(
@@ -110,9 +114,11 @@ class ConversationService:
             if release:
                 release(sender)
 
+    @stage("conversation")
     def process(self, sender, question):
         self._handle(sender, question)
 
+    @stage("conversation_voice")
     def process_voice(self, sender, media_id):
         """Transcribe a voice note, then answer it like text with an echo of what was heard."""
         if self.voice is None:
@@ -125,6 +131,7 @@ class ConversationService:
             return
         self._handle(sender, question, voice=True)
 
+    @stage("delivery")
     def _send(self, sender, text, row_id=None):
         try:
             if self.outbox is not None:
@@ -183,6 +190,12 @@ class ConversationService:
         logger.info("dbagg stage=outbox_recovered rows=%s stale=%s", len(rows), stale)
 
     def _handle(self, sender, question, voice=False):
+        with self._sender_locks_guard:
+            lock = self._sender_locks.setdefault(sender, threading.RLock())
+        with lock:
+            self._handle_turn(sender, question, voice)
+
+    def _handle_turn(self, sender, question, voice=False):
         save_turn = False
         answer_failed = False
         history = []
@@ -207,11 +220,17 @@ class ConversationService:
                 )
             else:
                 history = self.memory.history(sender)
-                answer = (
-                    self.assistant.answer(question, history=history)
-                    if history
-                    else self.assistant.answer(question)
-                )
+                modular = getattr(getattr(self.settings, "llm", None), "modular", None)
+                if getattr(modular, "enabled", False) is True:
+                    answer = self.assistant.answer(
+                        question, history=history, conversation_state=self.memory.state(sender)
+                    )
+                else:
+                    answer = (
+                        self.assistant.answer(question, history=history)
+                        if history
+                        else self.assistant.answer(question)
+                    )
                 save_turn = True
                 document = self._take_document()
                 if document is not None and not self._send_document(sender, document):
@@ -268,4 +287,5 @@ class ConversationService:
                     "prompt_version": trace.get("prompt_version", PROMPT_VERSION),
                     "context_version": trace.get("context_version"),
                 },
+                state=getattr(self.assistant, "next_state", None),
             )

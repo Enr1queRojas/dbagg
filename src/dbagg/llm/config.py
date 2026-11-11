@@ -45,11 +45,71 @@ class TranscriptionConfig:
 
 
 @dataclass(frozen=True)
+class ModularConfig:
+    enabled: bool = False
+    domains: tuple[str, ...] = ("clientes", "gastos")
+    router: str = "reference"
+    shadow: bool = False
+    jev_model: str = "jev-1.14.0"
+    jev_api_key_env: str = "TYPESAFE_API_KEY"
+    timeout_seconds: float = 5
+    min_confidence: float | None = None
+    extraction_profile: str | None = None
+
+
+@dataclass(frozen=True)
 class LLMConfig:
     profile: ModelProfile
     system_prompt: Path | None = None
     tool_descriptions: Path | None = None
     transcription: TranscriptionConfig = field(default_factory=TranscriptionConfig)
+    modular: ModularConfig = field(default_factory=ModularConfig)
+    profiles: dict[str, ModelProfile] = field(default_factory=dict)
+
+
+def _modular(data, profiles):
+    if not isinstance(data, dict) or set(data) - set(ModularConfig.__dataclass_fields__):
+        raise ValueError("LLM: configuración modular inválida.")
+    values = dict(data)
+    domains = values.get("domains", ["clientes", "gastos"])
+    if (
+        not isinstance(domains, list)
+        or not domains
+        or any(not isinstance(d, str) or d not in {"clientes", "gastos"} for d in domains)
+        or len(domains) != len(set(domains))
+    ):
+        raise ValueError("LLM: dominios modulares inválidos.")
+    values["domains"] = tuple(domains)
+    config = ModularConfig(**values)
+    if type(config.enabled) is not bool or type(config.shadow) is not bool:
+        raise ValueError("LLM: enabled y shadow requieren booleanos.")
+    if not isinstance(config.router, str) or config.router not in {"reference", "jev"}:
+        raise ValueError("LLM: router debe ser reference o jev.")
+    if not isinstance(config.jev_model, str) or not re.fullmatch(
+        r"jev-[a-zA-Z0-9.-]{1,80}", config.jev_model
+    ):
+        raise ValueError("LLM: modelo Jev inválido.")
+    if not isinstance(config.jev_api_key_env, str) or not re.fullmatch(
+        r"[A-Z][A-Z0-9_]{0,99}", config.jev_api_key_env
+    ):
+        raise ValueError("LLM: jev_api_key_env debe ser un nombre de variable.")
+    _number(config.timeout_seconds, 1, 30, "modular.timeout_seconds")
+    if config.min_confidence is not None:
+        _number(config.min_confidence, 0, 1, "modular.min_confidence")
+    if (
+        config.enabled
+        and config.router == "jev"
+        and not config.shadow
+        and config.min_confidence is None
+    ):
+        raise ValueError(
+            "LLM: Jev activo requiere un umbral calibrado explícito; comenzar en shadow."
+        )
+    if config.extraction_profile is not None and (
+        not isinstance(config.extraction_profile, str) or config.extraction_profile not in profiles
+    ):
+        raise ValueError("LLM: extraction_profile no existe.")
+    return config
 
 
 def _number(value, minimum, maximum, name, integer=False):
@@ -164,7 +224,7 @@ def load_llm_config(root=None, environ=None, selected_profile=None):
     except (tomllib.TOMLDecodeError, UnicodeError):
         raise ValueError("LLM: archivo TOML inválido.") from None
     if (
-        set(data) - {"version", "active_profile", "profiles", "prompts", "transcription"}
+        set(data) - {"version", "active_profile", "profiles", "prompts", "transcription", "modular"}
         or type(data.get("version")) is not int
         or data["version"] != 1
     ):
@@ -203,4 +263,6 @@ def load_llm_config(root=None, environ=None, selected_profile=None):
         prompt_path("system_file"),
         prompt_path("tools_file"),
         _transcription(data.get("transcription")),
+        _modular(data.get("modular", {}), parsed),
+        parsed,
     )

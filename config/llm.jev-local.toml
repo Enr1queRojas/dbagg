@@ -1,0 +1,36 @@
+# Piloto local de WhatsApp. No contiene secretos ni reemplaza config/llm.toml.
+version = 1
+active_profile = "openai"
+
+[profiles.openai]
+provider = "openai"
+model = "gpt-4.1-mini"
+api_key_env = "OPENAI_API_KEY"
+base_url = "https://api.openai.com/v1"
+max_output_tokens = 1200
+temperature = 0.0
+timeout_seconds = 30
+max_retries = 0
+
+[modular]
+enabled = true
+domains = ["clientes", "gastos"]
+router = "jev"
+shadow = false
+jev_model = "jev-1.14.0"
+jev_api_key_env = "TYPESAFE_API_KEY"
+timeout_seconds = 5
+# Mismo umbral experimental del benchmark; no es calibración de producción.
+min_confidence = 0.8
+extraction_profile = "openai"
+# GPT-4.1-mini extrae parámetros; mini conserva respaldo y exploración SQL.
+# Sin [prompts]: se usan los módulos empaquetados de esta rama.
+
+[transcription]
+enabled = true
+model = "gpt-4o-mini-transcribe"
+api_key_env = "OPENAI_API_KEY"
+base_url = "https://api.openai.com/v1"
+language = "es"
+max_seconds = 60
+timeout_seconds = 30

@@ -1,0 +1,65 @@
+{
+  "date": "2026-11-10",
+  "selected": "jev-1.14.0 + gpt-4.1-mini",
+  "scope": "Synthetic first executable tool and parameters; includes router and extractor errors. Not financial answer accuracy or an isolated extractor comparison. One run per case.",
+  "decision": "Keep Jev + GPT-4.1-mini; cheaper candidates had unresolved discrepancies; Gemini free-tier exhausted during tests.",
+  "candidates": [
+    {
+      "model": "gpt-5-nano",
+      "router": "jev-1.14.0",
+      "passed": 14,
+      "runs": 32,
+      "usd_known": 0.008741186,
+      "failed_cases": [
+        "bank-balance-two-words",
+        "bank-balance-account-of",
+        "bank-how-much-money",
+        "bank-withdrawals-last-week",
+        "whatsapp-followup-13",
+        "whatsapp-followup-14",
+        "modular-dev-ranking-after-customer",
+        "modular-dev-payment-followup",
+        "modular-dev-ambiguous-yes",
+        "modular-dev-short-selection",
+        "modular-dev-historical-balance",
+        "modular-dev-last-payment-period",
+        "modular-dev-whole-statement",
+        "modular-dev-today-payments",
+        "modular-dev-ambiguous-date",
+        "modular-dev-write-disguised",
+        "modular-dev-rank-is-not-selection",
+        "modular-dev-greeting-plus-question"
+      ]
+    },
+    {
+      "model": "gpt-4o-mini",
+      "router": "jev-1.14.0",
+      "passed": 28,
+      "runs": 32,
+      "usd_known": 0.030844286,
+      "failed_cases": [
+        "bank-withdrawals-last-week",
+        "bank-not-customer-payments",
+        "whatsapp-followup-14",
+        "modular-dev-payment-followup"
+      ]
+    },
+    {
+      "model": "gpt-5-mini",
+      "router": "jev-1.14.0",
+      "passed": 24,
+      "runs": 32,
+      "usd_known": 0.031532386,
+      "failed_cases": [
+        "bank-balance-two-words",
+        "bank-withdrawals-last-week",
+        "whatsapp-followup-14",
+        "whatsapp-followup-15",
+        "modular-dev-ambiguous-yes",
+        "modular-dev-historical-balance",
+        "modular-dev-ambiguous-date",
+        "modular-dev-rank-is-not-selection"
+      ]
+    }
+  ]
+}

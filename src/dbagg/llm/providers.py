@@ -8,6 +8,7 @@ import httpx
 from openai import OpenAI
 
 from dbagg.llm.types import ModelProtocolError, ModelReply, ToolCall, validate_calls
+from dbagg.llm.usage import measured, record_response
 
 
 class OpenAICompatibleProvider:
@@ -29,6 +30,7 @@ class OpenAICompatibleProvider:
         if self.owns_client:
             self.client.close()
 
+    @measured("model")
     def complete(self, messages, tools, require_tool=False):
         profile = self.profile
         options = {
@@ -44,6 +46,7 @@ class OpenAICompatibleProvider:
         if profile.extra_body:
             options["extra_body"] = copy.deepcopy(profile.extra_body)
         response = self.client.chat.completions.create(**options)
+        record_response(getattr(response, "usage", None))
         if not response.choices or response.choices[0].finish_reason not in {"stop", "tool_calls"}:
             raise ModelProtocolError(
                 "El proveedor no terminó una respuesta válida; no se ejecutaron herramientas."
@@ -70,7 +73,9 @@ class OpenAICompatibleProvider:
         reasoning = getattr(message, "reasoning_content", None)
         if reasoning is not None:
             history["reasoning_content"] = reasoning
-        return ModelReply(message.content, calls, history)
+        usage = getattr(response, "usage", None)
+        usage = usage.model_dump() if hasattr(usage, "model_dump") else {}
+        return ModelReply(message.content, calls, history, usage)
 
 
 def anthropic_messages(messages):
@@ -132,6 +137,7 @@ class AnthropicProvider:
         if self.owns_client:
             self.client.close()
 
+    @measured("model")
     def complete(self, messages, tools, require_tool=False):
         system, converted = anthropic_messages(messages)
         profile = self.profile
@@ -174,6 +180,7 @@ class AnthropicProvider:
         response.raise_for_status()
         try:
             data = response.json()
+            record_response(data.get("usage"))
             if data.get("stop_reason") not in {"end_turn", "tool_use", "stop_sequence"}:
                 raise ModelProtocolError(
                     "Claude no terminó una respuesta válida; no se ejecutaron herramientas."
@@ -204,7 +211,7 @@ class AnthropicProvider:
                 "content": content,
                 "_anthropic_content": copy.deepcopy(blocks),
             }
-            return ModelReply(content, tuple(calls), history)
+            return ModelReply(content, tuple(calls), history, data.get("usage", {}))
         except (KeyError, TypeError, AttributeError, json.JSONDecodeError):
             raise ModelProtocolError("Claude devolvió una respuesta inválida.") from None
 
