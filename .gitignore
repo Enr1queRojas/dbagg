@@ -108,3 +108,4 @@ config/prompts/
 
 # Intermediate experiments and synthetic API runs
 /work/
+.claude/

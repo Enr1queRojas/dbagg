@@ -12,6 +12,10 @@ def normalize(text):
 
 def route_is_consistent(question, route):
     text = normalize(question)
+    # Bank tools are available only in the full interpreter in this pilot.
+    # Explicit bank references must not be trapped in another domain's tools.
+    if route.domain != "bancos" and re.search(r"\bbancos?\b", text):
+        return False
     # The latest question may change domains. Never turn an explicit expense
     # request into another customer operation because of the preceding payment.
     # This is a veto only: the full interpreter resolves ambiguous/mixed requests.

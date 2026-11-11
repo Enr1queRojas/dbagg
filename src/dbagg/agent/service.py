@@ -213,6 +213,23 @@ def bank_in_conversation(question, history):
     return None
 
 
+def bank_report_followup(question, history):
+    """Resolve only short, explicit relative-period continuations of a known bank."""
+    bank = bank_in_conversation(question, history)
+    if not bank:
+        return None
+    match = re.fullmatch(
+        r"[\s¿¡]*(?:(?:dame|quiero|muestrame|ahora)\s+)?"
+        r"(?:(?:un|el)\s+)?(?:reporte\s+)?"
+        r"(?:(?:de|del|para)\s+)?(este mes|mes pasado)[\s?!.{},]*",
+        _normalize(question),
+    )
+    if not match:
+        return None
+    return {"operation": "movimientos_banco", "banco": bank,
+            "period": "este_mes" if match[1] == "este mes" else "mes_pasado"}
+
+
 def _abandons_result(call):
     """After a successful exploratory query, a generic clarification or a jump to the
     customer operations discards a valid answer; specific clarifications still apply."""
@@ -474,6 +491,12 @@ class Assistant:
             )
             return COMPARISON_CLARIFICATION
         today = business_today(getattr(self.settings, "business_timezone", "America/Mexico_City"))
+        followup = bank_report_followup(question, history) if BANKS in self.tables else None
+        if followup is not None:
+            self._local.next_state = ConversationState()
+            self.last_trace["local_decision"] = "bank_report_followup"
+            logger.info("dbagg stage=bank_report_followup_resolved")
+            return self._consult_business(followup, context, question, history, today)
         selected = self._select_modular(question, history, context, bundle)
         if selected is None:
             self._local.next_state = ConversationState()
@@ -513,8 +536,7 @@ class Assistant:
         bank_hinted = False
         extraction = (
             self.extraction_provider
-            if selected is not None
-            and "consultar_negocio" in {t["function"]["name"] for t in tools}
+            if "consultar_negocio" in {t["function"]["name"] for t in tools}
             else None
         )
         interpretation_calls = 0
@@ -562,11 +584,16 @@ class Assistant:
                     },
                 )
             elif extraction is not None:
+                # Full-context extraction may choose a business operation or request
+                # schema, but SQL exploration remains on the reference provider.
+                extraction_tools = [
+                    t for t in round_tools if t["function"]["name"] != "consultar_sql"
+                ]
                 try:
-                    message = self._complete(messages, round_tools, True, extraction, "extraction")
+                    message = self._complete(messages, extraction_tools, True, extraction, "extraction")
                     if len(message.tool_calls) != 1:
                         raise ModelProtocolError("Extracción inválida.")
-                    validate_tool_call(message.tool_calls[0], tools)
+                    validate_tool_call(message.tool_calls[0], extraction_tools)
                     self.last_trace.setdefault("events", []).append(
                         {
                             "event": "extraction",
@@ -585,7 +612,7 @@ class Assistant:
                     message = self._complete(
                         messages, round_tools, True, task="extraction_fallback"
                     )
-                # Never retry nano; all corrective rounds use the reference profile.
+                # Never retry extraction; corrective rounds use the reference profile.
                 extraction = None
             else:
                 message = self._complete(messages, round_tools)
@@ -886,6 +913,12 @@ class Assistant:
         }
         # The model sometimes names the account in customer; it is still an account here.
         bank = arguments.get("banco") or arguments.get("customer")
+        if operation == "saldos_bancos" and bank:
+            raise ToolHint(
+                "saldos_bancos incluye todas las cuentas y no admite una cuenta concreta. "
+                "Si se pide el saldo de esa cuenta, usa saldo_banco con banco; "
+                "si la intención no está clara, pide aclaración."
+            )
         if operation != "saldos_bancos":
             bank_arguments["banco"] = bank
         queries = BankQueries(self.db, self.tables, today=today)

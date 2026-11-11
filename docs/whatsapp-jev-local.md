@@ -1,10 +1,30 @@
 # Probar Jev con WhatsApp en local
 
-El piloto usa la misma cascada del benchmark: Jev selecciona rutas de clientes/pagos
-y gastos; `gpt-4.1-mini` interpreta parámetros, explora SQL o sirve de respaldo.
-Bancos, inventario y demás casos siguen el flujo completo existente. No se activa nano.
-El umbral 0.8 es el usado en la prueba local, no una calibración de producción.
+El piloto vuelve a usar Jev para enrutar y GPT-4.1-mini para extracción,
+interpretación completa, respaldo y exploración SQL. Gemini no se llama ni se
+requiere su clave. Se conserva la extracción inicial en bancos y la validación
+de herramientas y parámetros. La exploración SQL sigue en el perfil principal.
+El umbral Jev 0.8 es experimental, no calibrado para producción.
 
+Las continuaciones cortas «Dame el reporte de este mes» y «reporte del mes pasado»
+se resuelven localmente si la última respuesta identifica una cuenta bancaria.
+«De este mes» también se acepta tras la pregunta de fechas de esa cuenta.
+Se vuelve a validar la cuenta y se ejecuta el servicio bancario existente;
+no se llaman modelos para esas continuaciones. Un nombre de cuenta nuevo,
+otro tema, peticiones mixtas o un período distinto conservan el intérprete.
+Validación: tres seguimientos exactos con decisión correcta y cero llamadas a
+modelos, más confirmación del usuario desde WhatsApp contra el ERP local.
+
+Se probaron modelos OpenAI más económicos con 32 casos sintéticos de primera
+herramienta y parámetros: GPT-5 nano 14/32, GPT-4o-mini 28/32 y GPT-5 mini 24/32.
+Son resultados de la cascada con Jev, no una comparación aislada de extractores:
+parte de los errores proviene del router. No se activan esos candidatos.
+El resumen conservado está en `evaluations/local-pilot-selection.json`.
+No se ha demostrado ahorro manteniendo precisión; los evals no validan respuestas
+financieras ni sustituyen pruebas contra el ERP.
+
+Eval reproducible, consume APIs sin consultar ERP ni enviar WhatsApp:
+`python scripts/evaluate_local_jev.py --output work/evals-pilot-NUEVO`.
 ## 1. Actualizar y comprobar
 
 Desde la raíz del checkout en PowerShell:
@@ -23,8 +43,9 @@ lectura, catálogo, columnas y TLS existentes.
 `--check` valida configuración, presencia de las claves y rutas habilitadas; no
 inicia el servidor ni realiza llamadas a Jev, OpenAI, Meta o SQL Server. Debe mostrar:
 
-- `router: "jev"`, `shadow: false`, `jev_api_key_present: true`.
+- `router: "jev"`, `shadow: false`, `routing_model: "jev-1.14.0"`.
 - `interpretation_and_fallback_model: "gpt-4.1-mini"`.
+- `extraction_model: "gpt-4.1-mini"`, `extraction_api_key_present: true`.
 - `custom_prompts_loaded: false` y una lista no vacía de `available_routes`.
 - La ruta de `usage_path` y `external_services_checked: false`.
 
@@ -104,6 +125,8 @@ La consola muestra `stage=provider_usage provider=jev task=routing` y las llamad
 OpenAI con tokens informados. `stage=routing_selected` muestra la ruta, confianza y
 si es observación. Si aparecen llamadas adicionales de clasificación/interpretación,
 se cuentan también: Jev puede usar el respaldo.
+
+La extracción aparece como task=extraction; el respaldo como task=extraction_fallback. Una llamada fallida sin consumo informado conserva consumo desconocido.
 
 ## 5. Revisar el consumo y detener
 

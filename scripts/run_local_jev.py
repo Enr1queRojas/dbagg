@@ -1,4 +1,4 @@
-"""Run the local WhatsApp pilot with Jev, mini and content-free usage logging.
+"""Run the local WhatsApp pilot with Jev, GPT-4.1-mini extraction and mini fallback.
 
 python scripts/run_local_jev.py --check validates local configuration only.
 python scripts/run_local_jev.py starts the existing signed webhook on 127.0.0.1:8000.
@@ -31,8 +31,6 @@ def prepare():
     os.environ["LLM_PROFILE"] = "openai"
     if not os.getenv("DBAGG_USAGE_PATH", "").strip():
         os.environ["DBAGG_USAGE_PATH"] = str(root / "work" / "whatsapp-jev" / "usage.jsonl")
-    if not os.getenv("TYPESAFE_API_KEY", "").strip():
-        raise ValueError("Falta TYPESAFE_API_KEY en el entorno o .env.")
     settings = Settings.from_env()
     modular = settings.llm.modular
     if not os.getenv(modular.jev_api_key_env, "").strip():
@@ -51,20 +49,23 @@ def prepare():
         or settings.llm.tool_descriptions
         or settings.llm.profile.provider != "openai"
         or settings.llm.profile.model != "gpt-4.1-mini"
-        or modular.extraction_profile is not None
+        or modular.extraction_profile != "openai"
     ):
         raise ValueError(
-            "El piloto requiere Jev activo, mini y los módulos empaquetados; revisa llm.jev-local.toml."
+            "El piloto requiere Jev, extracción GPT-4.1-mini, respaldo mini y módulos empaquetados; revisa llm.jev-local.toml."
         )
+    extraction = settings.llm.profiles[modular.extraction_profile]
     return settings, {
-        "mode": "local_whatsapp_jev",
+        "mode": "local_whatsapp_jev_mini",
         "config": str(config),
         "router": modular.router,
-        "jev_model": modular.jev_model,
-        "jev_api_key_present": bool(os.getenv(modular.jev_api_key_env)),
+        "routing_model": modular.jev_model,
+        "jev_api_key_present": True,
         "shadow": modular.shadow,
         "min_confidence": modular.min_confidence,
         "interpretation_and_fallback_model": settings.llm.profile.model,
+        "extraction_model": extraction.model,
+        "extraction_api_key_present": True,
         "custom_prompts_loaded": False,
         "transcription_enabled": settings.llm.transcription.enabled,
         "available_routes": sorted(routes),

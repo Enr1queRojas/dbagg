@@ -589,6 +589,37 @@ class CalendarContinuityTests(unittest.TestCase):
 
 
 class ExpenseTopicChangeTests(unittest.TestCase):
+    def test_explicit_bank_question_restores_full_tools_after_customer_route(self):
+        from dbagg.business.banks import BANK_SOURCES
+        from tests.unit.test_bank_queries import BankDatabase
+
+        db = BankDatabase()
+        self.addCleanup(db.conn.close)
+        db.account("ENRIQUE", "EFECTIVOS ENRIQUE ROJAS", opening="-20")
+        provider = Mock()
+        provider.complete.return_value = reply(
+            "consultar_negocio", {"operation": "saldo_banco", "banco": "ENRIQUE"}
+        )
+        config = LLMConfig(
+            ModelProfile(), modular=ModularConfig(enabled=True, router="jev", min_confidence=0.8)
+        )
+        assistant = Assistant(
+            SimpleNamespace(model="test", tables={CUSTOMERS, PAYMENTS, *BANK_SOURCES}, llm=config),
+            db=db, provider=provider,
+        )
+        assistant.router.close()
+        assistant.router = Mock()
+        assistant.router.decide.return_value = RoutingDecision("clientes.saldo", "jev", 0.99)
+        history = [
+            {"role": "user", "content": "Saldo de Esparza"},
+            {"role": "assistant", "content": "Saldo de ALEJANDRO ESPARZA: 59,850.60"},
+        ]
+        for question in ("El banco de Enrique", "Dame el saldo del Banco Enrique Rojas"):
+            with self.subTest(question=question):
+                answer = assistant.answer(question, history=history)
+                self.assertIn("Saldo actual: -20.00", answer)
+                self.assertEqual(assistant.last_trace["modular_fallback"], "route_inconsistent")
+
     def test_jev_cannot_keep_customer_payments_after_explicit_expense_question(self):
         from scripts.benchmark_usage import DemoDatabase, EXPENSES
 

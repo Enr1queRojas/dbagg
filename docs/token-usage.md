@@ -166,10 +166,10 @@ El saludo requirió una segunda llamada para exigir herramienta; los gastos sigu
 la secuencia esquema → SQL → renderizado. Se comprobaron saldo 100, pagos 25 y gastos
 activos 42, excluyendo el gasto cancelado de 999.
 
-[Reporte real HTML](usage-live/reporte.html) · [Consumo real](usage-live/consumo.svg) ·
-[Etapas reales](usage-live/etapas.svg) · [Eventos](usage-live/usage.jsonl) ·
+[Eventos](usage-live/usage.jsonl) ·
 [Resultados](usage-live/benchmark.json).
-También se generan versiones PNG de consumo, etapas y flujo.
+Los renders no se versionan. Para regenerar HTML, SVG y PNG:
+`python scripts/plot_usage.py docs/usage-live work/usage-live-report`.
 
 Dos intentos previos hicieron llamadas reales y fallaron en SQL porque la fixture de
 gastos no tenía la columna ESTADO que requieren las reglas de negocio.
@@ -192,8 +192,9 @@ esa ejecución local; los tiempos simulados no representan latencia de una API r
 En la revisión inicial la prueba real estaba bloqueada por falta de clave y permiso
 de red. Ese bloqueo quedó resuelto para la medición real documentada arriba.
 
-[Reporte HTML](usage-example/reporte.html) · [Consumo](usage-example/consumo.svg) ·
-[Etapas](usage-example/etapas.svg) · [Diagrama de flujo](usage-example/flujo.svg)
+[Resultados simulados](usage-example/benchmark.json) · [Eventos simulados](usage-example/usage.jsonl).
+Para regenerar las visualizaciones:
+`python scripts/plot_usage.py docs/usage-example work/usage-example-report`.
 
 ```mermaid
 flowchart TD

@@ -1,5 +1,7 @@
 # Contexto modular y modelos por tarea
 
+Estado actual del piloto: Jev + GPT-4.1-mini, sin llamadas a Gemini. Los candidatos económicos se descartaron por discrepancias en evals de primera decisión: GPT-5 nano 14/32, GPT-4o-mini 28/32 y GPT-5 mini 24/32. Incluyen errores de Jev y del extractor; no atribuir todos al modelo económico. Ver whatsapp-jev-local.md y los manifiestos locales para detalle. La primera extracción también cubre bancos, sin SQL directo; mini conserva respaldo y exploración.
+
 Implementación experimental en `feat/modularization`, 10 de noviembre de 2026.
 La configuración activa y el despliegue no se modifican. El plan completo **no cumple
 su definición de terminado**: faltan acceso real a Jev, disponibilidad de nano,
@@ -162,7 +164,7 @@ final independiente. Los tests de negocio usan datos sintéticos y resultados co
 
 La última ejecución completa está en `evaluations/modular-development/final.json`;
 la primera, con regresiones y sin los ajustes posteriores, en `initial.json`.
-`report.html` presenta la comparación final. Se conservaron errores, intentos
+La tabla siguiente resume la comparación. Se conservaron errores, intentos
 fallidos y consumo desconocido. No se aplicó ni desplegó automáticamente ninguna variante.
 
 | Variante | Decisiones correctas | Costo conocido estimado USD |

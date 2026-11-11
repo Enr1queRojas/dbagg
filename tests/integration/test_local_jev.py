@@ -65,7 +65,13 @@ class LocalJevTests(unittest.TestCase):
         self.assertEqual(settings.llm.modular.router, "jev")
         self.assertFalse(settings.llm.modular.shadow)
         self.assertEqual(settings.llm.profile.model, "gpt-4.1-mini")
-        self.assertIsNone(settings.llm.modular.extraction_profile)
+        self.assertEqual(settings.llm.modular.extraction_profile, "openai")
+        extraction = settings.llm.profiles[settings.llm.modular.extraction_profile]
+        self.assertEqual(extraction.provider, "openai")
+        self.assertEqual(extraction.model, "gpt-4.1-mini")
+        self.assertEqual(extraction.api_key_env, "OPENAI_API_KEY")
+        self.assertEqual(summary["extraction_model"], "gpt-4.1-mini")
+        self.assertTrue(summary["extraction_api_key_present"])
         self.assertIsNone(settings.llm.system_prompt)
         self.assertIsNone(settings.llm.tool_descriptions)
         self.assertEqual(custom.read_text(), "existing custom configuration")
@@ -87,7 +93,7 @@ class LocalJevTests(unittest.TestCase):
         create.assert_not_called()
         run.assert_not_called()
         summary = json.loads(output.getvalue())
-        self.assertTrue(summary["jev_api_key_present"])
+        self.assertEqual(summary["routing_model"], "jev-1.14.0")
         self.assertFalse(summary["external_services_checked"])
         self.assertNotIn("private-", output.getvalue())
         self.assertNotIn(self.values["WHATSAPP_ALLOWED_NUMBERS"], output.getvalue())
@@ -95,11 +101,8 @@ class LocalJevTests(unittest.TestCase):
     def test_missing_jev_key_fails_before_app_creation(self):
         self.values.pop("TYPESAFE_API_KEY")
         self.write_env()
-        error = io.StringIO()
-        with patch("scripts.run_local_jev.create_app") as create, contextlib.redirect_stderr(error):
-            self.assertEqual(main(["--check"]), 2)
-        self.assertIn("TYPESAFE_API_KEY", error.getvalue())
-        create.assert_not_called()
+        with self.assertRaisesRegex(ValueError, "TYPESAFE_API_KEY"):
+            prepare()
 
     def test_launch_binds_loopback_one_worker_and_uses_validated_settings(self):
         with (
@@ -127,6 +130,38 @@ class LocalJevTests(unittest.TestCase):
     def test_pilot_config_does_not_change_default_config_behavior(self):
         config = load_llm_config(root=self.root, environ={})
         self.assertFalse(config.modular.enabled)
+
+    def test_jev_failure_uses_one_mini_routing_fallback_then_extraction(self):
+        from unittest.mock import Mock
+        from tests.unit.test_modular_context import reply
+
+        settings, _ = prepare()
+        db = SyntheticDatabase()
+        self.addCleanup(db.conn.close)
+        db.customer("DEMO1", "Cliente Demo", 100)
+        mini = Mock()
+        mini.complete.return_value = reply("select_route", {"route": "clientes.saldo"})
+        assistant = Assistant(settings, db=db, provider=mini)
+        self.addCleanup(assistant.close)
+        assistant.router.close()
+        failed = Mock()
+        failed.decide.side_effect = RuntimeError("synthetic router unavailable")
+        assistant.router = failed
+        assistant.extraction_provider.close()
+        extraction = Mock()
+        extraction.profile = settings.llm.profile
+        extraction.complete.return_value = reply(
+            "consultar_negocio", {"operation": "saldo", "customer": "Cliente Demo"}
+        )
+        assistant.extraction_provider = extraction
+        self.assertIn("100.00", assistant.answer("Saldo de Cliente Demo"))
+        failed.decide.assert_called_once()
+        mini.complete.assert_called_once()
+        extraction.complete.assert_called_once()
+        self.assertTrue(any(
+            e.get("event") == "routing" and e.get("fallback")
+            for e in assistant.last_trace["events"]
+        ))
 
     def test_signed_whatsapp_message_reaches_jev_mini_business_and_usage(self):
         settings, summary = prepare()
@@ -174,6 +209,10 @@ class LocalJevTests(unittest.TestCase):
         provider = OpenAICompatibleProvider(settings.llm.profile, "unused", client=sdk)
         assistant = Assistant(settings, db=db, provider=provider)
         self.addCleanup(assistant.close)
+        assistant.extraction_provider.close()
+        assistant.extraction_provider = OpenAICompatibleProvider(
+            settings.llm.profiles[settings.llm.modular.extraction_profile], "unused", client=sdk
+        )
         assistant.router.close()
         jev_http = httpx.Client(transport=httpx.MockTransport(jev_response))
         self.addCleanup(jev_http.close)
@@ -221,6 +260,7 @@ class LocalJevTests(unittest.TestCase):
         ]
         usage = [event for event in events if event["event"] == "usage"]
         self.assertEqual([event["provider"] for event in usage], ["jev", "openai"])
+        self.assertEqual(usage[1]["task"], "extraction")
         self.assertEqual([event["total_tokens"] for event in usage], [82, 110])
         self.assertEqual(len({event["request_id"] for event in events}), 1)
         self.assertNotIn("private-", Path(summary["usage_path"]).read_text(encoding="utf-8"))

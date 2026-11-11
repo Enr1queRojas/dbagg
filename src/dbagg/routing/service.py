@@ -18,6 +18,8 @@ INSTRUCTIONS = (
     " «Cuánto pagó» siempre es total_pagos, también si dice hoy. ultimo_pago solo "
     "para pedir la última fecha de pago. Una respuesta «sí» o un código elegido de "
     "una lista usa legacy para conservar la operación pendiente."
+    " Las cuentas de banco, incluso efectivo de personas como Enrique Rojas, usan "
+    "legacy: no son saldos de clientes ni proveedores."
 )
 
 
