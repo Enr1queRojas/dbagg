@@ -58,6 +58,8 @@ class ModularConfig:
     min_margin: float | None = None
     min_domain_confidence: float | None = None
     extraction_profile: str | None = None
+    # Experiments, off until measured (docs/llm-configuration.md).
+    stable_prefix: bool = False
 
 
 @dataclass(frozen=True)
@@ -84,8 +86,8 @@ def _modular(data, profiles):
         raise ValueError("LLM: dominios modulares inválidos.")
     values["domains"] = tuple(domains)
     config = ModularConfig(**values)
-    if type(config.enabled) is not bool or type(config.shadow) is not bool:
-        raise ValueError("LLM: enabled y shadow requieren booleanos.")
+    if any(type(getattr(config, n)) is not bool for n in ("enabled", "shadow", "stable_prefix")):
+        raise ValueError("LLM: enabled, shadow y las banderas requieren booleanos.")
     if not isinstance(config.router, str) or config.router not in {"reference", "jev"}:
         raise ValueError("LLM: router debe ser reference o jev.")
     if not isinstance(config.jev_model, str) or not re.fullmatch(

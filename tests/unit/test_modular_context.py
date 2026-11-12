@@ -1405,3 +1405,66 @@ class WrongRouteTests(unittest.TestCase):
         text = self.assistant.answer("¿Cuánto ha pagado Ana Demo?")
         self.assertEqual(text, CLARIFICATIONS["criterio"])
         self.assertEqual(len(self.interpretation_calls()), 2)
+
+
+class StablePrefixTests(unittest.TestCase):
+    """Experiment flag: operations of one domain share the system prefix."""
+
+    def setUp(self):
+        self.db = SyntheticDatabase()
+        self.addCleanup(self.db.conn.close)
+        self.db.customer()
+        self.db.payment(1, "2026-10-02", "40")
+
+    def first_messages(self, route, arguments, stable=True):
+        provider = Mock()
+        seen = []
+
+        def complete(messages, tools, require_tool=False):
+            seen.append(([dict(m) for m in messages], tools))
+            if tools[0]["function"]["name"] == "select_route":
+                return reply("select_route", {"route": route})
+            return reply("consultar_negocio", arguments)
+
+        provider.complete.side_effect = complete
+        config = LLMConfig(
+            ModelProfile(), modular=ModularConfig(enabled=True, stable_prefix=stable)
+        )
+        assistant = Assistant(
+            SimpleNamespace(model="test", tables={CUSTOMERS, PAYMENTS}, llm=config),
+            db=self.db,
+            provider=provider,
+        )
+        text = assistant.answer("Consulta de Ana Demo")
+        return text, seen[-1]
+
+    def test_prefix_is_shared_and_variable_parts_go_last(self):
+        text, (saldo, saldo_tools) = self.first_messages(
+            "clientes.saldo", {"operation": "saldo", "customer": "Ana Demo"}
+        )
+        self.assertIn("123.45", text)
+        text, (paid, paid_tools) = self.first_messages(
+            "clientes.total_pagos", {"operation": "total_pagos", "customer": "Ana Demo"}
+        )
+        self.assertIn("40.00", text)
+        marker = "# Operaciones de este turno"
+        prefix = saldo[0]["content"].split(marker)[0]
+        self.assertEqual(prefix, paid[0]["content"].split(marker)[0])
+        self.assertIn("Objetos autorizados", prefix)
+        self.assertNotIn("Calendario", saldo[0]["content"])
+        self.assertEqual(saldo[1]["role"], "system")
+        self.assertIn("Calendario", saldo[1]["content"])
+        self.assertIn("Estado conversacional confirmado", saldo[1]["content"])
+        suffix = saldo[0]["content"].split(marker)[1]
+        self.assertIn("saldo sirve para ambos.", suffix)
+        self.assertNotIn("total_pagos", suffix)
+        enum = saldo_tools[0]["function"]["parameters"]["properties"]["operation"]["enum"]
+        self.assertEqual(enum, ["saldo"])
+
+    def test_flag_off_keeps_the_previous_layout(self):
+        _, (messages, _) = self.first_messages(
+            "clientes.saldo", {"operation": "saldo", "customer": "Ana Demo"}, stable=False
+        )
+        self.assertIn("Calendario", messages[0]["content"])
+        self.assertEqual(messages[1]["role"], "user")
+        self.assertNotIn("# Operaciones de este turno", messages[0]["content"])

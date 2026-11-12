@@ -16,10 +16,15 @@ from dbagg.database.catalog import load_catalog
 from dbagg.database.client import Database
 from dbagg.database.validation import validate_sql
 from dbagg.context.loader import load_business_context, context_version
-from dbagg.agent.prompts import build_messages, tool_definitions
+from dbagg.agent.prompts import (
+    build_messages,
+    build_stable_messages,
+    reporting_calendar,
+    tool_definitions,
+)
 from dbagg.agent.prompt_files import load_prompt_bundle
 from dbagg.agent.context_builder import WRONG_ROUTE_REASON, select_context, validate_tool_call
-from dbagg.routing.registry import available_routes
+from dbagg.routing.registry import available_routes, domain_routes
 from dbagg.routing.service import ReferenceRouter
 from dbagg.routing.jev import JevRouter
 from dbagg.routing.state import ConversationState
@@ -643,6 +648,7 @@ class Assistant:
             bundle,
             self.catalog,
             self.tables,
+            domain_routes(routes, route.domain) if config.stable_prefix else None,
         )
         self._local.next_state = self.next_state.for_route(route.name)
         self._local.route_tables = selected.tables
@@ -736,13 +742,28 @@ class Assistant:
         full_bundle, full_schema = bundle, schema
         if selected is not None:
             bundle, model_context, schema = selected.bundle, selected.context, selected.schema
-        messages = build_messages(
-            schema, model_context, question, history, today=today, bundle=bundle
+        state_text = "Estado conversacional confirmado (datos): " + json.dumps(
+            self.next_state.payload(), ensure_ascii=False
         )
-        if selected is not None:
-            messages[0]["content"] += "\nEstado conversacional confirmado (datos): " + json.dumps(
-                self.next_state.payload(), ensure_ascii=False
+        if selected is not None and selected.suffix:
+            messages = build_stable_messages(
+                selected.bundle.system,
+                schema,
+                model_context,
+                selected.suffix,
+                "Calendario de la zona horaria del negocio: "
+                + json.dumps(reporting_calendar(today))
+                + "\n"
+                + state_text,
+                history,
+                question,
             )
+        else:
+            messages = build_messages(
+                schema, model_context, question, history, today=today, bundle=bundle
+            )
+            if selected is not None:
+                messages[0]["content"] += "\n" + state_text
         tools = tool_definitions(
             bundle, suppliers=SUPPLIERS in self.tables, banks=BANKS in self.tables
         )

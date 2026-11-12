@@ -42,6 +42,27 @@ def build_messages(schema, context, question, history=None, today=None, bundle=N
     return messages
 
 
+@stage("prompt_build")
+def build_stable_messages(prefix, schema, context, suffix, dynamic, history=None, question=""):
+    """Stable first, variable last: one cacheable system message, then the per-turn data."""
+    messages = [
+        {
+            "role": "system",
+            "content": prefix
+            + "\nObjetos autorizados: "
+            + schema
+            + "\nContexto de negocio: "
+            + context
+            + "\n"
+            + suffix,
+        },
+        {"role": "system", "content": dynamic},
+    ]
+    messages.extend((dict(m) for m in history or [] if m.get("role") in ("user", "assistant")))
+    messages.append({"role": "user", "content": question})
+    return messages
+
+
 def _tool(name, description, properties, required):
     return {
         "type": "function",

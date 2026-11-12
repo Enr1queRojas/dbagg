@@ -420,6 +420,12 @@ para enrutar.
   - **Medir [API]:** `cached_input_tokens` y costo por consulta correcta antes y
     después, con `--repeat 3`. Adoptar solo si el costo baja sin perder acierto;
     publicar el resultado aunque sea negativo.
+  - **Implementado detrás de `[modular] stable_prefix` (apagado), medición
+    pendiente (2026-11-12):** sin claves no se puede decidir la adopción.
+    Medir con una variante del evaluador o un `LLM_CONFIG` local con la
+    bandera, comparando `tokens_per_turn.cached` y `cost_per_correct_usd`
+    (`--repeat 3`). Nota: el esquema de herramientas sigue variando por
+    operación (ver T19), lo que limita el prefijo común en OpenAI.
 
 - [ ] **T19. Esquema de herramienta fijo por dominio (experimento) [API]**
   - **Qué hacer:** bandera `fixed_tool_schema`. Con ella, el enum de

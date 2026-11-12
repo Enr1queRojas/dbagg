@@ -120,13 +120,20 @@ def operations_text(text, operations, supplier_only=()):
     listed operations (a paragraph runs until the next line that starts a new statement).
     """
     operations = list(operations)
-    sentence = f"{_join(operations)} {'sirve' if len(operations) == 1 else 'sirven'} para ambos."
-    if supplier_only:
+    if not operations:
+        # Stable prefix: the list and examples move to the per-turn suffix.
+        sentence = None
+    else:
+        sentence = (
+            f"{_join(operations)} {'sirve' if len(operations) == 1 else 'sirven'} para ambos."
+        )
+    if sentence and supplier_only:
         sentence += f" {_join(supplier_only)} es solo de proveedores y admite períodos."
     kept, skipping = [], False
     for line in text.split("\n"):
         if line == OPERATIONS_MARK:
-            kept.append(sentence)
+            if sentence:
+                kept.append(sentence)
             skipping = False
             continue
         if line.startswith("Ejemplo ("):
@@ -136,3 +143,17 @@ def operations_text(text, operations, supplier_only=()):
         if not skipping:
             kept.append(line)
     return "\n".join(kept)
+
+
+def example_paragraphs(text):
+    """The «Ejemplo (op):» paragraphs of a module, with their continuation lines."""
+    paragraphs, current = [], None
+    for line in text.split("\n"):
+        if line.startswith("Ejemplo ("):
+            current = [line]
+            paragraphs.append(current)
+        elif current is not None and line and not line.startswith(("«", "#", "Tras ", "Un ")):
+            current.append(line)
+        else:
+            current = None
+    return ["\n".join(p) for p in paragraphs]

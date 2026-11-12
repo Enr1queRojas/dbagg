@@ -147,6 +147,15 @@ Sin los dos campos el comportamiento es el anterior. La traza registra `routing_
 (`operation`, `domain` o `legacy`). Los valores deben calibrarse con
 `python -m dbagg.evaluation.calibration` sobre tus casos; no hay valores por defecto.
 
+## Experimentos de costo (apagados por defecto)
+
+- `[modular] stable_prefix = true`: el mensaje de sistema va de estable a variable (núcleo →
+  compartidos → dominio → esquema y contexto de todo el dominio → operaciones del turno) y el
+  calendario y el estado van en un segundo mensaje de sistema al final, para que las operaciones
+  de un mismo dominio compartan prefijo en la caché del proveedor. Las herramientas siguen
+  limitando `operation` por ruta, y en OpenAI forman parte del prefijo. Adoptarlo solo si la
+  medición con `--repeat 3` baja el costo por consulta correcta sin perder acierto.
+
 ## Transcripción de notas de voz
 
 La sección opcional `[transcription]` configura las notas de voz de WhatsApp. Es

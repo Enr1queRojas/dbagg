@@ -4,7 +4,13 @@ import hashlib
 import json
 from dataclasses import dataclass
 
-from dbagg.agent.prompt_files import PromptBundle, TEMPLATES, _read, operations_text
+from dbagg.agent.prompt_files import (
+    PromptBundle,
+    TEMPLATES,
+    _read,
+    example_paragraphs,
+    operations_text,
+)
 from dbagg.agent.prompts import tool_definitions
 
 
@@ -19,14 +25,20 @@ class SelectedContext:
     tools: list[dict]
     modules: tuple[str, ...]
     tables: frozenset[str]
+    # Stable-prefix layout: per-turn operation text after schema and context.
+    suffix: str = ""
 
 
-def select_context(route, context, bundle, catalog, tables):
+def select_context(route, context, bundle, catalog, tables, domain_scope=None):
     """Prompt, data and tools for one route, or for several routes of the same domain.
 
     With several routes the prompt carries core, domain and each candidate operation module;
     the operation enum is exactly those operations; tables and topics are the union. One route
     gives exactly the single-route result (same fingerprint).
+
+    With ``domain_scope`` (every route of the domain) the layout is stable-prefix: core,
+    shared and domain modules first, then schema and context of the whole domain, and only
+    then the per-turn operation text (``suffix``), so operations of a domain share a prefix.
     """
     routes = list(route) if isinstance(route, (list, tuple)) else [route]
     if not routes or len({r.domain for r in routes}) != 1:
@@ -45,10 +57,27 @@ def select_context(route, context, bundle, catalog, tables):
         + tuple("operations/" + op for op in operations)
         + (("shared/wrong_route",) if operations else ())
     )
-    system = "\n".join(_read(TEMPLATES / (name + ".md"), 26000) for name in modules)
-    if operations:
-        # The prompt names exactly the operations this turn's enum offers.
-        system = operations_text(system, operations)
+    texts = {name: _read(TEMPLATES / (name + ".md"), 26000) for name in modules}
+    suffix = ""
+    if domain_scope and operations:
+        prefix_names = ("core",) + shared + ("domains/" + domain,)
+        domain_text = texts["domains/" + domain]
+        examples = [
+            p
+            for p in example_paragraphs(domain_text)
+            if p[len("Ejemplo (") :].split(")", 1)[0] in operations
+        ]
+        system = operations_text("\n".join(texts[n] for n in prefix_names), [])
+        suffix = "\n".join(
+            ["# Operaciones de este turno", operations_text("[[operaciones]]", operations)]
+            + examples
+            + [texts[n] for n in modules if n not in prefix_names]
+        )
+    else:
+        system = "\n".join(texts[name] for name in modules)
+        if operations:
+            # The prompt names exactly the operations this turn's enum offers.
+            system = operations_text(system, operations)
     # Unknown/local top-level rules are preserved, not silently discarded.
     data = json.loads(context)
     topics = data.get("topics", {})
@@ -65,13 +94,14 @@ def select_context(route, context, bundle, catalog, tables):
         "suppliers_and_purchases",
         "risk",
     }
-    wanted = {topic for r in routes for topic in r.topics}
+    scope = list(domain_scope) if domain_scope and operations else routes
+    wanted = {topic for r in scope for topic in r.topics}
     # Explicitly unknown topics may contain local mandatory guidance. Keep them.
     data["topics"] = {k: v for k, v in topics.items() if k in wanted or k not in known_topics}
-    tables = frozenset().union(*(r.tables for r in routes)) & catalog.restrict(tables)
+    tables = frozenset().union(*(r.tables for r in scope)) & catalog.restrict(tables)
     schema = json.dumps(catalog.cards(tables), ensure_ascii=False)
     selected = json.dumps(data, ensure_ascii=False)
-    fingerprint = hashlib.sha256((system + selected + schema).encode()).hexdigest()[:16]
+    fingerprint = hashlib.sha256((system + selected + schema + suffix).encode()).hexdigest()[:16]
     modular_bundle = PromptBundle(system, bundle.descriptions, "modular-v1:" + fingerprint)
     allowed_tools = {tool for r in routes for tool in r.tools}
     tools = [
@@ -91,7 +121,7 @@ def select_context(route, context, bundle, catalog, tables):
         # No products, banks or comparisons in a customer operation.
         for name in ("producto", "comparar", "banco"):
             properties.pop(name, None)
-    return SelectedContext(modular_bundle, selected, schema, tools, modules, tables)
+    return SelectedContext(modular_bundle, selected, schema, tools, modules, tables, suffix)
 
 
 def validate_tool_call(call, tools):

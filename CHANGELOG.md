@@ -1,5 +1,10 @@
 # Cambios
 
+## Sin publicar — Experimento: prefijo estable
+
+- Bandera `[modular] stable_prefix` (apagada): ordena el prompt modular de estable a variable y
+  separa calendario y estado en un mensaje final. Pendiente de medición antes de adoptarla.
+
 ## Sin publicar — Prompt modular coherente con sus operaciones
 
 - El prompt modular solo nombra las operaciones habilitadas en el turno.
