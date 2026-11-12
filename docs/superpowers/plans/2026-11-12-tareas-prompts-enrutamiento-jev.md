@@ -83,7 +83,7 @@ para enrutar.
 
 ## Bloque A — Medición (requisito de los bloques C a F)
 
-- [ ] **T1. Métricas separadas en el evaluador**
+- [x] **T1. Métricas separadas en el evaluador**
   - **Archivos:** `src/dbagg/evaluation/modular.py`, `tests/unit/test_routing_eval.py`.
   - **Qué hacer:** `evaluate()` devuelve hoy un único `passed`. Añadir por caso:
     `route_expected` (derivada de `expected_tool` + `expected_arguments.operation`

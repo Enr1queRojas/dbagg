@@ -156,6 +156,15 @@ python -m dbagg.evaluation.modular \
   --output work/modular-evaluation --repeat 1
 ```
 
+`--dataset` se puede repetir (cada conjunto usa su propio `business_today`) y `--repeat N`
+repite todos los casos. Por caso se guardan `route_expected` (derivada de la herramienta y la
+operación esperadas con el registro; las aclaraciones no se puntúan por ruta),
+`route_selected`, `route_correct`, `arguments_correct` (solo si la ruta fue correcta o se usó
+legacy), llamadas por tarea, tokens de entrada/caché/salida, probabilidades de Jev y
+`duration_ms`. El resumen por variante y por dominio muestra acierto de ruta, acierto de
+parámetros dada la ruta, llamadas y tokens por turno, costo conocido, **costo por consulta
+correcta** (`null` sin aciertos; «incompleto» si hubo consumo desconocido) y latencia p50/p95.
+
 El evaluador ejecuta la orquestación real y captura la primera herramienta ejecutable,
 aplicando restricciones de herramientas y de esquema antes del SQL. No evalúa
 respuestas financieras ni debe confundirse con una prueba completa contra SQL Server.
