@@ -330,7 +330,7 @@ para enrutar.
 
 ## Bloque E — Módulos de prompt
 
-- [ ] **T14. Partir `core.md` y declarar dependencias por ruta**
+- [x] **T14. Partir `core.md` y declarar dependencias por ruta**
   - **Archivos:** `agent/templates/core.md`, crear `templates/shared/identity.md`
     y `templates/shared/time.md`, `routing/contracts.py` (`Route.modules`),
     `routing/registry.py`, `agent/context_builder.py`,
@@ -344,6 +344,10 @@ para enrutar.
   - **Pruebas:** la unión de módulos de una ruta de clientes contiene todas las
     líneas del `core.md` anterior; la ruta de gastos no contiene reglas de
     identidad de clientes.
+  - **Resultado:** `Route.modules`; orden núcleo → compartidos → dominio →
+    operación. La prueba existente que exigía «homónimos» en todas las rutas se
+    ajustó, con aprobación del dueño, para exigirlo solo en rutas de personas.
+    Copia del `core.md` anterior en `tests/unit/data/core_before_split.md`.
 
 - [ ] **T15. Una sola fuente de verdad para `system.md`**
   - **Archivos:** crear `templates/domains/banks.md`, `domains/products.md`,

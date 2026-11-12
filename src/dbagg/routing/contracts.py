@@ -14,6 +14,8 @@ class Route:
     tools: tuple[str, ...]
     executor: str
     version: str = "1"
+    # Shared prompt modules this route depends on, e.g. ("shared/identity", "shared/time").
+    modules: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

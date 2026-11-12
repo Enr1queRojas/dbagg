@@ -34,7 +34,10 @@ def select_context(route, context, bundle, catalog, tables):
     operations = [r.operation for r in routes if r.operation]
     if operations and len(operations) != len(routes):
         raise ValueError("No se mezclan operaciones con exploración.")
-    modules = ("core", "domains/" + domain) + tuple("operations/" + op for op in operations)
+    shared = tuple(dict.fromkeys(module for r in routes for module in r.modules))
+    modules = (
+        ("core",) + shared + ("domains/" + domain,) + tuple("operations/" + op for op in operations)
+    )
     system = "\n".join(_read(TEMPLATES / (name + ".md"), 26000) for name in modules)
     # Unknown/local top-level rules are preserved, not silently discarded.
     data = json.loads(context)

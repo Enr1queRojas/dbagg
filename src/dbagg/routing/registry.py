@@ -11,6 +11,7 @@ CUSTOMER_TOPICS = (
     "supplier_balance",
     "supplier_payments",
 )
+PARTY_MODULES = ("shared/identity", "shared/time")
 DESCRIPTIONS = {
     "saldo": "Usar cuando piden el saldo o la deuda actual de una persona nombrada o ya "
     "consultada. No usar cuando: movimientos, saldo a una fecha pasada o ranking.",
@@ -74,6 +75,7 @@ def available_routes(catalog, tables, domains=("clientes", "gastos")):
                 operation_sources,
                 ("consultar_negocio", "pedir_aclaracion"),
                 "business",
+                modules=PARTY_MODULES,
             )
     expenses = frozenset(t for t in tables if catalog.sources[t].domain == "gastos")
     if "gastos" in domains and expenses:
@@ -89,6 +91,7 @@ def available_routes(catalog, tables, domains=("clientes", "gastos")):
             expenses,
             ("describir_tablas", "consultar_sql", "pedir_aclaracion"),
             "exploration",
+            modules=("shared/time",),
         )
     return routes
 

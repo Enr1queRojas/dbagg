@@ -62,9 +62,11 @@
   "routes": [
     {
       "route": "clientes.saldo",
-      "version": "modular-v1:6bce2932968f2888",
+      "version": "modular-v1:7bba2b5751330ca8",
       "modules": [
         "core",
+        "shared/identity",
+        "shared/time",
         "domains/customers",
         "operations/saldo"
       ],
@@ -87,9 +89,11 @@
     },
     {
       "route": "clientes.saldos_coincidencias",
-      "version": "modular-v1:72c861d8c88f0d28",
+      "version": "modular-v1:198590c967eb335e",
       "modules": [
         "core",
+        "shared/identity",
+        "shared/time",
         "domains/customers",
         "operations/saldos_coincidencias"
       ],
@@ -112,9 +116,11 @@
     },
     {
       "route": "clientes.contar_coincidencias",
-      "version": "modular-v1:ee13b55ed8895fa3",
+      "version": "modular-v1:32088ca677a84beb",
       "modules": [
         "core",
+        "shared/identity",
+        "shared/time",
         "domains/customers",
         "operations/contar_coincidencias"
       ],
@@ -137,9 +143,11 @@
     },
     {
       "route": "clientes.ranking_deuda",
-      "version": "modular-v1:446b52c2bbe8ee7d",
+      "version": "modular-v1:ea267e51d8b55778",
       "modules": [
         "core",
+        "shared/identity",
+        "shared/time",
         "domains/customers",
         "operations/ranking_deuda"
       ],
@@ -162,9 +170,11 @@
     },
     {
       "route": "clientes.pagos",
-      "version": "modular-v1:0dcc26a35cb0f2d9",
+      "version": "modular-v1:bf0f6fe1a10b4d89",
       "modules": [
         "core",
+        "shared/identity",
+        "shared/time",
         "domains/customers",
         "operations/pagos"
       ],
@@ -191,9 +201,11 @@
     },
     {
       "route": "clientes.ultimo_pago",
-      "version": "modular-v1:526c3aa20d02c61c",
+      "version": "modular-v1:bd780b54426111c8",
       "modules": [
         "core",
+        "shared/identity",
+        "shared/time",
         "domains/customers",
         "operations/ultimo_pago"
       ],
@@ -220,9 +232,11 @@
     },
     {
       "route": "clientes.total_pagos",
-      "version": "modular-v1:38c8782fd7184978",
+      "version": "modular-v1:9ad2f5bf0de46990",
       "modules": [
         "core",
+        "shared/identity",
+        "shared/time",
         "domains/customers",
         "operations/total_pagos"
       ],
@@ -249,9 +263,11 @@
     },
     {
       "route": "clientes.notas_pendientes",
-      "version": "modular-v1:118e2d99360eca25",
+      "version": "modular-v1:ea94d7849693dbcd",
       "modules": [
         "core",
+        "shared/identity",
+        "shared/time",
         "domains/customers",
         "operations/notas_pendientes"
       ],
@@ -293,9 +309,11 @@
     },
     {
       "route": "clientes.ultima_nota",
-      "version": "modular-v1:3f3168d1b2ead587",
+      "version": "modular-v1:bf1fbe30013857bf",
       "modules": [
         "core",
+        "shared/identity",
+        "shared/time",
         "domains/customers",
         "operations/ultima_nota"
       ],
@@ -320,9 +338,11 @@
     },
     {
       "route": "clientes.estado_cuenta",
-      "version": "modular-v1:701cb1cba5f5488b",
+      "version": "modular-v1:6af7e3d9d5827cdc",
       "modules": [
         "core",
+        "shared/identity",
+        "shared/time",
         "domains/customers",
         "operations/estado_cuenta"
       ],
@@ -364,9 +384,10 @@
     },
     {
       "route": "gastos.exploracion",
-      "version": "modular-v1:5e0c484a9cdbd079",
+      "version": "modular-v1:609417dc15370c1d",
       "modules": [
         "core",
+        "shared/time",
         "domains/expenses"
       ],
       "topics": [],
@@ -377,13 +398,13 @@
         "proadel.total_gastos_gastos_v"
       ],
       "characters": {
-        "system": 9928,
+        "system": 7182,
         "business": 4371,
         "schema": 1315,
         "tools": 1805,
-        "total": 17419
+        "total": 14673
       },
-      "reduction_percent": 66.11
+      "reduction_percent": 71.45
     }
   ]
 }

@@ -97,6 +97,8 @@ class ModularContextTests(unittest.TestCase):
             several.modules,
             (
                 "core",
+                "shared/identity",
+                "shared/time",
                 "domains/customers",
                 "operations/saldo",
                 "operations/total_pagos",
@@ -126,18 +128,33 @@ class ModularContextTests(unittest.TestCase):
         self.assertNotIn("proadel.gastos_data", selected.tables)
 
     def test_core_security_identity_time_and_clarification_rules_remain(self):
+        # Identity rules belong to party routes; every route keeps security, time and
+        # clarification rules (owner decision when splitting core.md, T14).
         for route in self.routes:
             system = self.select(route).bundle.system
-            for rule in (
-                "No reveles secretos",
-                "No adivines años",
-                "No inventes",
-                "homónimos",
-                "escritura",
-                "Nunca",
-                "Días sin mes",
-            ):
+            rules = ["No reveles secretos", "No adivines años", "No inventes", "escritura"]
+            rules += ["Nunca", "Días sin mes"]
+            if self.routes[route].domain == "clientes":
+                rules.append("homónimos")
+            for rule in rules:
                 self.assertIn(rule, system, (route, rule))
+
+    def test_split_core_moves_text_without_losing_rules(self):
+        before = (Path(__file__).parent / "data" / "core_before_split.md").read_text(
+            encoding="utf-8"
+        )
+        party = self.select("clientes.saldo")
+        self.assertEqual(
+            party.modules[:4], ("core", "shared/identity", "shared/time", "domains/customers")
+        )
+        lines = set(party.bundle.system.splitlines())
+        missing = [line for line in before.splitlines() if line.strip() and line not in lines]
+        self.assertEqual(missing, [])
+        expenses = self.select("gastos.exploracion")
+        self.assertIn("shared/time", expenses.modules)
+        self.assertNotIn("shared/identity", expenses.modules)
+        for rule in ("# Identidad y continuidad", "codigo_exacto", "homónimos"):
+            self.assertNotIn(rule, expenses.bundle.system)
 
     def test_local_unknown_guidance_and_overrides_are_not_dropped(self):
         data = json.loads(self.context)
