@@ -5,11 +5,27 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
-PROMPT_VERSION = "catalog-domains-v6"
+PROMPT_VERSION = "catalog-domains-v7"
 TOOL_NAMES = frozenset(
     {"consultar_negocio", "pedir_aclaracion", "describir_tablas", "consultar_sql"}
 )
 TEMPLATES = Path(__file__).with_name("templates")
+# Full-interpreter composition (system.md is generated, do not edit it by hand):
+# every module once, from stable rules to examples. See scripts/build_system_prompt.py.
+SYSTEM_MODULES = ("core", "shared/identity", "shared/time")
+OPERATION_MODULES = (
+    "saldo",
+    "saldos_coincidencias",
+    "contar_coincidencias",
+    "notas_pendientes",
+    "ranking_deuda",
+    "pagos",
+    "total_pagos",
+    "ultimo_pago",
+    "ultima_nota",
+    "estado_cuenta",
+)
+DOMAIN_MODULES = ("products", "customers", "banks", "expenses")
 
 
 @dataclass(frozen=True)
@@ -54,3 +70,26 @@ def load_prompt_bundle(config=None):
     )
     fingerprint = hashlib.sha256(canonical.encode()).hexdigest()[:16]
     return PromptBundle(system, descriptions, f"{PROMPT_VERSION}:{fingerprint}")
+
+
+def _module(name):
+    return (TEMPLATES / (name + ".md")).read_text(encoding="utf-8-sig").strip("\n")
+
+
+def compose_system_prompt():
+    """The full prompt as the ordered composition of the modules the modular routes use.
+
+    Operation modules lose their «Operación seleccionada» heading and are listed under one
+    section, so ``system.md`` and the modular prompts share a single source of truth.
+    """
+    parts = [_module(name) for name in SYSTEM_MODULES]
+    operations = ["# Operaciones verificadas: consultar_negocio"]
+    for name in OPERATION_MODULES:
+        body = _module("operations/" + name).split("\n", 1)[1].strip("\n")
+        if not body.startswith("- "):
+            body = f"- {name}: " + body.replace("\n", "\n  ")
+        operations.append(body)
+    parts.append("\n".join(operations))
+    parts += [_module("domains/" + name) for name in DOMAIN_MODULES]
+    parts.append(_module("examples"))
+    return "\n\n".join(parts) + "\n"

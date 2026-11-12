@@ -33,7 +33,7 @@ assert project_root() == Path.cwd()
 assert 'customer_balance' in json.loads(load_business_context())['topics']
 validate_context(load_business_context(), 'ultimo_pago')
 assert business_today('America/Mexico_City')
-assert PROMPT_VERSION == 'catalog-domains-v6'
+assert PROMPT_VERSION == 'catalog-domains-v7'
 from dbagg.database.catalog import load_catalog
 assert load_catalog().restrict({'proadel.gastos_data', 'proadel.unregistered_source'}) == {'proadel.gastos_data'}
 from dbagg.routing.registry import available_routes
@@ -52,7 +52,7 @@ from dbagg.agent.prompt_files import load_prompt_bundle
 initialize(Path.cwd())
 llm_config = load_llm_config(environ={})
 assert llm_config.profile.provider == 'openai'
-assert load_prompt_bundle(llm_config).version.startswith('catalog-domains-v6:')
+assert load_prompt_bundle(llm_config).version.startswith('catalog-domains-v7:')
 assert 'consultar_negocio' in {t['function']['name'] for t in tool_definitions()}
 columns = ['cliente','D','n_pagos','fuente','segmento','P_tipico','d_tipico','t','C','R','score','dias_liquidar','semaforo']
 output = generar_html(pd.DataFrame(columns=columns))

@@ -1,5 +1,13 @@
 # Cambios
 
+## Sin publicar — `system.md` generado desde los módulos (`catalog-domains-v7`)
+
+- `src/dbagg/agent/templates/system.md` se genera con `python scripts/build_system_prompt.py` a
+  partir de los módulos modulares; editar un módulo exige regenerarlo (`test_prompt_parity`).
+- Módulos nuevos `domains/banks.md`, `domains/products.md`, `examples.md`, `shared/identity.md` y
+  `shared/time.md`. El prompt completo incluye ahora las reglas de gastos y de `estado_cuenta`.
+- Los prompts locales (`[prompts]` / `config/prompts/`) no cambian y siguen forzando el flujo anterior.
+
 ## Sin publicar — Instrucciones del enrutador
 
 - Las instrucciones del enrutador (Jev y referencia) son una regla general breve; los casos viven en

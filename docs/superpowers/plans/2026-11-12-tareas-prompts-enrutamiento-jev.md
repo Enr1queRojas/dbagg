@@ -349,7 +349,7 @@ para enrutar.
     ajustó, con aprobación del dueño, para exigirlo solo en rutas de personas.
     Copia del `core.md` anterior en `tests/unit/data/core_before_split.md`.
 
-- [ ] **T15. Una sola fuente de verdad para `system.md`**
+- [x] **T15. Una sola fuente de verdad para `system.md`**
   - **Archivos:** crear `templates/domains/banks.md`, `domains/products.md`,
     `templates/examples.md` (con el contenido que hoy solo vive en
     `system.md`), crear `scripts/build_system_prompt.py`,
@@ -362,6 +362,14 @@ para enrutar.
     documenta el cambio.
   - **Pruebas:** paridad; `load_prompt_bundle` sigue respetando el límite de
     26,000 caracteres.
+  - **Resultado:** `compose_system_prompt()` en `prompt_files.py`;
+    `python scripts/build_system_prompt.py [--check]`. Orden: núcleo,
+    compartidos, operaciones (sin su encabezado), productos, personas, bancos,
+    gastos, ejemplos. Todas las líneas del `system.md` anterior siguen presentes
+    salvo el bullet de `ultima_nota`, que ahora sale de su módulo. El prompt
+    completo gana la sección «Gastos» y `estado_cuenta`. `PROMPT_VERSION =
+    catalog-domains-v7`. Se añadió `templates/shared/*.md` a `package-data`
+    (faltaba desde T14).
 
 - [ ] **T16. Prompt coherente con el enum y salida de ruta equivocada**
   - **Archivos:** `templates/domains/customers.md`, `agent/context_builder.py`,

@@ -1,11 +1,11 @@
 {
   "measurement": "characters, packaged context, full catalog; not billed tokens",
   "baseline": {
-    "system": 18925,
+    "system": 20684,
     "business": 16635,
     "schema": 10663,
     "tools": 5172,
-    "total": 51395
+    "total": 53154
   },
   "sections": [
     {
@@ -17,12 +17,12 @@
       "characters": 1144
     },
     {
-      "section": "Comprobaciones antes de llamar a consultar_negocio",
-      "characters": 1187
+      "section": "Aclaraciones disponibles",
+      "characters": 858
     },
     {
-      "section": "Operaciones verificadas: consultar_negocio",
-      "characters": 3360
+      "section": "Comprobaciones antes de llamar a consultar_negocio",
+      "characters": 1187
     },
     {
       "section": "Identidad y continuidad",
@@ -33,8 +33,16 @@
       "characters": 1025
     },
     {
-      "section": "Aclaraciones disponibles",
-      "characters": 858
+      "section": "Operaciones verificadas: consultar_negocio",
+      "characters": 2754
+    },
+    {
+      "section": "Productos",
+      "characters": 648
+    },
+    {
+      "section": "Contratos de personas",
+      "characters": 462
     },
     {
       "section": "Clientes y proveedores",
@@ -47,6 +55,10 @@
     {
       "section": "Exploración acotada",
       "characters": 1936
+    },
+    {
+      "section": "Gastos",
+      "characters": 1246
     },
     {
       "section": "Ejemplos de elección (identidades ficticias, no datos consultados)",
@@ -85,7 +97,7 @@
         "tools": 3229,
         "total": 19607
       },
-      "reduction_percent": 61.85
+      "reduction_percent": 63.11
     },
     {
       "route": "clientes.saldos_coincidencias",
@@ -112,7 +124,7 @@
         "tools": 3244,
         "total": 19824
       },
-      "reduction_percent": 61.43
+      "reduction_percent": 62.7
     },
     {
       "route": "clientes.contar_coincidencias",
@@ -139,7 +151,7 @@
         "tools": 3244,
         "total": 19819
       },
-      "reduction_percent": 61.44
+      "reduction_percent": 62.71
     },
     {
       "route": "clientes.ranking_deuda",
@@ -166,7 +178,7 @@
         "tools": 3237,
         "total": 19924
       },
-      "reduction_percent": 61.23
+      "reduction_percent": 62.52
     },
     {
       "route": "clientes.pagos",
@@ -197,7 +209,7 @@
         "tools": 3229,
         "total": 22348
       },
-      "reduction_percent": 56.52
+      "reduction_percent": 57.96
     },
     {
       "route": "clientes.ultimo_pago",
@@ -228,7 +240,7 @@
         "tools": 3235,
         "total": 22565
       },
-      "reduction_percent": 56.09
+      "reduction_percent": 57.55
     },
     {
       "route": "clientes.total_pagos",
@@ -259,7 +271,7 @@
         "tools": 3235,
         "total": 22486
       },
-      "reduction_percent": 56.25
+      "reduction_percent": 57.7
     },
     {
       "route": "clientes.notas_pendientes",
@@ -305,7 +317,7 @@
         "tools": 3240,
         "total": 28055
       },
-      "reduction_percent": 45.41
+      "reduction_percent": 47.22
     },
     {
       "route": "clientes.ultima_nota",
@@ -334,7 +346,7 @@
         "tools": 3235,
         "total": 21282
       },
-      "reduction_percent": 58.59
+      "reduction_percent": 59.96
     },
     {
       "route": "clientes.estado_cuenta",
@@ -380,7 +392,7 @@
         "tools": 3237,
         "total": 28015
       },
-      "reduction_percent": 45.49
+      "reduction_percent": 47.29
     },
     {
       "route": "gastos.exploracion",
@@ -404,7 +416,7 @@
         "tools": 1805,
         "total": 14673
       },
-      "reduction_percent": 71.45
+      "reduction_percent": 72.4
     }
   ]
 }

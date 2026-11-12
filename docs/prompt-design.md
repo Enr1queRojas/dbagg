@@ -9,7 +9,7 @@ propuesta que requiere evaluación con el modelo real antes de sustituir el prom
 
 | Lugar | Responsabilidad |
 | --- | --- |
-| `agent/templates/system.md` | Interpretar intención, referencias y límites de alcance. |
+| `agent/templates/system.md` | Prompt completo **generado** con `scripts/build_system_prompt.py` desde `core.md`, `shared/`, `operations/`, `domains/` y `examples.md`; no se edita a mano. |
 | `agent/templates/tools.json` | Explicar cuándo usar cada herramienta. |
 | `agent/prompts.py` | Construir mensajes y esquemas de argumentos. |
 | `agent/service.py` | Coordinar llamadas, ejecutar herramientas y conservar evidencia. |
@@ -90,3 +90,4 @@ la valoración se revisa antes de aprobar un ejemplo. No hay entrenamiento autom
 | 2026-11-12 | `catalog-domains-v6` (huella nueva) | `ultima_nota` para clientes y proveedores: «última nota/compra» nunca es `ultimo_pago`; solo todo el historial. Archivos: `system.md`, `domains/customers.md`, `operations/ultima_nota.md`, `tools.json`. |
 | 2026-11-12 | enrutador (`routing/service.py`, `registry.py`) | Instrucciones del enrutador reducidas a una regla general sin nombres propios; los casos pasan a cada ruta como «usar cuando / no usar cuando». El estado (`previous_route`, `pending_clarification`) viaja como datos. `ReferenceRouter` envía las instrucciones solo en el mensaje de sistema. |
 | 2026-11-12 | módulos modulares | `core.md` se parte: identidad y comprobaciones previas a `shared/identity.md`, tiempo a `shared/time.md`. Clientes usan ambos; `gastos.exploracion` solo tiempo. Solo se movió texto. |
+| 2026-11-12 | `catalog-domains-v7` | `system.md` pasa a generarse desde los módulos (`domains/banks.md`, `domains/products.md`, `examples.md` nuevos). El prompt completo incorpora la sección de gastos y `estado_cuenta`; `test_prompt_parity` falla si el archivo difiere de la composición. |
