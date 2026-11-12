@@ -700,3 +700,82 @@ class ExpenseTopicChangeTests(unittest.TestCase):
             "bancos.movimientos", "bancos", "movimientos_banco", "", (), frozenset(), (), "business"
         )
         self.assertTrue(route_is_consistent("¿Qué gastos salieron de caja chica?", bank))
+
+
+class PreRouteTests(unittest.TestCase):
+    """Questions whose route is already known never pay for a classification."""
+
+    def test_policy_recognizes_short_replies_banks_and_named_accounts(self):
+        from dbagg.routing.policy import pre_route
+
+        for question in ("sí", "No.", "ok", "¡Gracias!", "El banco de Enrique", "bancos"):
+            with self.subTest(question=question):
+                self.assertEqual(pre_route(question), "legacy")
+        names = ("ENRIQUE", "EFECTIVOS ENRIQUE ROJAS")
+        self.assertEqual(pre_route("¿Cuánto efectivo tiene Enrique?", bank_names=names), "legacy")
+        self.assertEqual(pre_route("la cuenta de enrique", bank_names=names), "legacy")
+        for question in ("¿Cuánto debe Enrique?", "sí, el saldo de Ana", "efectivo de Ana"):
+            with self.subTest(question=question):
+                self.assertIsNone(pre_route(question, bank_names=names))
+
+    def assistant(self):
+        from dbagg.business.banks import BANK_SOURCES
+        from tests.unit.test_bank_queries import BankDatabase
+
+        db = BankDatabase()
+        self.addCleanup(db.conn.close)
+        db.account("ENRIQUE", "EFECTIVOS ENRIQUE ROJAS", opening="-20")
+        provider = Mock()
+        provider.complete.return_value = reply(
+            "consultar_negocio", {"operation": "saldo_banco", "banco": "ENRIQUE"}
+        )
+        config = LLMConfig(
+            ModelProfile(), modular=ModularConfig(enabled=True, router="jev", min_confidence=0.8)
+        )
+        assistant = Assistant(
+            SimpleNamespace(model="test", tables={CUSTOMERS, PAYMENTS, *BANK_SOURCES}, llm=config),
+            db=db,
+            provider=provider,
+        )
+        assistant.router.close()
+        assistant.router = Mock()
+        assistant.router.decide.return_value = RoutingDecision("clientes.saldo", "jev", 0.99)
+        return assistant
+
+    def test_known_legacy_questions_make_no_routing_call_and_keep_the_answer(self):
+        assistant = self.assistant()
+        for question in (
+            "El banco de Enrique",
+            "Dame el saldo del Banco Enrique Rojas",
+            "¿Cuánto efectivo tiene Enrique?",
+        ):
+            with self.subTest(question=question):
+                answer = assistant.answer(question, history=[])
+                self.assertIn("Saldo actual: -20.00", answer)
+                self.assertEqual(assistant.last_trace["local_decision"], "pre_route_legacy")
+                self.assertFalse(
+                    any(e.get("task") == "routing" for e in assistant.last_trace.get("events", []))
+                )
+        assistant.router.decide.assert_not_called()
+
+    def test_short_reply_makes_no_routing_call(self):
+        assistant = self.assistant()
+        assistant.provider.complete.return_value = reply("pedir_aclaracion", {"reason": "criterio"})
+        assistant.answer("ok", history=[])
+        assistant.router.decide.assert_not_called()
+        self.assertEqual(assistant.last_trace["local_decision"], "pre_route_legacy")
+
+    def test_other_questions_still_route_once_without_reading_account_names(self):
+        assistant = self.assistant()
+        statements = []
+        query = assistant.db.query
+
+        def recorded(sql, *args, **kwargs):
+            statements.append(sql)
+            return query(sql, *args, **kwargs)
+
+        assistant.db.query = recorded
+        assistant.provider.complete.return_value = reply("pedir_aclaracion", {"reason": "cliente"})
+        assistant.answer("¿Cuánto debe?", history=[])
+        assistant.router.decide.assert_called_once()
+        self.assertFalse(any("CUENTA BANCARIA" in sql for sql in statements))

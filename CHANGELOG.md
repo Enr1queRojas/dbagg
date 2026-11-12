@@ -1,5 +1,11 @@
 # Cambios
 
+## Sin publicar — Pre-enrutador sin llamadas
+
+- Con `[modular]`, respuestas cortas («sí», «ok»), menciones de banco y nombres de cuentas junto a
+  «efectivo», «cuenta» o «caja» van al intérprete completo sin llamar al enrutador
+  (`local_decision = "pre_route_legacy"`). `route_is_consistent` sigue como red de seguridad.
+
 ## Sin publicar — Elegir de una lista con un número y códigos dictados
 
 - Con una lista de personas abierta, un mensaje que es solo un número («3») elige esa fila. Un número

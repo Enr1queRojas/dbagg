@@ -23,11 +23,17 @@ from dbagg.routing.registry import available_routes
 from dbagg.routing.service import ReferenceRouter
 from dbagg.routing.jev import JevRouter
 from dbagg.routing.state import ConversationState
-from dbagg.routing.policy import needs_expense_year, route_is_consistent
+from dbagg.routing.policy import (
+    mentions_account_words,
+    needs_expense_year,
+    pre_route,
+    route_is_consistent,
+)
 from dbagg.llm.types import ModelProtocolError, ModelReply, ToolCall
 from dbagg.llm.config import LLMConfig, ModelProfile
 from dbagg.llm.providers import create_provider
 from dbagg.llm.usage import stage, task_scope
+from dbagg.limits import MAX_ROWS
 from dbagg.reporting.bank_pdf import bank_report_filename, bank_report_pdf
 from dbagg.reporting.statement_pdf import statement_filename, statement_pdf
 from dbagg.agent.entity import (
@@ -71,6 +77,7 @@ from dbagg.business.evidence import (
     BusinessError,
     amount,
     label,
+    records,
     render_exploratory,
 )
 from dbagg.business.parties import CUSTOMER, SUPPLIER, PartyDirectory, ambiguous_answer
@@ -96,6 +103,7 @@ ALL_NOT_FOUND_ANSWERS = NOT_FOUND_ANSWERS | {SUPPLIER_NOT_FOUND, SUPPLIER_MATCHE
 MAX_MODEL_ROUNDS = 9
 MAX_SQL_QUERIES = 4
 MAX_SCHEMA_REQUESTS = 4
+BANK_NAMES_TTL = 600
 
 
 class ToolHint(Exception):
@@ -328,6 +336,31 @@ class Assistant:
             event["duration_ms"] = round((time.monotonic() - started) * 1000, 3)
             self.last_trace.setdefault("events", []).append(event)
 
+    def _bank_names(self):
+        """Account codes and names, cached for ten minutes; empty when banks are not granted."""
+        if BANKS not in self.tables:
+            return ()
+        cached = getattr(self, "_bank_names_cache", None)
+        if cached and time.monotonic() - cached[0] < BANK_NAMES_TTL:
+            return cached[1]
+        try:
+            result = self.db.query(
+                f"SELECT TOP {MAX_ROWS} [CODIGO] AS codigo, [CUENTA BANCARIA] AS cuenta "
+                f"FROM {BANKS} ORDER BY [CODIGO]",
+                row_limit=MAX_ROWS,
+            )
+            names = tuple(
+                value
+                for row in records(result)
+                for value in (row.get("codigo"), row.get("cuenta"))
+                if isinstance(value, str) and value.strip()
+            )
+        except Exception as exc:
+            logger.info("dbagg stage=bank_names_failed error_type=%s", type(exc).__name__)
+            return ()
+        self._bank_names_cache = (time.monotonic(), names)
+        return names
+
     def _select_modular(self, question, history, context, bundle):
         config = self.llm_config.modular
         if not config.enabled:
@@ -338,6 +371,13 @@ class Assistant:
             return None
         routes = available_routes(self.catalog, self.tables, config.domains)
         if not routes:
+            return None
+        names = self._bank_names() if mentions_account_words(question) else ()
+        if pre_route(question, history, self.next_state, names) == "legacy":
+            # The same veto as route_is_consistent, applied before paying for a classification.
+            self.last_trace["local_decision"] = "pre_route_legacy"
+            self.last_trace["modular_fallback"] = "route_inconsistent"
+            logger.info("dbagg stage=pre_route_legacy")
             return None
 
         assistant = self

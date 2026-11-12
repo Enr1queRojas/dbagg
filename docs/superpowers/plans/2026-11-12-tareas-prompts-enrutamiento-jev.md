@@ -198,7 +198,7 @@ para enrutar.
 
 ## Bloque C — Quitar llamadas que no aportan
 
-- [ ] **T6. Pre-enrutador determinista**
+- [x] **T6. Pre-enrutador determinista**
   - **Archivos:** `src/dbagg/routing/policy.py`, `agent/service.py`
     (`_select_modular`); pruebas en `tests/unit/test_modular_context.py`.
   - **Qué hacer:** hoy `route_is_consistent` veta después de llamar al
@@ -210,6 +210,11 @@ para enrutar.
     `route_is_consistent` se conserva como red de seguridad posterior.
   - **Pruebas:** con un enrutador simulado que cuenta llamadas, esas preguntas
     producen cero llamadas de enrutamiento y el mismo resultado final que antes.
+  - **Resultado:** `policy.pre_route`; nombres de cuentas leídos una vez cada 10
+    min (máx. 50, el límite del cliente) solo si la pregunta dice banco, efectivo,
+    cuenta o caja. La traza conserva `modular_fallback = "route_inconsistent"`
+    (lo exige una prueba existente; es el mismo veto, antes de clasificar) y
+    añade `local_decision = "pre_route_legacy"`.
 
 - [ ] **T7. Resolver aclaraciones pendientes sin modelo**
   - **Archivos:** `agent/service.py`, `routing/state.py`; pruebas nuevas en

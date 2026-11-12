@@ -10,6 +10,37 @@ def normalize(text):
     )
 
 
+SHORT_REPLY = re.compile(r"\W*(si|no|ok|okay|gracias|va|sale|claro|listo)\W*")
+BANK_WORD = re.compile(r"\bbancos?\b")
+ACCOUNT_WORD = re.compile(r"\b(bancos?|efectivos?|cuentas?|caja)\b")
+
+
+def mentions_account_words(question):
+    """Cheap check before looking up account names: only these words can pair with one."""
+    return bool(ACCOUNT_WORD.search(normalize(question)))
+
+
+def pre_route(question, history=None, state=None, bank_names=()):
+    """«legacy» before any routing call when the outcome is already known; else None.
+
+    Short replies keep a pending operation that only the full interpreter holds, and bank
+    accounts live only in the full interpreter. This never grants access: it only skips a
+    classification whose result would be legacy anyway. ``route_is_consistent`` remains as
+    the safety net after a classification.
+    """
+    text = normalize(question)
+    if SHORT_REPLY.fullmatch(text):
+        return "legacy"
+    if BANK_WORD.search(text):
+        return "legacy"
+    if ACCOUNT_WORD.search(text):
+        for name in bank_names or ():
+            term = normalize(str(name or "")).strip()
+            if len(term) >= 3 and re.search(r"(?<!\w)" + re.escape(term) + r"(?!\w)", text):
+                return "legacy"
+    return None
+
+
 def route_is_consistent(question, route):
     text = normalize(question)
     # Bank tools are available only in the full interpreter in this pilot.
