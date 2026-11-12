@@ -437,7 +437,7 @@ para enrutar.
     `[modular] fixed_tool_schema`; `validate_tool_call(..., allowed_operations)`.
     Comparar contra T18 con `--repeat 3` cuando haya claves.
 
-- [ ] **T20. Historial reducido con estado confirmado**
+- [x] **T20. Historial reducido con estado confirmado**
   - **Archivos:** `agent/service.py`, `agent/prompts.py`.
   - **Qué hacer:** bandera `compact_history`. En rutas modulares con entidad
     confirmada en el estado, enviar solo el último intercambio más el estado.
@@ -445,6 +445,8 @@ para enrutar.
     historial completo como hoy.
   - **Pruebas:** continuaciones («¿y su último pago?», «¿y este mes?») siguen
     resolviendo con historial reducido; lista abierta mantiene el historial.
+  - **Resultado:** bandera `[modular] compact_history` (apagada). Solo el modelo
+    ve el historial reducido; las validaciones del servicio usan el completo.
 
 - [ ] **T21. Dominio modular de proveedores**
   - **Archivos:** `routing/registry.py`, `templates/domains/`, `templates/operations/movimientos.md`,

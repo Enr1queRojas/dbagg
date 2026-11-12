@@ -6,6 +6,8 @@
   separa calendario y estado en un mensaje final. Pendiente de medición antes de adoptarla.
 - Bandera `[modular] fixed_tool_schema` (apagada): esquema de herramienta igual para todo el dominio
   y la operación de la ruta exigida al validar. Pendiente de medición.
+- Bandera `[modular] compact_history` (apagada): con una persona confirmada, el modelo recibe solo el
+  último intercambio y el estado.
 
 ## Sin publicar — Prompt modular coherente con sus operaciones
 

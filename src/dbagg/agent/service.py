@@ -743,6 +743,19 @@ class Assistant:
         full_bundle, full_schema = bundle, schema
         if selected is not None:
             bundle, model_context, schema = selected.bundle, selected.context, selected.schema
+        # The model may see less history; every service check still uses the full one.
+        model_history = history
+        if (
+            selected is not None
+            and self.llm_config.modular.compact_history
+            and self.next_state.selected_customer_id
+            and not self.next_state.pending_clarification
+            and not _open_list(history)
+        ):
+            model_history = [m for m in (history or []) if m.get("role") in ("user", "assistant")][
+                -2:
+            ]
+            self.last_trace["compact_history"] = True
         state_text = "Estado conversacional confirmado (datos): " + json.dumps(
             self.next_state.payload(), ensure_ascii=False
         )
@@ -756,12 +769,12 @@ class Assistant:
                 + json.dumps(reporting_calendar(today))
                 + "\n"
                 + state_text,
-                history,
+                model_history,
                 question,
             )
         else:
             messages = build_messages(
-                schema, model_context, question, history, today=today, bundle=bundle
+                schema, model_context, question, model_history, today=today, bundle=bundle
             )
             if selected is not None:
                 messages[0]["content"] += "\n" + state_text

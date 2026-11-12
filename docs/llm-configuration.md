@@ -159,6 +159,10 @@ Sin los dos campos el comportamiento es el anterior. La traza registra `routing_
   esquema de herramienta para todas sus rutas) y la operación de la ruta se exige al validar la
   llamada; una operación fuera de la ruta vuelve al modelo con el motivo. Adoptarlo solo si baja el
   costo por consulta correcta y no baja el acierto de parámetros.
+- `[modular] compact_history = true`: en rutas modulares con una persona confirmada en el estado, el
+  modelo recibe solo el último intercambio más el estado; con lista abierta, aclaración pendiente o
+  en el intérprete completo recibe el historial completo. Las comprobaciones del servicio siempre
+  usan el historial completo.
 
 ## Transcripción de notas de voz
 

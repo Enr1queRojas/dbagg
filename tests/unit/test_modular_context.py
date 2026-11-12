@@ -1512,3 +1512,98 @@ class FixedToolSchemaTests(unittest.TestCase):
         self.assertTrue(_modular({"fixed_tool_schema": True}, {}).fixed_tool_schema)
         with self.assertRaises(ValueError):
             _modular({"fixed_tool_schema": "sí"}, {})
+
+
+class CompactHistoryTests(unittest.TestCase):
+    HISTORY = [
+        {"role": "user", "content": "Saldo de Luis Ficticio"},
+        {"role": "assistant", "content": "Saldo actual de LUIS FICTICIO (código L1): 9.00."},
+        {"role": "user", "content": "Saldo de Ana Demo"},
+        {"role": "assistant", "content": "Saldo actual de Ana Demo (código C1): 123.45."},
+    ]
+
+    def setUp(self):
+        self.db = SyntheticDatabase()
+        self.addCleanup(self.db.conn.close)
+        self.db.customer()
+        self.db.payment(1, "2026-10-02", "40")
+
+    def turn(self, question, route, arguments, history, state, compact=True):
+        from datetime import date
+        from unittest.mock import patch
+
+        provider = Mock()
+        seen = []
+
+        def complete(messages, tools, require_tool=False):
+            seen.append([dict(m) for m in messages])
+            if tools[0]["function"]["name"] == "select_route":
+                return reply("select_route", {"route": route})
+            return reply(*arguments)
+
+        provider.complete.side_effect = complete
+        config = LLMConfig(
+            ModelProfile(), modular=ModularConfig(enabled=True, compact_history=compact)
+        )
+        assistant = Assistant(
+            SimpleNamespace(model="test", tables={CUSTOMERS, PAYMENTS}, llm=config),
+            db=self.db,
+            provider=provider,
+        )
+        with patch("dbagg.agent.service.business_today", return_value=date(2026, 10, 8)):
+            text = assistant.answer(question, history, state)
+        return text, seen[-1]
+
+    def state(self):
+        from dbagg.routing.state import ConversationState
+
+        return ConversationState(
+            previous_route="clientes.saldo", selected_customer_id="C1", entity="cliente"
+        )
+
+    def test_continuations_resolve_with_the_last_exchange_and_the_state(self):
+        for question, route, arguments, expected in (
+            (
+                "¿Y su último pago?",
+                "clientes.ultimo_pago",
+                {"operation": "ultimo_pago", "customer": "C1", "codigo_exacto": True},
+                "Pagos de la última fecha registrada de Ana Demo",
+            ),
+            (
+                "¿Y este mes?",
+                "clientes.total_pagos",
+                {
+                    "operation": "total_pagos",
+                    "customer": "C1",
+                    "codigo_exacto": True,
+                    "period": "este_mes",
+                },
+                "Total de pagos activos de Ana Demo (código C1): 40.00",
+            ),
+        ):
+            with self.subTest(question=question):
+                text, messages = self.turn(
+                    question, route, ("consultar_negocio", arguments), self.HISTORY, self.state()
+                )
+                self.assertIn(expected, text)
+                contents = [m["content"] for m in messages]
+                self.assertNotIn("Saldo de Luis Ficticio", contents)
+                self.assertIn(self.HISTORY[-1]["content"], contents)
+                self.assertIn('"selected_customer_id": "C1"', messages[0]["content"])
+
+    def test_open_list_or_flag_off_keeps_the_full_history(self):
+        listed = self.HISTORY + [
+            {"role": "user", "content": "Saldo de Robles"},
+            {
+                "role": "assistant",
+                "content": "Encontré varios clientes:\n• A (código A1)\n• B (código B2)\n"
+                "¿Cuál quieres consultar?",
+            },
+        ]
+        ask = ("pedir_aclaracion", {"reason": "cliente"})
+        _, messages = self.turn("¿y su saldo?", "clientes.saldo", ask, listed, self.state())
+        self.assertIn("Saldo de Luis Ficticio", [m["content"] for m in messages])
+        _, messages = self.turn(
+            "¿y su saldo?", "clientes.saldo", ask, self.HISTORY, self.state(), compact=False
+        )
+        self.assertIn("Saldo de Luis Ficticio", [m["content"] for m in messages])

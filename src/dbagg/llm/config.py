@@ -61,6 +61,7 @@ class ModularConfig:
     # Experiments, off until measured (docs/llm-configuration.md).
     stable_prefix: bool = False
     fixed_tool_schema: bool = False
+    compact_history: bool = False
 
 
 @dataclass(frozen=True)
@@ -89,7 +90,13 @@ def _modular(data, profiles):
     config = ModularConfig(**values)
     if any(
         type(getattr(config, n)) is not bool
-        for n in ("enabled", "shadow", "stable_prefix", "fixed_tool_schema")
+        for n in (
+            "enabled",
+            "shadow",
+            "stable_prefix",
+            "fixed_tool_schema",
+            "compact_history",
+        )
     ):
         raise ValueError("LLM: enabled, shadow y las banderas requieren booleanos.")
     if not isinstance(config.router, str) or config.router not in {"reference", "jev"}:
