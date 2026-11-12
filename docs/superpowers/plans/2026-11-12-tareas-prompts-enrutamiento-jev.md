@@ -251,7 +251,7 @@ para enrutar.
     `previous_route = clientes.<operación>`, identidad y período. T7 también
     quedó detrás de `[modular]`.
 
-- [ ] **T9. Reintento de extracción con el motivo del error**
+- [x] **T9. Reintento de extracción con el motivo del error**
   - **Archivos:** `agent/service.py` (bloque `:586-616`).
   - **Qué hacer:** cuando la extracción falla la validación, añadir a
     `messages` la llamada rechazada y un resultado de herramienta con el motivo
@@ -260,6 +260,11 @@ para enrutar.
     intento duplicado.
   - **Pruebas:** el respaldo recibe el motivo en sus mensajes; con perfiles
     iguales hay una sola instancia de proveedor.
+  - **Resultado:** solo los rechazos del validador (textos fijos) pasan al
+    respaldo; los errores de transporte no añaden mensajes. Con perfiles iguales
+    `extraction_provider` es la misma instancia que el principal (las pruebas de
+    integración de Jev local esperan que exista) y se cierra una sola vez. El
+    presupuesto de dos llamadas de interpretación no cambia.
 
 ---
 

@@ -976,3 +976,88 @@ class LegacyContinuityTests(unittest.TestCase):
         self.assertEqual(memory.state("one").selected_customer_id, "C1")
         memory.clear("one")
         self.assertIsNone(memory.state("one").selected_customer_id)
+
+
+class ExtractionRetryTests(unittest.TestCase):
+    def setUp(self):
+        self.db = SyntheticDatabase()
+        self.addCleanup(self.db.conn.close)
+        self.db.customer()
+
+    @staticmethod
+    def recording(*replies):
+        """A provider that keeps a copy of the messages of each call."""
+        provider = Mock()
+        provider.seen = []
+        queue = list(replies)
+
+        def complete(messages, tools, require_tool=False):
+            provider.seen.append([dict(m) for m in messages])
+            return queue.pop(0)
+
+        provider.complete.side_effect = complete
+        return provider
+
+    def test_fallback_receives_the_rejected_call_and_the_reason(self):
+        provider = self.recording(
+            reply("select_route", {"route": "clientes.saldo"}),
+            reply("consultar_negocio", {"operation": "saldo", "customer": "Ana Demo"}),
+        )
+        config = LLMConfig(ModelProfile(), modular=ModularConfig(enabled=True))
+        assistant = Assistant(
+            SimpleNamespace(model="test", tables={CUSTOMERS, PAYMENTS}, llm=config),
+            db=self.db,
+            provider=provider,
+        )
+        nano = Mock()
+        nano.complete.return_value = reply("consultar_negocio", {"operation": "ventas"})
+        assistant.extraction_provider = nano
+        self.assertIn("123.45", assistant.answer("Saldo de Ana Demo"))
+        messages = provider.seen[-1]
+        self.assertEqual(messages[-2]["role"], "assistant")
+        self.assertEqual(messages[-2]["tool_calls"][0]["function"]["name"], "consultar_negocio")
+        self.assertEqual(messages[-1]["role"], "tool")
+        self.assertIn("Valor fuera del contrato seleccionado.", messages[-1]["content"])
+        self.assertEqual(provider.complete.call_count, 2)
+
+    def test_transport_errors_add_nothing_to_the_conversation(self):
+        provider = self.recording(
+            reply("select_route", {"route": "clientes.saldo"}),
+            reply("consultar_negocio", {"operation": "saldo", "customer": "Ana Demo"}),
+        )
+        config = LLMConfig(ModelProfile(), modular=ModularConfig(enabled=True))
+        assistant = Assistant(
+            SimpleNamespace(model="test", tables={CUSTOMERS, PAYMENTS}, llm=config),
+            db=self.db,
+            provider=provider,
+        )
+        nano = Mock()
+        nano.complete.side_effect = RuntimeError("private")
+        assistant.extraction_provider = nano
+        assistant.answer("Saldo de Ana Demo")
+        messages = provider.seen[-1]
+        self.assertEqual(messages[-1]["role"], "user")
+
+    def test_same_profile_shares_one_provider_instance(self):
+        from unittest.mock import patch
+
+        profile = ModelProfile(name="openai")
+        config = LLMConfig(
+            profile,
+            modular=ModularConfig(enabled=True, extraction_profile="openai"),
+            profiles={"openai": profile},
+        )
+        provider = Mock()
+        with (
+            patch("dbagg.agent.service.create_provider") as create,
+            patch.dict("os.environ", {profile.api_key_env: "synthetic"}),
+        ):
+            assistant = Assistant(
+                SimpleNamespace(model="test", tables={CUSTOMERS, PAYMENTS}, llm=config),
+                db=self.db,
+                provider=provider,
+            )
+            create.assert_not_called()
+        self.assertIs(assistant.extraction_provider, provider)
+        assistant.close()
+        provider.close.assert_called_once()

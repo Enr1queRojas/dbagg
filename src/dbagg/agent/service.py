@@ -298,6 +298,30 @@ def pending_clarification_answer(question, history, state):
     return None
 
 
+def _rejected_call_messages(reply, reason):
+    """The rejected assistant turn plus one tool result per call, carrying the reason."""
+    calls = list(reply.tool_calls)
+    assistant = {
+        "role": "assistant",
+        "content": None,
+        "tool_calls": [
+            {
+                "id": call.id,
+                "type": "function",
+                "function": {"name": call.name, "arguments": call.arguments},
+            }
+            for call in calls
+        ],
+    }
+    error = json.dumps(
+        {"error": "Solicitud rechazada. Motivo: " + reason + " Corrige según el motivo."},
+        ensure_ascii=False,
+    )
+    return [assistant] + [
+        {"role": "tool", "tool_call_id": call.id, "content": error} for call in calls
+    ]
+
+
 def _abandons_result(call):
     """After a successful exploratory query, a generic clarification or a jump to the
     customer operations discards a valid answer; specific clarifications still apply."""
@@ -338,7 +362,10 @@ class Assistant:
         if modular.enabled and modular.extraction_profile:
             extraction = self.llm_config.profiles[modular.extraction_profile]
             key = os.getenv(extraction.api_key_env)
-            if key:
+            if extraction == self.llm_config.profile:
+                # The active profile already interprets: share its instance, no second client.
+                self.extraction_provider = self.provider
+            elif key:
                 self.extraction_provider = create_provider(extraction, key)
         self.router = None
         if modular.enabled and modular.router == "jev":
@@ -371,7 +398,7 @@ class Assistant:
 
     def close(self):
         self.provider.close()
-        if self.extraction_provider is not None:
+        if self.extraction_provider is not None and self.extraction_provider is not self.provider:
             self.extraction_provider.close()
         if self.router is not None:
             self.router.close()
@@ -722,8 +749,9 @@ class Assistant:
                 extraction_tools = [
                     t for t in round_tools if t["function"]["name"] != "consultar_sql"
                 ]
+                rejected = None
                 try:
-                    message = self._complete(
+                    rejected = message = self._complete(
                         messages, extraction_tools, True, extraction, "extraction"
                     )
                     if len(message.tool_calls) != 1:
@@ -744,6 +772,10 @@ class Assistant:
                         }
                     )
                     interpretation_calls += 1
+                    if rejected is not None and rejected.tool_calls and isinstance(exc, ValueError):
+                        # The fallback sees what was rejected and why, as ToolHint does; the
+                        # validator texts are fixed, never echoes of the model or the user.
+                        messages.extend(_rejected_call_messages(rejected, str(exc)[:400]))
                     message = self._complete(
                         messages, round_tools, True, task="extraction_fallback"
                     )

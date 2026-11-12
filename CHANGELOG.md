@@ -1,5 +1,10 @@
 # Cambios
 
+## Sin publicar — Respaldo de extracción con motivo
+
+- Si la extracción modular propone una llamada fuera del contrato, el respaldo recibe esa llamada y
+  el motivo del rechazo. Con `extraction_profile` igual al perfil activo no se crea un segundo cliente.
+
 ## Sin publicar — Continuidad tras el intérprete completo
 
 - Con `[modular]`, un resultado verificado del intérprete completo (cliente o proveedor con código)
