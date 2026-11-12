@@ -98,8 +98,17 @@ def listed_codes(answer):
     return [code for _, _, code in list_row_details(answer)]
 
 
-def list_position(question):
-    """«El segundo» points at a row; «su primer pago» or «el segundo pago» do not."""
+def list_position(question, codes=None):
+    """«El segundo» points at a row; «su primer pago» or «el segundo pago» do not.
+
+    With an open list (its codes), a message that is only a number also points at a row,
+    unless that number is itself one of the listed codes: then the code wins.
+    """
+    if codes:
+        bare = re.fullmatch(r"[\s¿?¡!.,#()-]*(\d{1,2})[\s¿?¡!.,)-]*", _plain(question))
+        if bare:
+            listed = {_plain(str(code)).strip() for code in codes}
+            return None if bare[1] in listed or bare[1].lstrip("0") in listed else int(bare[1])
     match = re.search(
         r"\b(?:(?:el|la|al|del)\s+(primer|segund|tercer|cuart|quint|sext|septim|octav|noven)[oa]?"
         r"|(?:(?:el|la)\s+(?:numero\s+)?|numero\s+)(\d{1,2}))\b"

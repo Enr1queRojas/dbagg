@@ -32,6 +32,7 @@ from dbagg.reporting.bank_pdf import bank_report_filename, bank_report_pdf
 from dbagg.reporting.statement_pdf import statement_filename, statement_pdf
 from dbagg.agent.entity import (
     conversation_entity,
+    dictated_code,
     explicit_entity,
     listed_row,
     mixed_list_choice,
@@ -170,7 +171,7 @@ def customer_left_unselected(customer, question, history):
     """A list of customers identifies none: the customer must be named or pointed at, because
     the model tends to continue with the first row and would answer about the wrong person."""
     codes = _open_list(history)
-    position = list_position(question)
+    position = list_position(question, codes)
     return (
         bool(codes)
         and not customer_in_conversation(customer, question, None)
@@ -181,7 +182,7 @@ def customer_left_unselected(customer, question, history):
 def chosen_customer(customer, question, history):
     """«El segundo» is resolved from the list itself; the model may pick another row."""
     codes = _open_list(history)
-    position = list_position(question)
+    position = list_position(question, codes)
     if not position or not 1 <= position <= len(codes):
         return None
     return None if customer_in_conversation(customer, question, None) else codes[position - 1]
@@ -810,7 +811,7 @@ class Assistant:
         elif routed and chosen:
             row = listed_row(
                 history,
-                list_position(question),
+                list_position(question, _open_list(history)),
                 explicit_entity(question, arguments.get("customer")),
             )
             if row is None:
@@ -872,32 +873,57 @@ class Assistant:
                 return self._business_answer(entity)
         if arguments.get("operation") == STATEMENT_OPERATION:
             return self._statement(entity, customer_arguments, context, today)
-        if entity == SUPPLIER:
-            validate_supplier_context(context)
-            supplier_arguments = dict(customer_arguments)
-            supplier_arguments["supplier"] = supplier_arguments.pop("customer", None)
-            answer = SupplierQueries(self.db, self.tables, today=today).execute(
-                **supplier_arguments
+        answer = self._party_query(entity, customer_arguments, context, today, routed)
+        if answer.text in ALL_NOT_FOUND_ANSWERS and single_customer and not chosen and not picked:
+            dictated = self._dictated_code_answer(
+                directory, customer_arguments, question, context, today, routed
             )
-        elif arguments.get("operation") in SUPPLIER_ONLY_OPERATIONS:
-            answer = BusinessAnswer.make(
-                "Ese reporte todavía solo está disponible para proveedores.",
-                "needs_clarification",
-                arguments["operation"],
-                [],
-            )
-        else:
-            if routed:
-                validate_context(context, arguments.get("operation"))
-            answer = CustomerQueries(self.db, self.tables, today=today).execute(
-                **customer_arguments
-            )
+            if dictated is not None:
+                answer = dictated
         if answer.text in ALL_NOT_FOUND_ANSWERS and not self._customer_missed:
             # One retry: the name may be an expense section, product or warehouse.
             self._customer_missed = True
             logger.info("dbagg stage=customer_not_found_retry")
             raise ToolHint(NOT_A_CUSTOMER_HINT)
         return self._business_answer(answer)
+
+    def _party_query(self, entity, arguments, context, today, routed):
+        if entity == SUPPLIER:
+            validate_supplier_context(context)
+            supplier_arguments = dict(arguments)
+            supplier_arguments["supplier"] = supplier_arguments.pop("customer", None)
+            return SupplierQueries(self.db, self.tables, today=today).execute(**supplier_arguments)
+        if arguments.get("operation") in SUPPLIER_ONLY_OPERATIONS:
+            return BusinessAnswer.make(
+                "Ese reporte todavía solo está disponible para proveedores.",
+                "needs_clarification",
+                arguments["operation"],
+                [],
+            )
+        if routed:
+            validate_context(context, arguments.get("operation"))
+        return CustomerQueries(self.db, self.tables, today=today).execute(**arguments)
+
+    def _dictated_code_answer(self, directory, arguments, question, context, today, routed):
+        """One retry of a dictated code («A. Robles tres» → A.ROBLES3), exact codes only.
+
+        Never by similarity: the normalized value must equal an existing code in exactly one
+        catalogue, which must agree with any entity the question states.
+        """
+        code = dictated_code(arguments.get("customer"))
+        if code is None:
+            return None
+        found = directory.find(code, exact_code=True)
+        entities = [entity for entity in (CUSTOMER, SUPPLIER) if found[entity]]
+        explicit = explicit_entity(question, arguments.get("customer"))
+        if explicit:
+            entities = [entity for entity in entities if entity == explicit]
+        if len(entities) != 1:
+            return None
+        logger.info("dbagg stage=dictated_code_resolved")
+        self.last_trace["local_decision"] = "dictated_code"
+        retried = {**arguments, "customer": code, "codigo_exacto": True}
+        return self._party_query(entities[0], retried, context, today, routed)
 
     def _bank(self, arguments, context, today):
         """Accounts are resolved in their own catalogue, never against customers or suppliers."""

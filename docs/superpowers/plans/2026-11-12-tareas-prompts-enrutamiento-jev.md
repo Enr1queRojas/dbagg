@@ -171,7 +171,7 @@ para enrutar.
     esperan `ultima_nota` y son coherentes (se actualizó el criterio obsoleto
     «pendiente de decisión»). 630 pruebas en verde.
 
-- [ ] **T5. Elegir de una lista con un número solo y con códigos dictados**
+- [x] **T5. Elegir de una lista con un número solo y con códigos dictados**
   - **Archivos:** `src/dbagg/agent/intent.py` (`list_position`),
     `agent/entity.py`, `agent/service.py`; pruebas en
     `tests/unit/test_list_selection.py`, `test_entity.py`.
@@ -188,6 +188,9 @@ para enrutar.
   - **Pruebas:** «3» tras lista numerada elige la fila 3; «3» sin lista no elige
     nada; «tengo 3 dudas» no elige; código dictado resuelve a un código
     existente y uno inexistente sigue pidiendo aclaración.
+  - **Resultado:** `list_position(question, codes)`; `dictated_code` en
+    `entity.py`; reintento único `Assistant._dictated_code_answer` (no cubre el
+    estado de cuenta en PDF, que resuelve la identidad por su cuenta).
 
 ---
 

@@ -154,6 +154,56 @@ class ListSelectionGuardTests(unittest.TestCase):
         self.assertIn("DIEGO SEGURA (código DIEGO)", answer)
         self.assertNotIn("Encontré varios", answer)
 
+    THREE = [
+        {"role": "user", "content": "Saldo de Robles"},
+        {
+            "role": "assistant",
+            "content": "Encontré varios clientes:\n• ANA ROBLES (código A.ROBLES1)\n"
+            "• LUIS ROBLES (código L.ROBLES2)\n• MARIO ROBLES (código M.ROBLES3)\n"
+            "¿Cuál quieres consultar?",
+        },
+    ]
+
+    def three(self, question, arguments, history=None):
+        self.ask("x", {"operation": "saldo", "customer": "R1"})
+        for code, name in (
+            ("A.ROBLES1", "ANA ROBLES"),
+            ("L.ROBLES2", "LUIS ROBLES"),
+            ("M.ROBLES3", "MARIO ROBLES"),
+        ):
+            self.db.customer(code, name, "300")
+        reply = self.reply(arguments)
+        self.assistant.client.chat.completions.create.return_value = reply
+        return self.assistant.answer(question, self.THREE if history is None else history)
+
+    def test_a_bare_number_after_a_list_chooses_that_row(self):
+        answer = self.three("3", {"operation": "saldo", "customer": "Robles"})
+        self.assertIn("MARIO ROBLES (código M.ROBLES3)", answer)
+        self.assertEqual(chosen_customer("Robles", "3", self.THREE), "M.ROBLES3")
+        self.assertFalse(customer_left_unselected("Robles", "3", self.THREE))
+
+    def test_a_number_inside_a_sentence_chooses_nobody(self):
+        self.assertIsNone(chosen_customer("Robles", "tengo 3 dudas", self.THREE))
+        self.assertTrue(customer_left_unselected("Robles", "tengo 3 dudas", self.THREE))
+
+    def test_a_bare_number_without_a_list_chooses_nobody(self):
+        self.assertIsNone(chosen_customer("Robles", "3", SINGLE))
+        self.assertFalse(customer_left_unselected("Robles", "3", SINGLE))
+
+    def test_a_dictated_code_resolves_to_an_existing_code(self):
+        answer = self.three(
+            "Saldo de M. Robles tres", {"operation": "saldo", "customer": "M. Robles tres"}, []
+        )
+        self.assertIn("MARIO ROBLES (código M.ROBLES3)", answer)
+        self.assertEqual(self.assistant.last_trace.get("local_decision"), "dictated_code")
+
+    def test_a_dictated_code_that_does_not_exist_still_asks(self):
+        answer = self.three(
+            "Saldo de M. Robles nueve", {"operation": "saldo", "customer": "M. Robles nueve"}, []
+        )
+        self.assertIn("No encontré", answer)
+        self.assertNotIn("ROBLES (código", answer)
+
     def test_the_whole_list_can_still_be_requested(self):
         history = [
             {"role": "user", "content": "Saldo de Ana Robles"},

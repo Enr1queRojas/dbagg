@@ -1,5 +1,12 @@
 # Cambios
 
+## Sin publicar — Elegir de una lista con un número y códigos dictados
+
+- Con una lista de personas abierta, un mensaje que es solo un número («3») elige esa fila. Un número
+  dentro de una frase no elige; si el número es también un código de la lista, gana el código.
+- Si un nombre no se encuentra, se reintenta una vez como código dictado por voz («M. Robles tres» →
+  `M.ROBLES3`), solo con coincidencia exacta de código en un único catálogo; nunca por similitud.
+
 ## Sin publicar — Última nota de clientes
 
 - `ultima_nota` ya existe para clientes: «última nota», «última compra», «última compra a crédito» o

@@ -4,6 +4,7 @@ import unittest
 
 from dbagg.agent.entity import (
     conversation_entity,
+    dictated_code,
     entity_in_answer,
     explicit_entity,
     listed_row,
@@ -82,6 +83,35 @@ class ReviewedWordingTests(unittest.TestCase):
         self.assertEqual(list_position("el primer proveedor"), 1)
         self.assertEqual(list_position("el primero"), 1)
         self.assertIsNone(list_position("el primer pago"))
+
+    def test_bare_number_points_at_a_row_only_with_an_open_list(self):
+        codes = ["R1", "S2", "T3"]
+        for question in ("3", " 3 ", "3.", "¿3?", "#3"):
+            with self.subTest(question):
+                self.assertEqual(list_position(question, codes), 3)
+        self.assertIsNone(list_position("3"))
+        self.assertIsNone(list_position("3", []))
+        for question in ("tengo 3 dudas", "3 pagos", "123"):
+            with self.subTest(question):
+                self.assertIsNone(list_position(question, codes))
+
+    def test_bare_number_that_is_a_listed_code_is_the_code(self):
+        self.assertIsNone(list_position("3", ["R1", "3", "T3"]))
+        self.assertEqual(list_position("2", ["R1", "3", "T3"]), 2)
+
+
+class DictatedCodeTests(unittest.TestCase):
+    def test_spelled_numbers_and_spaces_become_a_code(self):
+        self.assertEqual(dictated_code("A. Robles tres"), "A.ROBLES3")
+        self.assertEqual(dictated_code("Paleta dos"), "PALETA2")
+        self.assertEqual(dictated_code("m robles 3"), "MROBLES3")
+
+    def test_nothing_to_retry_when_only_the_case_changes(self):
+        self.assertIsNone(dictated_code("Robles"))
+        self.assertIsNone(dictated_code("A.ROBLES3"))
+        self.assertIsNone(dictated_code(""))
+        self.assertIsNone(dictated_code(None))
+        self.assertIsNone(dictated_code("Ana «x»"))
 
 
 class ExplicitEntityTests(unittest.TestCase):
