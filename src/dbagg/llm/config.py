@@ -54,6 +54,9 @@ class ModularConfig:
     jev_api_key_env: str = "TYPESAFE_API_KEY"
     timeout_seconds: float = 5
     min_confidence: float | None = None
+    # Optional tiers: operation needs confidence and margin; else a domain module; else legacy.
+    min_margin: float | None = None
+    min_domain_confidence: float | None = None
     extraction_profile: str | None = None
 
 
@@ -94,8 +97,9 @@ def _modular(data, profiles):
     ):
         raise ValueError("LLM: jev_api_key_env debe ser un nombre de variable.")
     _number(config.timeout_seconds, 1, 30, "modular.timeout_seconds")
-    if config.min_confidence is not None:
-        _number(config.min_confidence, 0, 1, "modular.min_confidence")
+    for name in ("min_confidence", "min_margin", "min_domain_confidence"):
+        if getattr(config, name) is not None:
+            _number(getattr(config, name), 0, 1, "modular." + name)
     if (
         config.enabled
         and config.router == "jev"

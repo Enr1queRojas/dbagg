@@ -1097,3 +1097,119 @@ class ExtractionRetryTests(unittest.TestCase):
         self.assertIs(assistant.extraction_provider, provider)
         assistant.close()
         provider.close.assert_called_once()
+
+
+class TieredRoutingTests(unittest.TestCase):
+    """Jev's probabilities pick an operation, a domain module or legacy, with one call."""
+
+    def setUp(self):
+        self.db = SyntheticDatabase()
+        self.addCleanup(self.db.conn.close)
+        self.db.customer()
+        self.provider = Mock()
+        config = LLMConfig(
+            ModelProfile(),
+            modular=ModularConfig(
+                enabled=True,
+                router="jev",
+                min_confidence=0.8,
+                min_margin=0.3,
+                min_domain_confidence=0.7,
+            ),
+        )
+        self.assistant = Assistant(
+            SimpleNamespace(model="test", tables={CUSTOMERS, PAYMENTS}, llm=config),
+            db=self.db,
+            provider=self.provider,
+        )
+        self.assistant.router.close()
+        self.assistant.router = Mock()
+
+    def decide(self, probabilities):
+        route = max(probabilities, key=probabilities.get)
+        self.assistant.router.decide.return_value = RoutingDecision(
+            route, "jev", probabilities[route], probabilities
+        )
+
+    def routing_calls(self):
+        return self.assistant.router.decide.call_count + sum(
+            1
+            for c in self.provider.complete.call_args_list
+            if c.args[1][0]["function"]["name"] == "select_route"
+        )
+
+    def operations_offered(self):
+        tools = self.provider.complete.call_args_list[-1].args[1]
+        function = next(
+            t["function"] for t in tools if t["function"]["name"] == "consultar_negocio"
+        )
+        return function["parameters"]["properties"]["operation"]["enum"]
+
+    def test_confident_wide_margin_selects_the_operation(self):
+        self.decide({"clientes.saldo": 0.9, "clientes.pagos": 0.05, "legacy": 0.05})
+        self.provider.complete.return_value = reply(
+            "consultar_negocio", {"operation": "saldo", "customer": "Ana Demo"}
+        )
+        self.assertIn("123.45", self.assistant.answer("Saldo de Ana Demo"))
+        self.assertEqual(self.assistant.last_trace["routing_level"], "operation")
+        self.assertEqual(self.operations_offered(), ["saldo"])
+        self.assertEqual(self.routing_calls(), 1)
+
+    def test_unsure_operation_in_a_sure_domain_offers_the_domain_module(self):
+        self.decide(
+            {
+                "clientes.total_pagos": 0.45,
+                "clientes.pagos": 0.35,
+                "clientes.ultimo_pago": 0.1,
+                "clientes.saldo": 0.04,
+                "legacy": 0.06,
+            }
+        )
+        self.provider.complete.return_value = reply(
+            "consultar_negocio", {"operation": "saldo", "customer": "Ana Demo"}
+        )
+        self.assistant.answer("¿Cuánto pagó Ana Demo?")
+        self.assertEqual(self.assistant.last_trace["routing_level"], "domain")
+        # ultimo_pago passes the floor but the consistency veto drops it: no «último» asked.
+        self.assertEqual(
+            self.assistant.last_trace["route_candidates"],
+            ["clientes.total_pagos", "clientes.pagos"],
+        )
+        self.assertEqual(self.operations_offered(), ["total_pagos", "pagos"])
+        self.assertEqual(self.routing_calls(), 1)
+
+    def test_scattered_distribution_goes_to_legacy_without_the_mini_classifier(self):
+        self.decide({"clientes.saldo": 0.35, "gastos.exploracion": 0.3, "legacy": 0.35})
+        self.provider.complete.return_value = reply("pedir_aclaracion", {"reason": "criterio"})
+        self.assistant.answer("¿Y eso?")
+        self.assertEqual(self.assistant.last_trace["routing_level"], "legacy")
+        self.assertEqual(self.routing_calls(), 1)
+        self.assertNotIn("route", self.assistant.last_trace)
+
+    def test_transport_error_still_uses_the_mini_classifier_once(self):
+        self.assistant.router.decide.side_effect = httpx.ConnectTimeout("timeout")
+        self.provider.complete.side_effect = [
+            reply("select_route", {"route": "clientes.saldo"}),
+            reply("consultar_negocio", {"operation": "saldo", "customer": "Ana Demo"}),
+        ]
+        self.assertIn("123.45", self.assistant.answer("Saldo de Ana Demo"))
+        self.assertEqual(self.routing_calls(), 2)
+
+    def test_without_tier_fields_behaviour_is_unchanged(self):
+        from dbagg.agent.service import tiered_decision
+
+        decision = RoutingDecision("clientes.saldo", "jev", 0.9, {"clientes.saldo": 0.9})
+        routes = available_routes(load_catalog(), {CUSTOMERS, PAYMENTS})
+        level, chosen = tiered_decision(decision, routes, ModularConfig(min_confidence=0.8))
+        self.assertEqual((level, [r.name for r in chosen]), ("operation", ["clientes.saldo"]))
+        self.assistant.llm_config = LLMConfig(
+            ModelProfile(), modular=ModularConfig(enabled=True, router="jev", min_confidence=0.8)
+        )
+        self.decide({"clientes.saldo": 0.6, "clientes.pagos": 0.4})
+        self.provider.complete.side_effect = [
+            reply("select_route", {"route": "clientes.saldo"}),
+            reply("consultar_negocio", {"operation": "saldo", "customer": "Ana Demo"}),
+        ]
+        self.assistant.answer("Saldo de Ana Demo")
+        self.assertNotIn("routing_level", self.assistant.last_trace)
+        self.assertEqual(self.routing_calls(), 2)  # low confidence → mini, as before

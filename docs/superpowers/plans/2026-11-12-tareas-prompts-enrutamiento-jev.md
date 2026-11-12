@@ -279,7 +279,7 @@ para enrutar.
     tablas y `topics` son la unión. Con una sola ruta el resultado es idéntico
     al actual (misma huella).
 
-- [ ] **T11. Decisión en tres niveles con las probabilidades de Jev**
+- [x] **T11. Decisión en tres niveles con las probabilidades de Jev**
   - **Archivos:** `agent/service.py` (`_select_modular`), `llm/config.py`
     (`ModularConfig`, `_modular`), `config/llm.modular.example.toml`,
     `docs/llm-configuration.md`; pruebas en `test_llm_config.py`,
@@ -296,6 +296,10 @@ para enrutar.
   - Registrar en la traza el nivel elegido (`operation`, `domain`, `legacy`).
   - **Pruebas:** tres distribuciones sintéticas, una por nivel; contador de
     llamadas de enrutamiento ≤ 1 salvo error de transporte.
+  - **Resultado:** `tiered_decision` en `service.py` (piso 0.05, máx. 3 rutas);
+    `route_is_consistent` filtra cada candidata. La traza guarda
+    `routing_level` y `route_candidates`; el evaluador cuenta la ruta como
+    correcta si la esperada está entre las candidatas.
 
 - [ ] **T12. Enrutador con estado e instrucciones reescritas**
   - **Archivos:** `routing/service.py`, `routing/jev.py`, `routing/registry.py`.

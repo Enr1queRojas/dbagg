@@ -157,10 +157,11 @@ def evaluate(assistant, case, today, routes=None):
         )
     route_expected = expected_route(case, routes)
     route_selected = trace.get("route") or "legacy"
+    candidates = trace.get("route_candidates") or [route_selected]
     route_correct = (
         None
         if not modular.enabled or modular.shadow or route_expected is None
-        else route_selected == route_expected
+        else route_expected in candidates
     )
     arguments_correct = passed if route_correct or route_selected == "legacy" else None
     calls, tokens = call_metrics(events)
@@ -176,6 +177,8 @@ def evaluate(assistant, case, today, routes=None):
         "route_expected": route_expected,
         "route_selected": route_selected,
         "route_correct": route_correct,
+        "route_candidates": trace.get("route_candidates"),
+        "routing_level": trace.get("routing_level"),
         "arguments_correct": arguments_correct,
         "routing_provider": routing.get("provider"),
         "routing_route": routing.get("route"),

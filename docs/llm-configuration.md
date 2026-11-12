@@ -131,6 +131,22 @@ el modelo, proveedor y perfil seleccionados. La base SQLite existente recibe las
 columnas nuevas sin borrar registros, revisiones ni ejemplos aprobados; las entradas
 anteriores mantienen esos campos vacíos cuando se desconoce el proveedor.
 
+## Enrutamiento modular por niveles
+
+Con `[modular] router = "jev"` y `shadow = false`, `min_confidence` es obligatorio. Dos campos
+opcionales activan la decisión por niveles con las probabilidades de Jev:
+
+- `min_margin`: la ruta de operación se usa solo si la confianza es ≥ `min_confidence` y la
+  diferencia entre la primera y la segunda probabilidad es ≥ `min_margin`.
+- `min_domain_confidence`: si no, cuando las rutas de un dominio suman ≥ este valor se usa el
+  módulo de ese dominio con sus operaciones más probables (hasta tres, por encima de 0.05).
+- Si ninguno se cumple, el turno va al intérprete completo **sin** llamar al clasificador mini;
+  ese clasificador queda solo para errores HTTP o timeouts de Jev.
+
+Sin los dos campos el comportamiento es el anterior. La traza registra `routing_level`
+(`operation`, `domain` o `legacy`). Los valores deben calibrarse con
+`python -m dbagg.evaluation.calibration` sobre tus casos; no hay valores por defecto.
+
 ## Transcripción de notas de voz
 
 La sección opcional `[transcription]` configura las notas de voz de WhatsApp. Es

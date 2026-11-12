@@ -298,6 +298,49 @@ def pending_clarification_answer(question, history, state):
     return None
 
 
+DOMAIN_ROUTE_FLOOR = 0.05
+MAX_DOMAIN_ROUTES = 3
+
+
+def tiered_decision(decision, routes, config):
+    """(level, candidate routes) from Jev's probabilities.
+
+    1. confidence ≥ min_confidence and margin ≥ min_margin → that operation;
+    2. else a domain whose routes add up to ≥ min_domain_confidence → up to three of its
+       routes above a small floor, most probable first;
+    3. else legacy.
+    """
+    probabilities = {k: v for k, v in (decision.probabilities or {}).items() if k in routes}
+    ranked = sorted((decision.probabilities or {}).values(), reverse=True)
+    margin = ranked[0] - (ranked[1] if len(ranked) > 1 else 0.0) if ranked else 0.0
+    top = routes.get(decision.route)
+    if (
+        top is not None
+        and decision.confidence is not None
+        and config.min_confidence is not None
+        and decision.confidence >= config.min_confidence
+        and margin >= (config.min_margin or 0.0)
+    ):
+        return "operation", [top]
+    if config.min_domain_confidence is not None and probabilities:
+        sums = {}
+        for name, probability in probabilities.items():
+            sums[routes[name].domain] = sums.get(routes[name].domain, 0.0) + probability
+        domain = max(sums, key=sums.get)
+        if sums[domain] >= config.min_domain_confidence:
+            chosen = sorted(
+                (
+                    name
+                    for name, probability in probabilities.items()
+                    if routes[name].domain == domain and probability > DOMAIN_ROUTE_FLOOR
+                ),
+                key=lambda name: -probabilities[name],
+            )[:MAX_DOMAIN_ROUTES]
+            if chosen:
+                return "domain", [routes[name] for name in chosen]
+    return "legacy", []
+
+
 def _rejected_call_messages(reply, reason):
     """The rejected assistant turn plus one tool result per call, carrying the reason."""
     calls = list(reply.tool_calls)
@@ -518,7 +561,20 @@ class Assistant:
             if reason:
                 self.last_trace["modular_fallback"] = reason
             return None
-        if (
+        tiered = config.min_margin is not None or config.min_domain_confidence is not None
+        candidates = None
+        if self.router is not None and decision is not None and tiered:
+            level, candidates = tiered_decision(decision, routes, config)
+            self.last_trace["routing_level"] = level
+            self.last_trace.setdefault("events", []).append(
+                {"event": "routing_level", "level": level, "candidates": len(candidates)}
+            )
+            if level == "legacy":
+                # Jev answered: an unsure distribution goes to the full interpreter without
+                # paying for a second classification. The mini classifier covers only errors.
+                self.last_trace["modular_fallback"] = "low_confidence"
+                return None
+        elif (
             self.router is not None
             and decision is not None
             and (
@@ -553,26 +609,38 @@ class Assistant:
             except Exception:
                 self.last_trace["modular_fallback"] = "routing_unavailable"
                 return None
-        route = routes.get(decision.route)
-        if route is None:
-            self.last_trace["modular_fallback"] = "legacy_route"
-            return None
-        if not route_is_consistent(question, route):
+        if candidates is None:
+            route = routes.get(decision.route)
+            if route is None:
+                self.last_trace["modular_fallback"] = "legacy_route"
+                return None
+            candidates = [route]
+        consistent = [r for r in candidates if route_is_consistent(question, r)]
+        if not consistent:
             self.last_trace["modular_fallback"] = "route_inconsistent"
             self.last_trace.setdefault("events", []).append(
                 {
                     "event": "fallback",
                     "task": "routing",
                     "reason": "route_inconsistent",
-                    "rejected_route": route.name,
+                    "rejected_route": candidates[0].name,
                     "destination": "legacy",
                 }
             )
             return None
-        selected = select_context(route, context, bundle, self.catalog, self.tables)
+        route = consistent[0]
+        selected = select_context(
+            consistent if len(consistent) > 1 else route,
+            context,
+            bundle,
+            self.catalog,
+            self.tables,
+        )
         self._local.next_state = self.next_state.for_route(route.name)
         self._local.route_tables = selected.tables
         self.last_trace.update(route=route.name, prompt_version=selected.bundle.version)
+        if len(consistent) > 1:
+            self.last_trace["route_candidates"] = [r.name for r in consistent]
         self.last_trace.setdefault("events", []).append(
             {
                 "event": "context_selection",
@@ -671,13 +739,17 @@ class Assistant:
         )
         if selected is not None:
             tools = selected.tools
-            needs_dates = self.last_trace.get(
-                "route"
-            ) == "gastos.exploracion" or self.last_trace.get("route") in {
-                "clientes.pagos",
-                "clientes.total_pagos",
-                "clientes.estado_cuenta",
-            }
+            turn_routes = self.last_trace.get("route_candidates") or [self.last_trace.get("route")]
+            needs_dates = any(
+                route
+                in {
+                    "gastos.exploracion",
+                    "clientes.pagos",
+                    "clientes.total_pagos",
+                    "clientes.estado_cuenta",
+                }
+                for route in turn_routes
+            )
             if needs_dates and needs_expense_year(question, history, self.next_state):
                 self.last_trace.update(
                     status="needs_clarification", sources=[], clarification="periodo"

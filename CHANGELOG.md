@@ -1,5 +1,12 @@
 # Cambios
 
+## Sin publicar — Enrutamiento por niveles con Jev
+
+- Campos opcionales `[modular] min_margin` y `min_domain_confidence`: operación si hay confianza y
+  margen; si no, módulo del dominio con hasta tres operaciones; si no, intérprete completo sin
+  segunda clasificación. El clasificador mini queda solo para errores de Jev. Sin los campos, nada
+  cambia. Ver [docs/llm-configuration.md](docs/llm-configuration.md).
+
 ## Sin publicar — Respaldo de extracción con motivo
 
 - Si la extracción modular propone una llamada fuera del contrato, el respaldo recibe esa llamada y

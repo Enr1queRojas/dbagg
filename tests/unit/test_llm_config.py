@@ -158,3 +158,25 @@ class LLMConfigurationTests(unittest.TestCase):
         load_prompt_bundle(config)
         with self.assertRaises(ValueError):
             load_prompt_bundle(replace(config, system_prompt=self.root / "absent.md"))
+
+
+class TieredRoutingConfigTests(unittest.TestCase):
+    def test_tier_thresholds_are_optional_and_bounded(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            base = Path("src/dbagg/llm/default.toml").read_text()
+            path = root / "llm.toml"
+            path.write_text(base)
+            modular = load_llm_config(root, {"LLM_CONFIG": str(path)}).modular
+            self.assertIsNone(modular.min_margin)
+            self.assertIsNone(modular.min_domain_confidence)
+            path.write_text(
+                base
+                + "\n[modular]\nmin_confidence=0.8\nmin_margin=0.2\nmin_domain_confidence=0.7\n"
+            )
+            modular = load_llm_config(root, {"LLM_CONFIG": str(path)}).modular
+            self.assertEqual((modular.min_margin, modular.min_domain_confidence), (0.2, 0.7))
+            for section in ("min_margin=1.5", 'min_domain_confidence="alta"', "min_margin=-0.1"):
+                path.write_text(base + "\n[modular]\n" + section + "\n")
+                with self.subTest(section=section), self.assertRaises(ValueError):
+                    load_llm_config(root, {"LLM_CONFIG": str(path)})
