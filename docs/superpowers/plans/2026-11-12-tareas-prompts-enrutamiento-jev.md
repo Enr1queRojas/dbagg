@@ -323,6 +323,8 @@ para enrutar.
   - **Aceptar si:** acierto de ruta ≥ línea base y ≤ 1.1 llamadas de
     enrutamiento por turno. Documentar los valores como calibrados para este
     conjunto, no como garantía de producción.
+  - **Pendiente (2026-11-12):** sin claves ni red. Comandos en
+    `docs/evaluations/thresholds/PENDIENTE.md`.
 
 ---
 
