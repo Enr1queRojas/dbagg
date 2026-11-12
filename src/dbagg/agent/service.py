@@ -649,6 +649,7 @@ class Assistant:
             self.catalog,
             self.tables,
             domain_routes(routes, route.domain) if config.stable_prefix else None,
+            domain_routes(routes, route.domain) if config.fixed_tool_schema else None,
         )
         self._local.next_state = self.next_state.for_route(route.name)
         self._local.route_tables = selected.tables
@@ -859,7 +860,11 @@ class Assistant:
                     )
                     if len(message.tool_calls) != 1:
                         raise ModelProtocolError("Extracción inválida.")
-                    validate_tool_call(message.tool_calls[0], extraction_tools)
+                    validate_tool_call(
+                        message.tool_calls[0],
+                        extraction_tools,
+                        selected.allowed_operations if selected is not None else (),
+                    )
                     self.last_trace.setdefault("events", []).append(
                         {
                             "event": "extraction",
@@ -963,7 +968,7 @@ class Assistant:
                     if not isinstance(arguments, dict):
                         raise ValueError("Los argumentos deben ser un objeto JSON.")
                     if selected is not None:
-                        arguments = validate_tool_call(call, tools)
+                        arguments = validate_tool_call(call, tools, selected.allowed_operations)
                     if call.name == "consultar_negocio":
                         return self._consult_business(arguments, context, question, history, today)
                     elif call.name == "pedir_aclaracion":

@@ -27,9 +27,13 @@ class SelectedContext:
     tables: frozenset[str]
     # Stable-prefix layout: per-turn operation text after schema and context.
     suffix: str = ""
+    # With a fixed per-domain tool schema, the operations this route may still execute.
+    allowed_operations: tuple[str, ...] = ()
 
 
-def select_context(route, context, bundle, catalog, tables, domain_scope=None):
+def select_context(
+    route, context, bundle, catalog, tables, domain_scope=None, fixed_schema_scope=None
+):
     """Prompt, data and tools for one route, or for several routes of the same domain.
 
     With several routes the prompt carries core, domain and each candidate operation module;
@@ -115,16 +119,26 @@ def select_context(route, context, bundle, catalog, tables, domain_scope=None):
             tool["function"]["parameters"]["properties"]["reason"]["enum"].append(
                 WRONG_ROUTE_REASON
             )
+    allowed = ()
     if operations:
         properties = tools[0]["function"]["parameters"]["properties"]
         properties["operation"]["enum"] = operations
+        if fixed_schema_scope:
+            # Experiment: the same schema for every operation of the domain; the route's
+            # operations are then enforced by validate_tool_call.
+            properties["operation"]["enum"] = [
+                r.operation for r in fixed_schema_scope if r.operation
+            ]
+            allowed = tuple(operations)
         # No products, banks or comparisons in a customer operation.
         for name in ("producto", "comparar", "banco"):
             properties.pop(name, None)
-    return SelectedContext(modular_bundle, selected, schema, tools, modules, tables, suffix)
+    return SelectedContext(
+        modular_bundle, selected, schema, tools, modules, tables, suffix, allowed
+    )
 
 
-def validate_tool_call(call, tools):
+def validate_tool_call(call, tools, allowed_operations=()):
     """Validate the selected closed contract before any database or business call."""
     definitions = {t["function"]["name"]: t["function"]["parameters"] for t in tools}
     if call.name not in definitions:
@@ -152,4 +166,10 @@ def validate_tool_call(call, tools):
             or any(not isinstance(item, str) for item in value)
         ):
             raise ValueError("Lista fuera del contrato seleccionado.")
+    if (
+        allowed_operations
+        and call.name == "consultar_negocio"
+        and arguments.get("operation") not in allowed_operations
+    ):
+        raise ValueError("Operación fuera de la ruta seleccionada.")
     return arguments

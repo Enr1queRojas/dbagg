@@ -155,6 +155,10 @@ Sin los dos campos el comportamiento es el anterior. La traza registra `routing_
   de un mismo dominio compartan prefijo en la caché del proveedor. Las herramientas siguen
   limitando `operation` por ruta, y en OpenAI forman parte del prefijo. Adoptarlo solo si la
   medición con `--repeat 3` baja el costo por consulta correcta sin perder acierto.
+- `[modular] fixed_tool_schema = true`: el enum de `operation` es el del dominio completo (mismo
+  esquema de herramienta para todas sus rutas) y la operación de la ruta se exige al validar la
+  llamada; una operación fuera de la ruta vuelve al modelo con el motivo. Adoptarlo solo si baja el
+  costo por consulta correcta y no baja el acierto de parámetros.
 
 ## Transcripción de notas de voz
 

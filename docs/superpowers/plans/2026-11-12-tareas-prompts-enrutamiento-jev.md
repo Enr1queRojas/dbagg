@@ -433,6 +433,9 @@ para enrutar.
     en `validate_tool_call`. Comparar con T18.
   - **Aceptar solo si** baja el costo por consulta correcta y no baja el
     acierto de parámetros. Si no, dejar la bandera apagada y documentarlo.
+  - **Implementado, apagado, medición pendiente (2026-11-12):** bandera
+    `[modular] fixed_tool_schema`; `validate_tool_call(..., allowed_operations)`.
+    Comparar contra T18 con `--repeat 3` cuando haya claves.
 
 - [ ] **T20. Historial reducido con estado confirmado**
   - **Archivos:** `agent/service.py`, `agent/prompts.py`.

@@ -1468,3 +1468,47 @@ class StablePrefixTests(unittest.TestCase):
         self.assertIn("Calendario", messages[0]["content"])
         self.assertEqual(messages[1]["role"], "user")
         self.assertNotIn("# Operaciones de este turno", messages[0]["content"])
+
+
+class FixedToolSchemaTests(unittest.TestCase):
+    def setUp(self):
+        self.db = SyntheticDatabase()
+        self.addCleanup(self.db.conn.close)
+        self.db.customer()
+
+    def run_turn(self, *interpretations):
+        provider = Mock()
+        provider.complete.side_effect = [reply("select_route", {"route": "clientes.saldo"})] + [
+            reply("consultar_negocio", a) for a in interpretations
+        ]
+        config = LLMConfig(
+            ModelProfile(), modular=ModularConfig(enabled=True, fixed_tool_schema=True)
+        )
+        assistant = Assistant(
+            SimpleNamespace(model="test", tables={CUSTOMERS, PAYMENTS}, llm=config),
+            db=self.db,
+            provider=provider,
+        )
+        return assistant.answer("Saldo de Ana Demo"), provider
+
+    def test_domain_enum_is_fixed_and_the_route_operation_is_enforced(self):
+        text, provider = self.run_turn(
+            {"operation": "total_pagos", "customer": "Ana Demo"},
+            {"operation": "saldo", "customer": "Ana Demo"},
+        )
+        self.assertIn("123.45", text)
+        tools = provider.complete.call_args_list[1].args[1]
+        enum = tools[0]["function"]["parameters"]["properties"]["operation"]["enum"]
+        self.assertIn("total_pagos", enum)
+        self.assertIn("saldo", enum)
+        self.assertEqual(self.db.calls[0][0].count("cobranza"), 0)
+        retry = provider.complete.call_args_list[2].args[0]
+        tool_results = [m["content"] for m in retry if m.get("role") == "tool"]
+        self.assertIn("Operación fuera de la ruta seleccionada.", tool_results[0])
+
+    def test_config_flag_is_boolean(self):
+        from dbagg.llm.config import _modular
+
+        self.assertTrue(_modular({"fixed_tool_schema": True}, {}).fixed_tool_schema)
+        with self.assertRaises(ValueError):
+            _modular({"fixed_tool_schema": "sí"}, {})
