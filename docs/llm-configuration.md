@@ -147,6 +147,13 @@ Sin los dos campos el comportamiento es el anterior. La traza registra `routing_
 (`operation`, `domain` o `legacy`). Los valores deben calibrarse con
 `python -m dbagg.evaluation.calibration` sobre tus casos; no hay valores por defecto.
 
+## Dominios modulares
+
+`[modular] domains` acepta `clientes`, `gastos`, `proveedores`, `bancos` y `productos`; por defecto
+solo los dos primeros. `proveedores` añade rutas `proveedores.*` (las de personas más
+`movimientos`) con los dos catálogos disponibles: un nombre compartido sigue preguntando si es
+cliente o proveedor.
+
 ## Experimentos de costo (apagados por defecto)
 
 - `[modular] stable_prefix = true`: el mensaje de sistema va de estable a variable (núcleo →

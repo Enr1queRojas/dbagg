@@ -6,6 +6,9 @@ Kept separate from usage telemetry; the full existing history is still retained.
 from dataclasses import asdict, dataclass, replace
 
 
+DOMAIN_FAMILY = {"clientes": "personas", "proveedores": "personas"}
+
+
 @dataclass(frozen=True)
 class ConversationState:
     version: int = 1
@@ -20,8 +23,10 @@ class ConversationState:
     pending_operation: str | None = None
 
     def for_route(self, route):
-        previous_domain = (self.previous_route or "").split(".")[0]
-        domain = route.split(".")[0]
+        # Customers and suppliers are one family of people: a supplier follow-up after a
+        # customer-route answer keeps the confirmed person.
+        previous_domain = DOMAIN_FAMILY.get(*([(self.previous_route or "").split(".")[0]] * 2))
+        domain = DOMAIN_FAMILY.get(*([route.split(".")[0]] * 2))
         if previous_domain != domain:
             return ConversationState(previous_route=route)
         return replace(self, previous_route=route)

@@ -64,6 +64,12 @@ def expected_route(case, routes):
     if tool == "consultar_negocio":
         operation = arguments.get("operation")
         names = [n for n, r in routes.items() if r.operation == operation]
+        if len(names) > 1:
+            supplier = (
+                arguments.get("entidad") == "proveedor" or case.get("domain") == "proveedores"
+            )
+            domain = "proveedores" if supplier else "clientes"
+            names = [n for n in names if routes[n].domain == domain]
         return names[0] if len(names) == 1 else "legacy"
     if tool in {"describir_tablas", "consultar_sql"}:
         for route in routes.values():

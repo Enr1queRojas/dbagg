@@ -448,12 +448,17 @@ para enrutar.
   - **Resultado:** bandera `[modular] compact_history` (apagada). Solo el modelo
     ve el historial reducido; las validaciones del servicio usan el completo.
 
-- [ ] **T21. Dominio modular de proveedores**
+- [x] **T21. Dominio modular de proveedores**
   - **Archivos:** `routing/registry.py`, `templates/domains/`, `templates/operations/movimientos.md`,
     `llm/config.py` (dominios válidos), `routing/policy.py`.
   - **Qué hacer:** rutas `proveedores.*` reutilizando el dominio de personas
     con `entidad=proveedor`, más `movimientos`. Mantener la regla de homónimos
     entre catálogos: ambas fuentes siguen disponibles.
+  - **Resultado:** dominio opcional `proveedores` (no activo por defecto). Las
+    rutas no fuerzan `entidad`, para no saltarse la pregunta de homónimos;
+    clientes y proveedores son una familia en `ConversationState.for_route`;
+    `route_is_consistent` veta `proveedores.*` si la pregunta dice que es un
+    cliente. `operations/movimientos.md` queda fuera de `system.md`.
 
 - [ ] **T22. Dominio modular de bancos**
   - **Archivos:** como T21, con `templates/domains/banks.md` (de T15) y

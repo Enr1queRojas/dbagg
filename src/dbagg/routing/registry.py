@@ -1,7 +1,12 @@
 """Local allowlist, constrained by the existing SQL catalogue and runtime grants."""
 
 from dbagg.business.customers import CREDITS, CUSTOMERS, PAYMENTS, OPERATIONS
-from dbagg.business.suppliers import PURCHASES, SUPPLIERS, SUPPLIER_PAYMENTS
+from dbagg.business.suppliers import (
+    PURCHASES,
+    SUPPLIER_OPERATIONS,
+    SUPPLIER_PAYMENTS,
+    SUPPLIERS,
+)
 from dbagg.routing.contracts import Route
 
 CUSTOMER_TOPICS = (
@@ -33,6 +38,28 @@ DESCRIPTIONS = {
     "No usar cuando: solo pagos o solo saldo.",
     "ultima_nota": "Usar cuando piden la última nota, última compra o compra a crédito de una "
     "persona. No usar cuando: piden pagos; una nota no es un pago.",
+}
+
+
+SUPPLIER_DESCRIPTIONS = {
+    "saldo": "Usar cuando piden cuánto le debemos a un proveedor o su saldo («le debemos», "
+    "«proveedor»). No usar cuando: «nos debe» o un cliente.",
+    "ranking_deuda": "Usar cuando piden a qué proveedores les debemos más. No usar cuando: "
+    "nombran a uno.",
+    "pagos": "Usar cuando piden la lista de pagos que le hicimos a un proveedor. No usar cuando: "
+    "cuánto le pagamos en total.",
+    "total_pagos": "Usar cuando preguntan cuánto le pagamos a un proveedor, en total o en un "
+    "período. No usar cuando: pagos de un cliente.",
+    "ultimo_pago": "Usar cuando piden el último pago que le hicimos a un proveedor. No usar "
+    "cuando: notas o compras.",
+    "ultima_nota": "Usar cuando piden la última nota o compra a un proveedor («lo último que le "
+    "compramos»). No usar cuando: pagos.",
+    "movimientos": "Usar cuando piden los movimientos (compras y pagos) de un proveedor, con o sin "
+    "período. No usar cuando: un cliente o gastos.",
+    "notas_pendientes": "Usar cuando piden qué notas le debemos a un proveedor. No usar cuando: "
+    "la última nota.",
+    "estado_cuenta": "Usar cuando piden el estado de cuenta de un proveedor. No usar cuando: solo "
+    "pagos o solo saldo.",
 }
 
 
@@ -77,6 +104,33 @@ def available_routes(catalog, tables, domains=("clientes", "gastos")):
                 "business",
                 modules=PARTY_MODULES,
             )
+    if "proveedores" in domains and SUPPLIERS in tables:
+        # Same party prompts; both catalogues stay available so homonyms are still asked.
+        identity = frozenset({CUSTOMERS, SUPPLIERS}) & tables
+        for operation in (*SUPPLIER_OPERATIONS, "estado_cuenta"):
+            needs = {
+                "pagos": {SUPPLIER_PAYMENTS},
+                "total_pagos": {SUPPLIER_PAYMENTS},
+                "ultimo_pago": {SUPPLIER_PAYMENTS},
+                "ultima_nota": {PURCHASES},
+                "movimientos": {SUPPLIER_PAYMENTS, PURCHASES},
+                "notas_pendientes": {SUPPLIER_PAYMENTS, PURCHASES},
+                "estado_cuenta": {SUPPLIER_PAYMENTS, PURCHASES},
+            }.get(operation, set())
+            if not needs <= tables:
+                continue
+            name = "proveedores." + operation
+            routes[name] = Route(
+                name,
+                "proveedores",
+                operation,
+                SUPPLIER_DESCRIPTIONS.get(operation, DESCRIPTIONS.get(operation)),
+                ("customer_balance", "supplier_balance", "supplier_payments"),
+                identity | frozenset(needs),
+                ("consultar_negocio", "pedir_aclaracion"),
+                "business",
+                modules=PARTY_MODULES,
+            )
     expenses = frozenset(t for t in tables if catalog.sources[t].domain == "gastos")
     if "gastos" in domains and expenses:
         name = "gastos.exploracion"
@@ -100,7 +154,7 @@ def route_options(routes):
     return {
         **{name: route.description for name, route in routes.items()},
         "legacy": "Usar cuando: cuentas de banco o efectivo de personas (no son clientes ni "
-        "proveedores), inventario, proveedores explícitos, varios conceptos, ruta dudosa, fuera "
+        "proveedores), inventario, proveedores explícitos sin una opción propia, varios conceptos, ruta dudosa, fuera "
         "del alcance de estas opciones, o una respuesta corta («sí», un código o una posición de "
         "una lista) que continúa una operación pendiente. Usa el intérprete completo.",
     }

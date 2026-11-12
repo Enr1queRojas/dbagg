@@ -1,5 +1,10 @@
 # Cambios
 
+## Sin publicar — Dominio modular de proveedores
+
+- `[modular] domains` acepta `proveedores` (apagado por defecto): rutas `proveedores.*` con
+  `movimientos`, sin perder la pregunta de homónimos entre clientes y proveedores.
+
 ## Sin publicar — Experimento: prefijo estable
 
 - Bandera `[modular] stable_prefix` (apagada): ordena el prompt modular de estable a variable y

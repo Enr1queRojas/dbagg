@@ -15,6 +15,13 @@ from dbagg.agent.prompts import tool_definitions
 
 
 WRONG_ROUTE_REASON = "otra_operacion"
+DOMAIN_MODULES = {
+    "clientes": "customers",
+    "proveedores": "customers",
+    "gastos": "expenses",
+    "bancos": "banks",
+    "productos": "products",
+}
 
 
 @dataclass(frozen=True)
@@ -49,7 +56,7 @@ def select_context(
         raise ValueError("Las rutas candidatas deben ser de un mismo dominio.")
     if len({r.name for r in routes}) != len(routes):
         raise ValueError("Rutas candidatas repetidas.")
-    domain = "customers" if routes[0].domain == "clientes" else "expenses"
+    domain = DOMAIN_MODULES[routes[0].domain]
     operations = [r.operation for r in routes if r.operation]
     if operations and len(operations) != len(routes):
         raise ValueError("No se mezclan operaciones con exploración.")

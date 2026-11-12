@@ -247,6 +247,7 @@ def bank_report_followup(question, history):
     }
 
 
+PARTY_ROUTE_PREFIXES = ("clientes.", "proveedores.")
 PERIOD_OPERATIONS = frozenset({"pagos", "total_pagos", "estado_cuenta", "movimientos"})
 RELATIVE_PERIODS = {
     "este mes": "este_mes",
@@ -267,7 +268,7 @@ def pending_clarification_answer(question, history, state):
     """
     if not isinstance(state, ConversationState) or not state.pending_operation:
         return None
-    if not (state.previous_route or "").startswith("clientes."):
+    if not (state.previous_route or "").startswith(PARTY_ROUTE_PREFIXES):
         return None
     operation = state.pending_operation
     if state.pending_clarification == "cliente":
@@ -478,7 +479,7 @@ class Assistant:
     def _route_operation(self):
         """The operation of this turn's modular route, if any."""
         route = self.last_trace.get("route") or ""
-        return route.split(".", 1)[1] if route.startswith("clientes.") else None
+        return route.split(".", 1)[1] if route.startswith(PARTY_ROUTE_PREFIXES) else None
 
     def _bank_names(self):
         """Account codes and names, cached for ten minutes; empty when banks are not granted."""
@@ -791,6 +792,10 @@ class Assistant:
                     "clientes.pagos",
                     "clientes.total_pagos",
                     "clientes.estado_cuenta",
+                    "proveedores.pagos",
+                    "proveedores.total_pagos",
+                    "proveedores.estado_cuenta",
+                    "proveedores.movimientos",
                 }
                 for route in turn_routes
             )

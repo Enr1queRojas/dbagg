@@ -10,6 +10,7 @@ from urllib.parse import urlsplit
 
 from dbagg.paths import project_root
 
+MODULAR_DOMAINS = {"clientes", "gastos", "proveedores", "bancos", "productos"}
 PROVIDERS = {"openai", "glm", "gemini", "anthropic", "openai_compatible"}
 EXTRA_OPTIONS = {"thinking", "reasoning_effort", "google", "output_config", "verbosity"}
 
@@ -82,7 +83,7 @@ def _modular(data, profiles):
     if (
         not isinstance(domains, list)
         or not domains
-        or any(not isinstance(d, str) or d not in {"clientes", "gastos"} for d in domains)
+        or any(not isinstance(d, str) or d not in MODULAR_DOMAINS for d in domains)
         or len(domains) != len(set(domains))
     ):
         raise ValueError("LLM: dominios modulares inválidos.")

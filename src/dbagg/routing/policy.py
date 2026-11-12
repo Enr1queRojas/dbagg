@@ -3,6 +3,8 @@
 import re
 import unicodedata
 
+from dbagg.agent.entity import explicit_entity
+
 
 def normalize(text):
     return "".join(
@@ -50,7 +52,12 @@ def route_is_consistent(question, route):
     # The latest question may change domains. Never turn an explicit expense
     # request into another customer operation because of the preceding payment.
     # This is a veto only: the full interpreter resolves ambiguous/mixed requests.
-    if route.domain == "clientes" and re.search(r"\b(gastos|gastamos|gastado)\b", text):
+    if route.domain in {"clientes", "proveedores"} and re.search(
+        r"\b(gastos|gastamos|gastado)\b", text
+    ):
+        return False
+    # A supplier route never answers a question that says it is about a customer.
+    if route.domain == "proveedores" and explicit_entity(question) == "cliente":
         return False
     if re.fullmatch(r"\W*(si|no|ok|gracias)\W*", text):
         return False

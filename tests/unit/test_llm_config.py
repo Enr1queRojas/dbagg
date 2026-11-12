@@ -180,3 +180,14 @@ class TieredRoutingConfigTests(unittest.TestCase):
                 path.write_text(base + "\n[modular]\n" + section + "\n")
                 with self.subTest(section=section), self.assertRaises(ValueError):
                     load_llm_config(root, {"LLM_CONFIG": str(path)})
+
+
+class ModularDomainConfigTests(unittest.TestCase):
+    def test_new_domains_are_accepted_but_not_enabled_by_default(self):
+        from dbagg.llm.config import ModularConfig, _modular
+
+        self.assertEqual(ModularConfig().domains, ("clientes", "gastos"))
+        config = _modular({"domains": ["clientes", "proveedores", "bancos", "productos"]}, {})
+        self.assertIn("proveedores", config.domains)
+        with self.assertRaises(ValueError):
+            _modular({"domains": ["inventario"]}, {})
