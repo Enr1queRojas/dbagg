@@ -187,13 +187,23 @@ resultado aunque sea negativo.
 
 ### Fase 5 — Reducir el uso de `legacy`
 
-Con la telemetría del piloto, modularizar los dominios en orden de frecuencia
-real. Candidato inicial: bancos (operaciones verificadas, contexto cerrado y
-continuaciones ya resueltas por código). Después inventario/existencias y
-ventas. Proveedores explícitos pueden reutilizar el dominio de personas con
-`entidad=proveedor` y las operaciones `ultima_nota` y `movimientos`.
+Clientes, proveedores, bancos y productos tienen la misma importancia. La
+frecuencia reciente de bancos refleja pruebas de integración, no uso real, y
+no se usa para priorizar. Los tres dominios pendientes se modularizan con el
+mismo patrón de registro (ruta, dependencias, operaciones, herramientas):
 
-Meta: `legacy` por debajo del 25% de los turnos del piloto.
+- **Proveedores:** reutiliza el dominio de personas con `entidad=proveedor` y
+  añade `ultima_nota` y `movimientos`. Es el de menor esfuerzo.
+- **Bancos:** operaciones verificadas, catálogo de cuentas cerrado y
+  continuaciones ya resueltas por código.
+- **Productos:** existencias y ventas como operaciones; el resto de inventario
+  sigue como exploración acotada.
+
+El orden entre ellos lo decide el costo medido: tokens gastados en `legacy`
+por dominio en la línea base de la Fase 0, de mayor a menor.
+
+Meta: `legacy` por debajo del 25% de los turnos, con los cuatro dominios
+cubiertos por igual en el conjunto de evaluación.
 
 ## Fuera de alcance
 
@@ -213,10 +223,11 @@ Meta: `legacy` por debajo del 25% de los turnos del piloto.
 | Menos historial rompe referencias | Solo con estado confirmado por el servicio; bandera para revertir |
 | El reordenamiento no mejora la caché | Se mide antes de adoptar; el cambio es de orden, no de contenido |
 
-## Decisiones que necesito de ti
+## Decisiones tomadas (2026-11-12)
 
-1. ¿Se pueden usar preguntas reales anonimizadas del piloto para el conjunto
-   final (Fase 0)?
-2. ¿Qué pesa más ahora: latencia en WhatsApp o costo por consulta? Define si
-   la Fase 4 va antes que la 5.
-3. ¿Bancos es efectivamente el dominio más consultado después de clientes?
+1. El conjunto final de la Fase 0 usa preguntas reales anonimizadas del piloto
+   de WhatsApp, repartidas por igual entre clientes, proveedores, bancos y
+   productos.
+2. La prioridad es el costo por consulta correcta, no la latencia. La Fase 4
+   va antes que la 5 y toda fase se acepta o descarta con esa métrica.
+3. Ningún dominio tiene prioridad sobre los otros; ver Fase 5.
