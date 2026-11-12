@@ -363,7 +363,19 @@ def main(argv=None):
     parser.add_argument(
         "--variants",
         nargs="+",
-        choices=["legacy_mini", "reference_mini", "reference_nano", "jev_mini", "jev_nano"],
+        choices=[
+            "legacy_mini",
+            "reference_mini",
+            "reference_nano",
+            "jev_mini",
+            "jev_nano",
+            "custom",
+        ],
+    )
+    parser.add_argument(
+        "--config",
+        type=Path,
+        help="LLM TOML local evaluado como variante «custom» (p. ej. todo activado, umbrales calibrados)",
     )
     args = parser.parse_args(argv)
     if not 1 <= args.repeat <= 20:
@@ -380,6 +392,12 @@ def main(argv=None):
             enabled=True, router="jev", min_confidence=0.8, extraction_profile="nano"
         ),
     }
+    if args.config:
+        from dbagg.llm.config import load_llm_config
+
+        loaded = load_llm_config(environ={"LLM_CONFIG": str(args.config.resolve())})
+        variants["custom"] = loaded.modular
+        nano = loaded.profiles.get("nano", nano)
     report = {
         "scope": "Synthetic first-tool routing and parameters; no database, no answer accuracy.",
         "jev_threshold": "0.8 is evaluation-only, uncalibrated; not a production recommendation.",

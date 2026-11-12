@@ -483,6 +483,8 @@ para enrutar.
     cuatro dominios (hoy: 16 clientes, 8 bancos, 4 proveedores, 2 productos).
     Solo con redacciones reales nuevas que entregue el dueño; si no las hay,
     dejar la tarea pendiente y no inventar mensajes como si fueran reales.
+  - **Pendiente (2026-11-12):** no hay redacciones reales nuevas en el
+    repositorio; no se añadieron casos.
 
 ---
 
@@ -496,6 +498,10 @@ para enrutar.
     `docs/llm-configuration.md`, `docs/business-queries.md` y `CHANGELOG.md`.
   - Informe final: qué se adoptó, qué se descartó con su medición, qué quedó
     pendiente por falta de claves o de datos.
+  - **Parcial (2026-11-12):** documentación actualizada e informe en
+    `docs/evaluations/final/informe.md`. La evaluación con API queda pendiente
+    (`docs/evaluations/final/PENDIENTE.md`; el evaluador acepta `--config` para la
+    variante «todo activado»).
 
 ## Orden y dependencias
 

@@ -237,3 +237,28 @@ no una autorización para ejecutar SQL ni una sustitución automática de pregun
 mixtas. Las instrucciones del enrutador priorizan la pregunta actual sobre el
 historial. Un total exploratorio de gastos sin fechas usa movimientos activos de
 todo el historial; conserva negativos y no se presenta como reporte contable verificado.
+
+
+## Cambios de 2026-11-12 (plan de prompts y enrutamiento con Jev)
+
+Todo queda detrás de `[modular]` o de banderas apagadas; `default.toml` conserva `enabled = false`.
+
+- **Sin llamadas cuando el resultado ya se conoce:** `pre_route` manda a legacy respuestas cortas,
+  menciones de banco y nombres de cuentas (salvo con el dominio `bancos`); las respuestas a una
+  aclaración del propio servicio (código o posición de la lista, período relativo) se ejecutan sin
+  modelo; un resultado legacy verificado conserva el estado.
+- **Enrutamiento por niveles:** `min_margin` y `min_domain_confidence` eligen operación, módulo de
+  dominio (hasta tres operaciones, `select_context` con varias rutas) o legacy sin segunda
+  clasificación. El enrutador recibe `previous_route` y `pending_clarification`; sus instrucciones
+  son generales y los casos viven en cada ruta.
+- **Módulos:** `core.md` se partió en `shared/identity.md` y `shared/time.md` (declarados por ruta);
+  `system.md` se genera desde los módulos (`scripts/build_system_prompt.py`); el texto modular solo
+  nombra las operaciones del turno; `otra_operacion` permite un único regreso al intérprete completo;
+  cada operación tiene un ejemplo ficticio solo en modular.
+- **Dominios opcionales:** `proveedores`, `bancos` y `productos`.
+- **Experimentos apagados:** `stable_prefix`, `fixed_tool_schema` y `compact_history`.
+- **Medición:** el evaluador separa ruta, parámetros dada la ruta, llamadas, tokens, costo por
+  consulta correcta y latencia; `dbagg.evaluation.calibration` calibra umbrales sin API.
+
+Las mediciones con API (línea base, umbrales, ejemplos, experimentos y evaluación final) están
+pendientes; los comandos están en `docs/evaluations/*/PENDIENTE.md`.

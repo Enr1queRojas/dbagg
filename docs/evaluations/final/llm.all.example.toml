@@ -1,0 +1,29 @@
+# Variante «todo activado» para T25. Copiar, sustituir los umbrales por los calibrados en T13 y
+# pasarla con --config. No es una configuración de producción.
+version = 1
+active_profile = "openai"
+
+[profiles.openai]
+provider = "openai"
+model = "gpt-4.1-mini"
+api_key_env = "OPENAI_API_KEY"
+base_url = "https://api.openai.com/v1"
+max_output_tokens = 1200
+temperature = 0.0
+timeout_seconds = 30
+max_retries = 0
+
+[modular]
+enabled = true
+domains = ["clientes", "gastos", "proveedores", "bancos", "productos"]
+router = "jev"
+shadow = false
+jev_model = "jev-1.14.0"
+jev_api_key_env = "TYPESAFE_API_KEY"
+timeout_seconds = 5
+min_confidence = 0.8            # SUSTITUIR por el valor calibrado (T13)
+min_margin = 0.2                # SUSTITUIR por el valor calibrado (T13)
+min_domain_confidence = 0.8     # SUSTITUIR por el valor calibrado (T13)
+stable_prefix = true            # solo si T18 se adoptó
+fixed_tool_schema = false       # solo si T19 se adoptó
+compact_history = true

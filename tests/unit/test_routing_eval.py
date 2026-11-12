@@ -362,3 +362,29 @@ class EvaluatorCommandTests(unittest.TestCase):
             report = json.loads((Path(folder) / "benchmark.json").read_text(encoding="utf-8"))
         self.assertEqual(set(report["datasets"]), {"bank-routing.json", "intent-routing.json"})
         self.assertEqual(report["variants"]["jev_mini"]["status"], "unavailable")
+
+
+class CustomVariantTests(unittest.TestCase):
+    def test_local_config_becomes_the_custom_variant(self):
+        import tempfile
+        from pathlib import Path
+        from unittest.mock import patch
+
+        from dbagg.evaluation import modular
+
+        with tempfile.TemporaryDirectory() as folder:
+            with patch.dict("os.environ", {"TYPESAFE_API_KEY": ""}):
+                modular.main(
+                    [
+                        "--dataset",
+                        "evals/cases/bank-routing.json",
+                        "--output",
+                        folder,
+                        "--variants",
+                        "custom",
+                        "--config",
+                        "docs/evaluations/final/llm.all.example.toml",
+                    ]
+                )
+            report = json.loads((Path(folder) / "benchmark.json").read_text(encoding="utf-8"))
+        self.assertEqual(report["variants"]["custom"]["status"], "unavailable")
