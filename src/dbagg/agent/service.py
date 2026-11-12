@@ -563,6 +563,7 @@ class Assistant:
     def answer(self, question, history=None, conversation_state=None):
         self._local.route_tables = None
         self._local.pending_request = None
+        self._local.legacy_state = None
         self._local.next_state = (
             conversation_state
             if isinstance(conversation_state, ConversationState)
@@ -603,7 +604,11 @@ class Assistant:
             self.last_trace["local_decision"] = "bank_report_followup"
             logger.info("dbagg stage=bank_report_followup_resolved")
             return self._consult_business(followup, context, question, history, today)
-        pending = pending_clarification_answer(question, history, self.next_state)
+        pending = (
+            pending_clarification_answer(question, history, self.next_state)
+            if self.llm_config.modular.enabled
+            else None
+        )
         if pending is not None:
             self.last_trace["local_decision"] = "pending_clarification"
             if self.next_state.previous_route:
@@ -620,6 +625,9 @@ class Assistant:
                 return str(exc)
         selected = self._select_modular(question, history, context, bundle)
         if selected is None:
+            # Legacy starts clean; only a result the service verifies restores continuity.
+            if self.llm_config.modular.enabled:
+                self._local.legacy_state = self.next_state
             self._local.next_state = ConversationState()
         model_context = context
         if selected is not None:
@@ -1222,9 +1230,21 @@ class Assistant:
             if answer.status == "needs_clarification"
             else None
         )
-        self._local.next_state = self.next_state.after_result(
-            answer.metadata, answer.status, pending
-        )
+        legacy = getattr(self._local, "legacy_state", None)
+        if (
+            legacy is not None
+            and answer.metadata.get("entity") in {"cliente", "proveedor"}
+            and answer.metadata.get("code")
+        ):
+            # A verified legacy result keeps domain, operation, identity and period confirmed
+            # by the service; nothing proposed only by the model is stored.
+            self._local.next_state = legacy.for_route("clientes." + answer.operation).after_result(
+                answer.metadata, answer.status
+            )
+        else:
+            self._local.next_state = self.next_state.after_result(
+                answer.metadata, answer.status, pending
+            )
         self.last_trace.update(
             status=answer.status,
             operation=answer.operation,

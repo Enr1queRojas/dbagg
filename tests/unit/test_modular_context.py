@@ -891,3 +891,88 @@ class PendingClarificationTests(unittest.TestCase):
         self.provider.complete.return_value = reply("pedir_aclaracion", {"reason": "criterio"})
         self.answer("el año pasado", history, state)
         self.provider.complete.assert_called()
+
+
+class LegacyContinuityTests(unittest.TestCase):
+    """A verified legacy result keeps the customer for the next modular turn."""
+
+    def setUp(self):
+        self.db = SyntheticDatabase()
+        self.addCleanup(self.db.conn.close)
+        self.db.customer()
+        self.db.payment(1, "2026-10-02", "40")
+        self.provider = Mock()
+        self.assistant = self.make(ModularConfig(enabled=True))
+
+    def make(self, modular):
+        return Assistant(
+            SimpleNamespace(
+                model="test",
+                tables={CUSTOMERS, PAYMENTS},
+                llm=LLMConfig(ModelProfile(), modular=modular),
+            ),
+            db=self.db,
+            provider=self.provider,
+        )
+
+    def legacy_turn(self, assistant=None):
+        assistant = assistant or self.assistant
+        self.provider.complete.side_effect = [
+            reply("select_route", {"route": "legacy"}),
+            reply("consultar_negocio", {"operation": "saldo", "customer": "Ana Demo"}),
+        ]
+        text = assistant.answer("Saldo de Ana Demo")
+        self.assertIn("Saldo actual de Ana Demo (código C1)", text)
+        return [
+            {"role": "user", "content": "Saldo de Ana Demo"},
+            {"role": "assistant", "content": text},
+        ], assistant.next_state
+
+    def test_legacy_then_modular_keeps_the_customer(self):
+        history, state = self.legacy_turn()
+        self.assertEqual(state.selected_customer_id, "C1")
+        self.assertEqual(state.entity, "cliente")
+        self.assertEqual(state.previous_route, "clientes.saldo")
+        self.provider.complete.side_effect = [
+            reply("select_route", {"route": "clientes.ultimo_pago"}),
+            reply(
+                "consultar_negocio",
+                {"operation": "ultimo_pago", "customer": "C1", "codigo_exacto": True},
+            ),
+        ]
+        text = self.assistant.answer("¿Y su último pago?", history, state)
+        self.assertIn("Ana Demo (código C1)", text)
+        system = self.provider.complete.call_args_list[-1].args[0][0]["content"]
+        self.assertIn('"selected_customer_id": "C1"', system)
+        self.assertEqual(self.assistant.next_state.selected_customer_id, "C1")
+
+    def test_domain_change_clears_the_legacy_customer(self):
+        history, state = self.legacy_turn()
+        self.assertIsNone(state.for_route("gastos.exploracion").selected_customer_id)
+
+    def test_unverified_legacy_answers_store_nothing(self):
+        self.provider.complete.side_effect = [
+            reply("select_route", {"route": "legacy"}),
+            reply("pedir_aclaracion", {"reason": "criterio"}),
+        ]
+        self.assistant.answer("¿Y lo otro?")
+        self.assertIsNone(self.assistant.next_state.selected_customer_id)
+        self.assertIsNone(self.assistant.next_state.previous_route)
+
+    def test_without_modular_nothing_changes(self):
+        assistant = self.make(ModularConfig())
+        self.provider.complete.side_effect = [
+            reply("consultar_negocio", {"operation": "saldo", "customer": "Ana Demo"})
+        ]
+        assistant.answer("Saldo de Ana Demo")
+        self.assertIsNone(assistant.next_state.previous_route)
+
+    def test_reset_command_forgets_the_state(self):
+        from dbagg.services.memory import ConversationMemory
+
+        _, state = self.legacy_turn()
+        memory = ConversationMemory()
+        memory.remember("one", "Saldo de Ana Demo", "texto", state=state)
+        self.assertEqual(memory.state("one").selected_customer_id, "C1")
+        memory.clear("one")
+        self.assertIsNone(memory.state("one").selected_customer_id)

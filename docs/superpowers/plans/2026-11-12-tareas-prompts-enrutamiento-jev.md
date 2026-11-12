@@ -238,7 +238,7 @@ para enrutar.
     el servicio lista homónimos. Un `ToolHint` dentro del atajo vuelve al flujo
     normal. Pruebas en `test_modular_context.PendingClarificationTests`.
 
-- [ ] **T8. Conservar el estado al pasar por legacy**
+- [x] **T8. Conservar el estado al pasar por legacy**
   - **Archivos:** `agent/service.py` (hoy `:501-502` reinicia el estado),
     `routing/state.py`.
   - **Qué hacer:** tras una respuesta legacy con resultado de negocio
@@ -246,6 +246,10 @@ para enrutar.
     el servicio (`answer.metadata`). No guardar nada que venga solo del modelo.
   - **Pruebas:** turno legacy seguido de turno modular conserva el cliente;
     cambio de dominio lo limpia; `/reiniciar` lo borra.
+  - **Resultado:** solo con `[modular].enabled`; el turno legacy arranca limpio y
+    solo un resultado con `entity` y `code` del servicio restaura
+    `previous_route = clientes.<operación>`, identidad y período. T7 también
+    quedó detrás de `[modular]`.
 
 - [ ] **T9. Reintento de extracción con el motivo del error**
   - **Archivos:** `agent/service.py` (bloque `:586-616`).

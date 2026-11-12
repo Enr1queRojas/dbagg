@@ -1,5 +1,10 @@
 # Cambios
 
+## Sin publicar — Continuidad tras el intérprete completo
+
+- Con `[modular]`, un resultado verificado del intérprete completo (cliente o proveedor con código)
+  conserva operación, identidad y período para el siguiente turno modular; antes se perdían.
+
 ## Sin publicar — Aclaraciones resueltas sin modelo
 
 - Tras «Encontré varios clientes», responder con un código de la lista o su posición ejecuta la
