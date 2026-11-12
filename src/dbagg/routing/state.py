@@ -16,6 +16,8 @@ class ConversationState:
     start: str | None = None
     end: str | None = None
     pending_clarification: str | None = None
+    # The operation waiting for that clarification, validated by the service.
+    pending_operation: str | None = None
 
     def for_route(self, route):
         previous_domain = (self.previous_route or "").split(".")[0]
@@ -24,7 +26,8 @@ class ConversationState:
             return ConversationState(previous_route=route)
         return replace(self, previous_route=route)
 
-    def after_result(self, metadata, status):
+    def after_result(self, metadata, status, pending=None):
+        """``pending`` is the request the service validated before asking who was meant."""
         if metadata.get("entity") in {"cliente", "proveedor"} and metadata.get("code"):
             return replace(
                 self,
@@ -34,10 +37,26 @@ class ConversationState:
                 start=metadata.get("start"),
                 end=metadata.get("end"),
                 pending_clarification=None,
+                pending_operation=None,
             )
         if status == "needs_clarification":
+            if pending:
+                return replace(
+                    self,
+                    selected_customer_id=None,
+                    entity=None,
+                    pending_clarification="cliente",
+                    pending_operation=pending.get("operation"),
+                    period=pending.get("period"),
+                    start=pending.get("start"),
+                    end=pending.get("end"),
+                )
             return replace(
-                self, selected_customer_id=None, entity=None, pending_clarification="cliente"
+                self,
+                selected_customer_id=None,
+                entity=None,
+                pending_clarification="cliente",
+                pending_operation=None,
             )
         return replace(
             self,
@@ -47,6 +66,7 @@ class ConversationState:
             start=None,
             end=None,
             pending_clarification=None,
+            pending_operation=None,
         )
 
     def payload(self):

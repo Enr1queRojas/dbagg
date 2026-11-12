@@ -1,5 +1,11 @@
 # Cambios
 
+## Sin publicar — Aclaraciones resueltas sin modelo
+
+- Tras «Encontré varios clientes», responder con un código de la lista o su posición ejecuta la
+  operación pendiente (con su período) sin llamar al modelo. Tras «¿Qué período?», «este mes»,
+  «mes pasado», «esta semana» o «semana pasada» repiten la operación con el cliente confirmado.
+
 ## Sin publicar — Pre-enrutador sin llamadas
 
 - Con `[modular]`, respuestas cortas («sí», «ok»), menciones de banco y nombres de cuentas junto a

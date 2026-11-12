@@ -779,3 +779,115 @@ class PreRouteTests(unittest.TestCase):
         assistant.answer("¿Cuánto debe?", history=[])
         assistant.router.decide.assert_called_once()
         self.assertFalse(any("CUENTA BANCARIA" in sql for sql in statements))
+
+
+class PendingClarificationTests(unittest.TestCase):
+    """Answers to the service's own «¿cuál?» or «¿qué período?» need no model."""
+
+    LIST = (
+        "Encontré varios clientes:\n• ANA ROBLES (código A.ROBLES1)\n"
+        "• LUIS ROBLES (código L.ROBLES2)\n• MARIO ROBLES (código M.ROBLES3)\n"
+        "¿Cuál quieres consultar?"
+    )
+
+    def setUp(self):
+        self.db = SyntheticDatabase()
+        self.addCleanup(self.db.conn.close)
+        for code, name in (
+            ("A.ROBLES1", "ANA ROBLES"),
+            ("L.ROBLES2", "LUIS ROBLES"),
+            ("M.ROBLES3", "MARIO ROBLES"),
+        ):
+            self.db.customer(code, name, "300")
+        self.db.payment(1, "2026-10-02", "40", customer="M.ROBLES3")
+        self.provider = Mock()
+        config = LLMConfig(ModelProfile(), modular=ModularConfig(enabled=True))
+        self.assistant = Assistant(
+            SimpleNamespace(model="test", tables={CUSTOMERS, PAYMENTS}, llm=config),
+            db=self.db,
+            provider=self.provider,
+        )
+
+    def listed(self):
+        """First turn through the real modular flow: the service lists the homonyms."""
+        self.provider.complete.side_effect = [
+            reply("select_route", {"route": "clientes.total_pagos"}),
+            reply(
+                "consultar_negocio",
+                {"operation": "total_pagos", "customer": "Robles", "period": "este_mes"},
+            ),
+        ]
+        from unittest.mock import patch
+        from datetime import date
+
+        with patch("dbagg.agent.service.business_today", return_value=date(2026, 10, 8)):
+            text = self.assistant.answer("¿Cuánto pagó Robles este mes?")
+        self.assertEqual(text, self.LIST)
+        state = self.assistant.next_state
+        self.assertEqual(state.pending_clarification, "cliente")
+        self.assertEqual(state.pending_operation, "total_pagos")
+        self.assertEqual(state.period, "este_mes")
+        history = [
+            {"role": "user", "content": "¿Cuánto pagó Robles este mes?"},
+            {"role": "assistant", "content": text},
+        ]
+        self.provider.reset_mock()
+        self.provider.complete.side_effect = None
+        self.provider.complete.return_value = reply("pedir_aclaracion", {"reason": "criterio"})
+        return history, state
+
+    def answer(self, question, history, state):
+        from unittest.mock import patch
+        from datetime import date
+
+        with patch("dbagg.agent.service.business_today", return_value=date(2026, 10, 8)):
+            return self.assistant.answer(question, history, state)
+
+    def test_position_or_code_of_the_list_runs_the_pending_operation(self):
+        for question in ("3", "el tercero", "M.ROBLES3", "m.robles3"):
+            with self.subTest(question=question):
+                history, state = self.listed()
+                text = self.answer(question, history, state)
+                self.provider.complete.assert_not_called()
+                self.assertIn("Total de pagos activos de MARIO ROBLES (código M.ROBLES3)", text)
+                self.assertIn("40.00", text)
+                self.assertIn("Del 01/10/2026", text)
+                self.assertEqual(
+                    self.assistant.last_trace["local_decision"], "pending_clarification"
+                )
+
+    def test_other_wording_uses_the_normal_flow(self):
+        for question in ("7", "Saldo de Luis", "¿y cuánto debe?", "el de Monterrey"):
+            with self.subTest(question=question):
+                history, state = self.listed()
+                self.answer(question, history, state)
+                self.provider.complete.assert_called()
+                self.assertNotEqual(
+                    self.assistant.last_trace.get("local_decision"), "pending_clarification"
+                )
+
+    def test_relative_period_repeats_the_pending_operation(self):
+        from dbagg.routing.state import ConversationState
+
+        state = ConversationState(
+            previous_route="clientes.total_pagos",
+            selected_customer_id="M.ROBLES3",
+            entity="cliente",
+            pending_clarification="periodo",
+            pending_operation="total_pagos",
+        )
+        history = [
+            {"role": "user", "content": "¿Cuánto ha pagado Mario Robles?"},
+            {
+                "role": "assistant",
+                "content": "Saldo actual de MARIO ROBLES (código M.ROBLES3): 300.00.",
+            },
+            {"role": "user", "content": "¿Y en septiembre?"},
+            {"role": "assistant", "content": "¿Qué período quieres consultar?"},
+        ]
+        text = self.answer("este mes", history, state)
+        self.provider.complete.assert_not_called()
+        self.assertIn("Total de pagos activos de MARIO ROBLES (código M.ROBLES3): 40.00", text)
+        self.provider.complete.return_value = reply("pedir_aclaracion", {"reason": "criterio"})
+        self.answer("el año pasado", history, state)
+        self.provider.complete.assert_called()

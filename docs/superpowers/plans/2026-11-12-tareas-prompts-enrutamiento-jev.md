@@ -216,7 +216,7 @@ para enrutar.
     (lo exige una prueba existente; es el mismo veto, antes de clasificar) y
     añade `local_decision = "pre_route_legacy"`.
 
-- [ ] **T7. Resolver aclaraciones pendientes sin modelo**
+- [x] **T7. Resolver aclaraciones pendientes sin modelo**
   - **Archivos:** `agent/service.py`, `routing/state.py`; pruebas nuevas en
     `tests/unit/test_modular_context.py` y `test_list_selection.py`.
   - **Qué hacer:** si `state.pending_clarification == "cliente"`, hay
@@ -233,6 +233,10 @@ para enrutar.
     `pending_clarification`).
   - **Pruebas:** cero llamadas a modelos en ambos casos; un nombre nuevo, una
     pregunta distinta o una posición fuera de rango no usan el atajo.
+  - **Resultado:** `pending_clarification_answer` en `service.py`;
+    `ConversationState.pending_operation` y el período pedido se guardan cuando
+    el servicio lista homónimos. Un `ToolHint` dentro del atajo vuelve al flujo
+    normal. Pruebas en `test_modular_context.PendingClarificationTests`.
 
 - [ ] **T8. Conservar el estado al pasar por legacy**
   - **Archivos:** `agent/service.py` (hoy `:501-502` reinicia el estado),

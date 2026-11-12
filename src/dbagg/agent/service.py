@@ -242,6 +242,62 @@ def bank_report_followup(question, history):
     }
 
 
+PERIOD_OPERATIONS = frozenset({"pagos", "total_pagos", "estado_cuenta", "movimientos"})
+RELATIVE_PERIODS = {
+    "este mes": "este_mes",
+    "mes pasado": "mes_pasado",
+    "el mes pasado": "mes_pasado",
+    "esta semana": "esta_semana",
+    "semana pasada": "semana_pasada",
+    "la semana pasada": "semana_pasada",
+}
+
+
+def pending_clarification_answer(question, history, state):
+    """Arguments that answer the clarification the service itself asked, or None.
+
+    Only a listed code or a valid position after «¿cuál?», or exactly a relative period after
+    «¿qué período?». Anything else is a new question for the normal flow. The arguments still
+    pass every check of ``_consult_business``; this only skips the model.
+    """
+    if not isinstance(state, ConversationState) or not state.pending_operation:
+        return None
+    if not (state.previous_route or "").startswith("clientes."):
+        return None
+    operation = state.pending_operation
+    if state.pending_clarification == "cliente":
+        codes = _open_list(history)
+        if not codes:
+            return None
+        text = _normalize(question).strip(" ¿?¡!.,")
+        position = list_position(question, codes)
+        named = [code for code in codes if _normalize(code) == text]
+        if len(named) == 1:
+            code = named[0]
+        elif position and 1 <= position <= len(codes):
+            code = codes[position - 1]
+        else:
+            return None
+        arguments = {"operation": operation, "customer": code, "codigo_exacto": True}
+        if operation in PERIOD_OPERATIONS and state.period and state.period != "todo":
+            arguments["period"] = state.period
+            if state.period == "rango":
+                arguments.update(start=state.start, end=state.end)
+        return arguments
+    if state.pending_clarification == "periodo":
+        period = RELATIVE_PERIODS.get(_normalize(question).strip(" ¿?¡!.,"))
+        code = state.selected_customer_id
+        if not period or operation not in PERIOD_OPERATIONS or not code:
+            return None
+        if not code_confirmed(code, "", history):
+            return None
+        arguments = {"operation": operation, "customer": code, "codigo_exacto": True}
+        if state.entity in {"cliente", "proveedor"}:
+            arguments["entidad"] = state.entity
+        return {**arguments, "period": period}
+    return None
+
+
 def _abandons_result(call):
     """After a successful exploratory query, a generic clarification or a jump to the
     customer operations discards a valid answer; specific clarifications still apply."""
@@ -335,6 +391,11 @@ class Assistant:
         finally:
             event["duration_ms"] = round((time.monotonic() - started) * 1000, 3)
             self.last_trace.setdefault("events", []).append(event)
+
+    def _route_operation(self):
+        """The operation of this turn's modular route, if any."""
+        route = self.last_trace.get("route") or ""
+        return route.split(".", 1)[1] if route.startswith("clientes.") else None
 
     def _bank_names(self):
         """Account codes and names, cached for ten minutes; empty when banks are not granted."""
@@ -501,6 +562,7 @@ class Assistant:
     @stage("answer")
     def answer(self, question, history=None, conversation_state=None):
         self._local.route_tables = None
+        self._local.pending_request = None
         self._local.next_state = (
             conversation_state
             if isinstance(conversation_state, ConversationState)
@@ -541,6 +603,21 @@ class Assistant:
             self.last_trace["local_decision"] = "bank_report_followup"
             logger.info("dbagg stage=bank_report_followup_resolved")
             return self._consult_business(followup, context, question, history, today)
+        pending = pending_clarification_answer(question, history, self.next_state)
+        if pending is not None:
+            self.last_trace["local_decision"] = "pending_clarification"
+            if self.next_state.previous_route:
+                self.last_trace["route"] = self.next_state.previous_route
+            logger.info("dbagg stage=pending_clarification_resolved")
+            try:
+                return self._consult_business(pending, context, question, history, today)
+            except ToolHint:
+                # Not resolvable without the model after all; the normal flow decides.
+                self.last_trace.pop("local_decision", None)
+                self.last_trace.pop("route", None)
+            except BusinessError as exc:
+                self.last_trace.update(status="unavailable", sources=[])
+                return str(exc)
         selected = self._select_modular(question, history, context, bundle)
         if selected is None:
             self._local.next_state = ConversationState()
@@ -570,7 +647,11 @@ class Assistant:
                 self.last_trace.update(
                     status="needs_clarification", sources=[], clarification="periodo"
                 )
-                self._local.next_state = replace(self.next_state, pending_clarification="periodo")
+                self._local.next_state = replace(
+                    self.next_state,
+                    pending_clarification="periodo",
+                    pending_operation=self._route_operation(),
+                )
                 return self._clarifications()["periodo"]
         attempts, descriptions = 0, 0
         described = set()
@@ -729,7 +810,9 @@ class Assistant:
                             clarification=arguments["reason"],
                         )
                         self._local.next_state = replace(
-                            self.next_state, pending_clarification=arguments["reason"]
+                            self.next_state,
+                            pending_clarification=arguments["reason"],
+                            pending_operation=self._route_operation(),
                         )
                         if arguments["reason"] == "fuera_alcance":
                             self.last_trace["gap"] = "fuera_alcance"
@@ -899,6 +982,9 @@ class Assistant:
             or (picked and picked[1])
             or code_confirmed(arguments.get("customer"), question, history)
         )
+        self._local.pending_request = {
+            key: customer_arguments.get(key) for key in ("operation", "period", "start", "end")
+        }
         entity = CUSTOMER
         if routed:
             if row and row[0]:
@@ -1131,7 +1217,14 @@ class Assistant:
         return CLARIFICATIONS
 
     def _business_answer(self, answer):
-        self._local.next_state = self.next_state.after_result(answer.metadata, answer.status)
+        pending = (
+            getattr(self._local, "pending_request", None)
+            if answer.status == "needs_clarification"
+            else None
+        )
+        self._local.next_state = self.next_state.after_result(
+            answer.metadata, answer.status, pending
+        )
         self.last_trace.update(
             status=answer.status,
             operation=answer.operation,
