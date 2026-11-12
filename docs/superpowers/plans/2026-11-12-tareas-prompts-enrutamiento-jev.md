@@ -371,7 +371,7 @@ para enrutar.
     catalog-domains-v7`. Se añadió `templates/shared/*.md` a `package-data`
     (faltaba desde T14).
 
-- [ ] **T16. Prompt coherente con el enum y salida de ruta equivocada**
+- [x] **T16. Prompt coherente con el enum y salida de ruta equivocada**
   - **Archivos:** `templates/domains/customers.md`, `agent/context_builder.py`,
     `agent/prompts.py`, `agent/service.py`.
   - **Qué hacer:**
@@ -384,6 +384,12 @@ para enrutar.
   - **Pruebas:** un modelo simulado que responde `otra_operacion` produce
     exactamente una llamada legacy posterior; dos seguidas terminan en
     aclaración de criterio, no en bucle.
+  - **Resultado:** `domains/customers.md` lleva la marca `[[operaciones]]` y
+    párrafos «Ejemplo (op):»; `operations_text` los genera según el turno (y la
+    lista completa en `system.md`). El motivo y su instrucción viven en
+    `shared/wrong_route.md`, que solo añaden las rutas modulares con operación.
+    `otra_operacion` fuera de modular, o por segunda vez, devuelve la aclaración
+    de criterio.
 
 - [ ] **T17. Ejemplos por operación**
   - **Archivos:** `templates/operations/*.md`.

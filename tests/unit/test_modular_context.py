@@ -11,7 +11,7 @@ from unittest.mock import Mock
 import httpx
 
 from dbagg.agent.context_builder import select_context, validate_tool_call
-from dbagg.agent.prompt_files import load_prompt_bundle
+from dbagg.agent.prompt_files import TEMPLATES, load_prompt_bundle
 from dbagg.agent.service import Assistant
 from dbagg.context.loader import load_business_context
 from dbagg.database.catalog import load_catalog
@@ -103,6 +103,7 @@ class ModularContextTests(unittest.TestCase):
                 "operations/saldo",
                 "operations/total_pagos",
                 "operations/ultimo_pago",
+                "shared/wrong_route",
             ),
         )
         operation = several.tools[0]["function"]["parameters"]["properties"]["operation"]
@@ -1294,3 +1295,113 @@ class RouterInstructionTests(unittest.TestCase):
         ReferenceRouter(provider).decide("el tercero", [], self.routes, state)
         sent = json.loads(provider.complete.call_args.args[0][1]["content"])
         self.assertEqual(sent["state"]["previous_route"], "clientes.saldo")
+
+
+class OperationScopedPromptTests(unittest.TestCase):
+    def setUp(self):
+        self.catalog = load_catalog()
+        self.tables = frozenset(self.catalog.sources)
+        self.routes = available_routes(self.catalog, self.tables)
+
+    def select(self, *names):
+        routes = [self.routes[n] for n in names]
+        return select_context(
+            routes if len(routes) > 1 else routes[0],
+            load_business_context(),
+            load_prompt_bundle(),
+            self.catalog,
+            self.tables,
+        )
+
+    def test_modular_text_names_only_the_enabled_operations(self):
+        import re
+
+        from dbagg.business.customers import OPERATIONS
+
+        for names in (("clientes.pagos",), ("clientes.saldo", "clientes.total_pagos")):
+            with self.subTest(names=names):
+                selected = self.select(*names)
+                enabled = {self.routes[n].operation for n in names}
+                text = selected.bundle.system
+                section = text[text.index("# Clientes y proveedores") :]
+                section = section[: section.index("\n# ", 1)]
+                # User wording between «» is not an operation name.
+                section = re.sub(r"«[^»]*»", "«»", section)
+                mentioned = {
+                    op
+                    for op in OPERATIONS + ("movimientos",)
+                    if re.search(r"\b" + op + r"\b", section)
+                }
+                self.assertEqual(mentioned, enabled)
+        self.assertIn("[[operaciones]]", (TEMPLATES / "domains/customers.md").read_text())
+        self.assertNotIn("[[operaciones]]", (TEMPLATES / "system.md").read_text())
+
+    def test_wrong_route_reason_is_modular_only(self):
+        from dbagg.agent.prompts import tool_definitions
+
+        selected = self.select("clientes.saldo")
+        ask = next(t for t in selected.tools if t["function"]["name"] == "pedir_aclaracion")
+        self.assertIn(
+            "otra_operacion", ask["function"]["parameters"]["properties"]["reason"]["enum"]
+        )
+        self.assertIn("otra_operacion", selected.bundle.system)
+        legacy = next(t for t in tool_definitions() if t["function"]["name"] == "pedir_aclaracion")
+        self.assertNotIn(
+            "otra_operacion", legacy["function"]["parameters"]["properties"]["reason"]["enum"]
+        )
+        self.assertNotIn("otra_operacion", (TEMPLATES / "system.md").read_text())
+        expenses = self.select("gastos.exploracion")
+        self.assertNotIn("shared/wrong_route", expenses.modules)
+
+
+class WrongRouteTests(unittest.TestCase):
+    def setUp(self):
+        self.db = SyntheticDatabase()
+        self.addCleanup(self.db.conn.close)
+        self.db.customer()
+        self.db.payment(1, "2026-10-02", "40")
+        self.provider = Mock()
+        config = LLMConfig(ModelProfile(), modular=ModularConfig(enabled=True))
+        self.assistant = Assistant(
+            SimpleNamespace(model="test", tables={CUSTOMERS, PAYMENTS}, llm=config),
+            db=self.db,
+            provider=self.provider,
+        )
+
+    def interpretation_calls(self):
+        return [
+            c
+            for c in self.provider.complete.call_args_list
+            if c.args[1][0]["function"]["name"] != "select_route"
+        ]
+
+    def test_one_return_to_the_full_interpreter(self):
+        self.provider.complete.side_effect = [
+            reply("select_route", {"route": "clientes.saldo"}),
+            reply("pedir_aclaracion", {"reason": "otra_operacion"}),
+            reply("consultar_negocio", {"operation": "total_pagos", "customer": "Ana Demo"}),
+        ]
+        text = self.assistant.answer("¿Cuánto ha pagado Ana Demo?")
+        self.assertIn("Total de pagos activos de Ana Demo (código C1): 40.00", text)
+        self.assertNotIn("otra_operacion", text)
+        self.assertEqual(self.assistant.last_trace["modular_fallback"], "wrong_route")
+        calls = self.interpretation_calls()
+        self.assertEqual(len(calls), 2)
+        legacy_tools = {t["function"]["name"] for t in calls[1].args[1]}
+        self.assertIn("consultar_sql", legacy_tools)
+        operations = next(
+            t for t in calls[1].args[1] if t["function"]["name"] == "consultar_negocio"
+        )["function"]["parameters"]["properties"]["operation"]["enum"]
+        self.assertIn("total_pagos", operations)
+
+    def test_two_in_a_row_end_in_a_criteria_clarification(self):
+        self.provider.complete.side_effect = [
+            reply("select_route", {"route": "clientes.saldo"}),
+            reply("pedir_aclaracion", {"reason": "otra_operacion"}),
+            reply("pedir_aclaracion", {"reason": "otra_operacion"}),
+        ]
+        from dbagg.agent.service import CLARIFICATIONS
+
+        text = self.assistant.answer("¿Cuánto ha pagado Ana Demo?")
+        self.assertEqual(text, CLARIFICATIONS["criterio"])
+        self.assertEqual(len(self.interpretation_calls()), 2)

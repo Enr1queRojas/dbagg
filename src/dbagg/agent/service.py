@@ -18,7 +18,7 @@ from dbagg.database.validation import validate_sql
 from dbagg.context.loader import load_business_context, context_version
 from dbagg.agent.prompts import build_messages, tool_definitions
 from dbagg.agent.prompt_files import load_prompt_bundle
-from dbagg.agent.context_builder import select_context, validate_tool_call
+from dbagg.agent.context_builder import WRONG_ROUTE_REASON, select_context, validate_tool_call
 from dbagg.routing.registry import available_routes
 from dbagg.routing.service import ReferenceRouter
 from dbagg.routing.jev import JevRouter
@@ -363,6 +363,14 @@ def _rejected_call_messages(reply, reason):
     return [assistant] + [
         {"role": "tool", "tool_call_id": call.id, "content": error} for call in calls
     ]
+
+
+def _reason(call):
+    try:
+        arguments = json.loads(call.arguments)
+    except (TypeError, ValueError):
+        return None
+    return arguments.get("reason") if isinstance(arguments, dict) else None
 
 
 def _abandons_result(call):
@@ -725,6 +733,7 @@ class Assistant:
                 self._local.legacy_state = self.next_state
             self._local.next_state = ConversationState()
         model_context = context
+        full_bundle, full_schema = bundle, schema
         if selected is not None:
             bundle, model_context, schema = selected.bundle, selected.context, selected.schema
         messages = build_messages(
@@ -775,6 +784,7 @@ class Assistant:
         bounded_extraction = selected is not None and any(
             t["function"]["name"] == "consultar_negocio" for t in tools
         )
+        wrong_route = False
         local_expense_source = (
             selected is not None
             and self.last_trace.get("route") == "gastos.exploracion"
@@ -873,6 +883,48 @@ class Assistant:
             if not calls:
                 return self._finish_exploration(latest_result, latest_sources)
             if selected is not None and len(calls) != 1:
+                self.last_trace.update(
+                    status="needs_clarification", sources=[], clarification="criterio"
+                )
+                return self._clarifications()["criterio"]
+            if (
+                selected is not None
+                and not wrong_route
+                and len(calls) == 1
+                and calls[0].name == "pedir_aclaracion"
+                and _reason(calls[0]) == WRONG_ROUTE_REASON
+            ):
+                # The modular route cannot express the request: one return to the full
+                # interpreter in the same turn. Logged in the trace, never shown to the user.
+                wrong_route = True
+                logger.info("dbagg stage=modular_wrong_route")
+                self.last_trace["modular_fallback"] = "wrong_route"
+                self.last_trace.setdefault("events", []).append(
+                    {
+                        "event": "fallback",
+                        "task": "interpretation",
+                        "reason": "wrong_route",
+                        "rejected_route": self.last_trace.pop("route", None),
+                        "destination": "legacy",
+                    }
+                )
+                self.last_trace.pop("route_candidates", None)
+                self._local.legacy_state = self.next_state
+                self._local.next_state = ConversationState()
+                self._local.route_tables = None
+                selected, bundle, schema = None, full_bundle, full_schema
+                messages = build_messages(
+                    schema, context, question, history, today=today, bundle=bundle
+                )
+                tools = tool_definitions(
+                    bundle, suppliers=SUPPLIERS in self.tables, banks=BANKS in self.tables
+                )
+                extraction, bounded_extraction, local_expense_source = None, False, False
+                continue
+            if any(
+                c.name == "pedir_aclaracion" and _reason(c) == WRONG_ROUTE_REASON for c in calls
+            ):
+                # Never a loop: a second «wrong route» (or one outside modular) asks for criteria.
                 self.last_trace.update(
                     status="needs_clarification", sources=[], clarification="criterio"
                 )

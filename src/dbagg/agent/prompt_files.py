@@ -90,6 +90,46 @@ def compose_system_prompt():
             body = f"- {name}: " + body.replace("\n", "\n  ")
         operations.append(body)
     parts.append("\n".join(operations))
-    parts += [_module("domains/" + name) for name in DOMAIN_MODULES]
+    for name in DOMAIN_MODULES:
+        text = _module("domains/" + name)
+        if name == "customers":
+            from dbagg.business.customers import OPERATIONS
+            from dbagg.business.suppliers import SUPPLIER_ONLY_OPERATIONS
+
+            text = operations_text(text, OPERATIONS, SUPPLIER_ONLY_OPERATIONS)
+        parts.append(text)
     parts.append(_module("examples"))
     return "\n\n".join(parts) + "\n"
+
+
+OPERATIONS_MARK = "[[operaciones]]"
+
+
+def _join(names):
+    names = list(names)
+    return names[0] if len(names) == 1 else ", ".join(names[:-1]) + " y " + names[-1]
+
+
+def operations_text(text, operations, supplier_only=()):
+    """Mention only the operations of this prompt: the list is generated, never fixed text.
+
+    Replaces the ``[[operaciones]]`` line and keeps «Ejemplo (op):» paragraphs only for the
+    listed operations (a paragraph runs until the next line that starts a new statement).
+    """
+    operations = list(operations)
+    sentence = f"{_join(operations)} {'sirve' if len(operations) == 1 else 'sirven'} para ambos."
+    if supplier_only:
+        sentence += f" {_join(supplier_only)} es solo de proveedores y admite períodos."
+    kept, skipping = [], False
+    for line in text.split("\n"):
+        if line == OPERATIONS_MARK:
+            kept.append(sentence)
+            skipping = False
+            continue
+        if line.startswith("Ejemplo ("):
+            skipping = line[len("Ejemplo (") :].split(")", 1)[0] not in operations
+        elif line.startswith(("«", "#", "Tras ", "Un ", "Agrega", "Estas", "No ")) or not line:
+            skipping = False
+        if not skipping:
+            kept.append(line)
+    return "\n".join(kept)

@@ -1,5 +1,12 @@
 # Cambios
 
+## Sin publicar — Prompt modular coherente con sus operaciones
+
+- El prompt modular solo nombra las operaciones habilitadas en el turno.
+- Con `[modular]`, si la ruta no permite lo pedido, el modelo puede responder
+  `pedir_aclaracion(reason="otra_operacion")`: el servicio repite el turno una vez con el intérprete
+  completo (`modular_fallback = "wrong_route"`), sin mostrarlo al usuario.
+
 ## Sin publicar — `system.md` generado desde los módulos (`catalog-domains-v7`)
 
 - `src/dbagg/agent/templates/system.md` se genera con `python scripts/build_system_prompt.py` a

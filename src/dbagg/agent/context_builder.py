@@ -4,8 +4,11 @@ import hashlib
 import json
 from dataclasses import dataclass
 
-from dbagg.agent.prompt_files import PromptBundle, TEMPLATES, _read
+from dbagg.agent.prompt_files import PromptBundle, TEMPLATES, _read, operations_text
 from dbagg.agent.prompts import tool_definitions
+
+
+WRONG_ROUTE_REASON = "otra_operacion"
 
 
 @dataclass(frozen=True)
@@ -36,9 +39,16 @@ def select_context(route, context, bundle, catalog, tables):
         raise ValueError("No se mezclan operaciones con exploración.")
     shared = tuple(dict.fromkeys(module for r in routes for module in r.modules))
     modules = (
-        ("core",) + shared + ("domains/" + domain,) + tuple("operations/" + op for op in operations)
+        ("core",)
+        + shared
+        + ("domains/" + domain,)
+        + tuple("operations/" + op for op in operations)
+        + (("shared/wrong_route",) if operations else ())
     )
     system = "\n".join(_read(TEMPLATES / (name + ".md"), 26000) for name in modules)
+    if operations:
+        # The prompt names exactly the operations this turn's enum offers.
+        system = operations_text(system, operations)
     # Unknown/local top-level rules are preserved, not silently discarded.
     data = json.loads(context)
     topics = data.get("topics", {})
@@ -69,6 +79,12 @@ def select_context(route, context, bundle, catalog, tables):
         for t in tool_definitions(modular_bundle, suppliers=True)
         if t["function"]["name"] in allowed_tools
     ]
+    for tool in tools:
+        if tool["function"]["name"] == "pedir_aclaracion":
+            # Modular only: the route was wrong; the service retries once with the full prompt.
+            tool["function"]["parameters"]["properties"]["reason"]["enum"].append(
+                WRONG_ROUTE_REASON
+            )
     if operations:
         properties = tools[0]["function"]["parameters"]["properties"]
         properties["operation"]["enum"] = operations
