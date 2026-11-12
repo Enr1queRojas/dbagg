@@ -8,6 +8,8 @@ from dbagg.business.suppliers import (
     SUPPLIERS,
 )
 from dbagg.business.banks import BANK_DETAIL, BANK_OPERATIONS, BANKS, MOVEMENT_TABLES
+from dbagg.business.products import CASH, PRODUCT_OPERATIONS, STOCK
+from dbagg.business.products import RETURNS as SALE_RETURNS
 from dbagg.routing.contracts import Route
 
 CUSTOMER_TOPICS = (
@@ -71,6 +73,14 @@ BANK_DESCRIPTIONS = {
     "No usar cuando: nombran una cuenta.",
     "movimientos_banco": "Usar cuando piden el reporte o los movimientos de una cuenta de banco, "
     "caja o efectivo. No usar cuando: estado de cuenta de un cliente o proveedor.",
+}
+
+
+PRODUCT_DESCRIPTIONS = {
+    "existencias": "Usar cuando piden cuánto hay o queda de un grano (existencias, toneladas). "
+    "No usar cuando: precios, insumos, entradas o valor del inventario.",
+    "ventas": "Usar cuando piden cómo van las ventas globales, de un producto o contra otro "
+    "período. No usar cuando: ventas a un cliente concreto.",
 }
 
 
@@ -160,6 +170,24 @@ def available_routes(catalog, tables, domains=("clientes", "gastos")):
                 ("consultar_negocio", "pedir_aclaracion"),
                 "business",
                 modules=("shared/time",) if operation == "movimientos_banco" else (),
+            )
+    if "productos" in domains:
+        # Only the verified operations; prices, inputs and entries stay bounded exploration.
+        needs = {"existencias": {STOCK}, "ventas": {CREDITS, CASH, SALE_RETURNS}}
+        for operation in PRODUCT_OPERATIONS:
+            if not needs[operation] <= tables:
+                continue
+            name = "productos." + operation
+            routes[name] = Route(
+                name,
+                "productos",
+                operation,
+                PRODUCT_DESCRIPTIONS[operation],
+                ("inventory",) if operation == "existencias" else ("sales",),
+                frozenset(needs[operation]),
+                ("consultar_negocio", "pedir_aclaracion"),
+                "business",
+                modules=("shared/time",) if operation == "ventas" else (),
             )
     expenses = frozenset(t for t in tables if catalog.sources[t].domain == "gastos")
     if "gastos" in domains and expenses:

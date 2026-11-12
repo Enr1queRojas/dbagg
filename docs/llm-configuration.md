@@ -155,6 +155,8 @@ solo los dos primeros. `proveedores` añade rutas `proveedores.*` (las de person
 cliente o proveedor. `bancos` añade `bancos.saldo_banco`, `bancos.saldos_bancos` y
 `bancos.movimientos_banco`; con él activo, las menciones de banco ya no van directo al intérprete
 completo (el enrutador decide) y el seguimiento local del reporte de banco se conserva.
+`productos` añade solo `productos.existencias` y `productos.ventas`; precios, insumos y entradas
+de inventario siguen como exploración acotada en el intérprete completo.
 
 ## Experimentos de costo (apagados por defecto)
 

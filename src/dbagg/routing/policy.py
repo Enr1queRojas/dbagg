@@ -59,6 +59,9 @@ def route_is_consistent(question, route):
         r"\b(gastos|gastamos|gastado)\b", text
     ):
         return False
+    # Product routes are global: a question about one customer or supplier is not theirs.
+    if route.domain == "productos" and explicit_entity(question) is not None:
+        return False
     # A supplier route never answers a question that says it is about a customer.
     if route.domain == "proveedores" and explicit_entity(question) == "cliente":
         return False

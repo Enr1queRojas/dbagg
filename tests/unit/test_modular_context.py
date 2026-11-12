@@ -1684,3 +1684,65 @@ class BankModularDomainTests(unittest.TestCase):
         self.assertEqual(pre_route("El banco de Enrique"), "legacy")
         self.assertIsNone(pre_route("El banco de Enrique", bank_domain=True))
         self.assertEqual(pre_route("ok", bank_domain=True), "legacy")
+
+
+class ProductModularDomainTests(unittest.TestCase):
+    def test_only_stock_and_sales_get_routes(self):
+        catalog = load_catalog()
+        tables = frozenset(catalog.sources)
+        self.assertFalse(any(n.startswith("productos.") for n in available_routes(catalog, tables)))
+        routes = available_routes(catalog, tables, ("clientes", "productos"))
+        self.assertEqual(
+            {n for n in routes if n.startswith("productos.")},
+            {"productos.existencias", "productos.ventas"},
+        )
+        selected = select_context(
+            routes["productos.ventas"],
+            load_business_context(),
+            load_prompt_bundle(),
+            catalog,
+            tables,
+        )
+        properties = selected.tools[0]["function"]["parameters"]["properties"]
+        self.assertEqual(properties["operation"]["enum"], ["ventas"])
+        self.assertIn("producto", properties)
+        self.assertIn("comparar", properties)
+        self.assertNotIn("customer", properties)
+        self.assertIn("domains/products", selected.modules)
+
+    def test_sales_to_a_customer_are_not_a_product_route(self):
+        from dbagg.routing.policy import route_is_consistent
+
+        catalog = load_catalog()
+        routes = available_routes(catalog, frozenset(catalog.sources), ("productos",))
+        self.assertFalse(
+            route_is_consistent("¿Cuánto le vendimos a Ana Demo?", routes["productos.ventas"])
+        )
+        self.assertTrue(
+            route_is_consistent("¿Cómo van las ventas este mes?", routes["productos.ventas"])
+        )
+
+    def test_stock_question_runs_through_its_route(self):
+        from tests.unit.test_product_queries import SyntheticDatabase as ProductDatabase
+
+        db = ProductDatabase()
+        self.addCleanup(db.conn.close)
+        from dbagg.business.products import CASH, CREDITS as SALES, RETURNS, STOCK
+
+        db.conn.execute(f"INSERT INTO {STOCK} VALUES ('MAIZ', 'MAIZ BLANCO', 2000)")
+        provider = Mock()
+        provider.complete.side_effect = [
+            reply("select_route", {"route": "productos.existencias"}),
+            reply("consultar_negocio", {"operation": "existencias", "producto": "maíz"}),
+        ]
+        config = LLMConfig(
+            ModelProfile(), modular=ModularConfig(enabled=True, domains=("productos",))
+        )
+        assistant = Assistant(
+            SimpleNamespace(model="test", tables={STOCK, SALES, CASH, RETURNS}, llm=config),
+            db=db,
+            provider=provider,
+        )
+        text = assistant.answer("¿Cuánto maíz tenemos?")
+        self.assertEqual(assistant.last_trace["route"], "productos.existencias")
+        self.assertIn("MAIZ", text.upper())

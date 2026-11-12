@@ -1,5 +1,10 @@
 # Cambios
 
+## Sin publicar — Dominio modular de productos
+
+- `[modular] domains` acepta `productos` (apagado por defecto): rutas de existencias y ventas
+  globales; el resto del inventario sigue en exploración acotada.
+
 ## Sin publicar — Dominio modular de bancos
 
 - `[modular] domains` acepta `bancos` (apagado por defecto): rutas para saldo de una cuenta, saldos

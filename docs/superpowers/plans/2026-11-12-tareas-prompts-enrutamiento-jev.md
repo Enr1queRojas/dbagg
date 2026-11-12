@@ -472,9 +472,11 @@ para enrutar.
     mandar bancos a legacy; `route_is_consistent` sigue vetando rutas no
     bancarias que mencionan bancos.
 
-- [ ] **T23. Dominio modular de productos**
+- [x] **T23. Dominio modular de productos**
   - **Qué hacer:** rutas `productos.existencias` y `productos.ventas`. El resto
     de inventario (precios, insumos, entradas) sigue como exploración acotada.
+  - **Resultado:** dominio opcional `productos`; `route_is_consistent` veta sus
+    rutas si la pregunta habla de un cliente o proveedor («le vendimos a…»).
 
 - [ ] **T24. Completar el conjunto de aceptación**
   - Añadir casos a `evals/cases/whatsapp-pilot.json` hasta equilibrar los
