@@ -123,6 +123,8 @@ para enrutar.
     resultado.
   - **Hecho cuando:** existe `docs/evaluations/pilot-baseline/summary.md` con la
     tabla de métricas y la lista de casos fallidos por variante.
+  - **Pendiente (2026-11-12):** sin claves de OpenAI/Jev ni salida de red en la
+    sesión. Comandos listos en `docs/evaluations/pilot-baseline/PENDIENTE.md`.
 
 ---
 
