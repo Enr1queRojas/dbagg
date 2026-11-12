@@ -101,7 +101,7 @@ para enrutar.
   - **Hecho cuando:** el informe JSON y HTML muestran las cuatro métricas por
     variante y dominio.
 
-- [ ] **T2. Calibración de Jev**
+- [x] **T2. Calibración de Jev**
   - **Archivos:** crear `src/dbagg/evaluation/calibration.py`; prueba nueva
     `tests/unit/test_calibration.py`.
   - **Qué hacer:** a partir de los resultados de T1 (que ya guardan

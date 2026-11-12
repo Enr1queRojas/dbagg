@@ -165,6 +165,12 @@ legacy), llamadas por tarea, tokens de entrada/caché/salida, probabilidades de 
 parámetros dada la ruta, llamadas y tokens por turno, costo conocido, **costo por consulta
 correcta** (`null` sin aciertos; «incompleto» si hubo consumo desconocido) y latencia p50/p95.
 
+Para calibrar umbrales de Jev sin llamar a ninguna API:
+`python -m dbagg.evaluation.calibration --input <benchmark.json> [--variant jev_mini]
+[--output calibration.json]` produce la matriz de confusión ruta esperada × elegida, las curvas
+cobertura/acierto por confianza y por margen (primera − segunda probabilidad) de 0.50 a 0.95, y
+el acierto por dominio (suma de probabilidades de sus rutas).
+
 El evaluador ejecuta la orquestación real y captura la primera herramienta ejecutable,
 aplicando restricciones de herramientas y de esquema antes del SQL. No evalúa
 respuestas financieras ni debe confundirse con una prueba completa contra SQL Server.
