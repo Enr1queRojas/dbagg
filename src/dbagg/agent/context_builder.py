@@ -117,7 +117,9 @@ def select_context(
     allowed_tools = {tool for r in routes for tool in r.tools}
     tools = [
         t
-        for t in tool_definitions(modular_bundle, suppliers=True)
+        for t in tool_definitions(
+            modular_bundle, suppliers=True, banks=routes[0].domain == "bancos"
+        )
         if t["function"]["name"] in allowed_tools
     ]
     for tool in tools:
@@ -137,8 +139,12 @@ def select_context(
                 r.operation for r in fixed_schema_scope if r.operation
             ]
             allowed = tuple(operations)
-        # No products, banks or comparisons in a customer operation.
-        for name in ("producto", "comparar", "banco"):
+        # Each domain keeps only its own parameters.
+        dropped = {
+            "bancos": ("producto", "comparar", "customer", "entidad", "codigo_exacto"),
+            "productos": ("banco", "customer", "entidad", "codigo_exacto"),
+        }.get(routes[0].domain, ("producto", "comparar", "banco"))
+        for name in dropped:
             properties.pop(name, None)
     return SelectedContext(
         modular_bundle, selected, schema, tools, modules, tables, suffix, allowed

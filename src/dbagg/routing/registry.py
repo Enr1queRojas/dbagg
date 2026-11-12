@@ -7,6 +7,7 @@ from dbagg.business.suppliers import (
     SUPPLIER_PAYMENTS,
     SUPPLIERS,
 )
+from dbagg.business.banks import BANK_DETAIL, BANK_OPERATIONS, BANKS, MOVEMENT_TABLES
 from dbagg.routing.contracts import Route
 
 CUSTOMER_TOPICS = (
@@ -60,6 +61,16 @@ SUPPLIER_DESCRIPTIONS = {
     "la última nota.",
     "estado_cuenta": "Usar cuando piden el estado de cuenta de un proveedor. No usar cuando: solo "
     "pagos o solo saldo.",
+}
+
+
+BANK_DESCRIPTIONS = {
+    "saldo_banco": "Usar cuando piden el saldo o el dinero de una cuenta de banco, caja o efectivo "
+    "de una persona. No usar cuando: «cuánto debe» alguien (clientes).",
+    "saldos_bancos": "Usar cuando piden el saldo de todas las cuentas o «cuánto dinero tenemos». "
+    "No usar cuando: nombran una cuenta.",
+    "movimientos_banco": "Usar cuando piden el reporte o los movimientos de una cuenta de banco, "
+    "caja o efectivo. No usar cuando: estado de cuenta de un cliente o proveedor.",
 }
 
 
@@ -131,6 +142,25 @@ def available_routes(catalog, tables, domains=("clientes", "gastos")):
                 "business",
                 modules=PARTY_MODULES,
             )
+    if "bancos" in domains and {BANKS, BANK_DETAIL} <= tables:
+        for operation in BANK_OPERATIONS:
+            sources = {BANKS} if operation == "saldos_bancos" else {BANKS, BANK_DETAIL}
+            if operation == "movimientos_banco":
+                if not set(MOVEMENT_TABLES) <= tables:
+                    continue
+                sources |= set(MOVEMENT_TABLES)
+            name = "bancos." + operation
+            routes[name] = Route(
+                name,
+                "bancos",
+                operation,
+                BANK_DESCRIPTIONS[operation],
+                ("bank_accounts",),
+                frozenset(sources),
+                ("consultar_negocio", "pedir_aclaracion"),
+                "business",
+                modules=("shared/time",) if operation == "movimientos_banco" else (),
+            )
     expenses = frozenset(t for t in tables if catalog.sources[t].domain == "gastos")
     if "gastos" in domains and expenses:
         name = "gastos.exploracion"
@@ -153,8 +183,8 @@ def available_routes(catalog, tables, domains=("clientes", "gastos")):
 def route_options(routes):
     return {
         **{name: route.description for name, route in routes.items()},
-        "legacy": "Usar cuando: cuentas de banco o efectivo de personas (no son clientes ni "
-        "proveedores), inventario, proveedores explícitos sin una opción propia, varios conceptos, ruta dudosa, fuera "
+        "legacy": "Usar cuando: cuentas de banco o efectivo de personas sin una opción propia (no "
+        "son clientes ni proveedores), inventario, proveedores explícitos sin una opción propia, varios conceptos, ruta dudosa, fuera "
         "del alcance de estas opciones, o una respuesta corta («sí», un código o una posición de "
         "una lista) que continúa una operación pendiente. Usa el intérprete completo.",
     }

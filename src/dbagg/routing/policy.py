@@ -22,7 +22,7 @@ def mentions_account_words(question):
     return bool(ACCOUNT_WORD.search(normalize(question)))
 
 
-def pre_route(question, history=None, state=None, bank_names=()):
+def pre_route(question, history=None, state=None, bank_names=(), bank_domain=False):
     """«legacy» before any routing call when the outcome is already known; else None.
 
     Short replies keep a pending operation that only the full interpreter holds, and bank
@@ -33,6 +33,9 @@ def pre_route(question, history=None, state=None, bank_names=()):
     text = normalize(question)
     if SHORT_REPLY.fullmatch(text):
         return "legacy"
+    if bank_domain:
+        # Banks have their own modular routes; the router decides among them.
+        return None
     if BANK_WORD.search(text):
         return "legacy"
     if ACCOUNT_WORD.search(text):

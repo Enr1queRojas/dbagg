@@ -1607,3 +1607,80 @@ class CompactHistoryTests(unittest.TestCase):
             "¿y su saldo?", "clientes.saldo", ask, self.HISTORY, self.state(), compact=False
         )
         self.assertIn("Saldo de Luis Ficticio", [m["content"] for m in messages])
+
+
+class BankModularDomainTests(unittest.TestCase):
+    def setUp(self):
+        from dbagg.business.banks import BANK_SOURCES
+        from tests.unit.test_bank_queries import BankDatabase
+
+        self.tables = {CUSTOMERS, PAYMENTS, *BANK_SOURCES}
+        self.db = BankDatabase()
+        self.addCleanup(self.db.conn.close)
+        self.db.account("ENRIQUE", "EFECTIVOS ENRIQUE ROJAS", opening="-20")
+
+    def assistant(self, *replies, domains=("clientes", "gastos", "bancos")):
+        provider = Mock()
+        provider.complete.side_effect = list(replies)
+        config = LLMConfig(ModelProfile(), modular=ModularConfig(enabled=True, domains=domains))
+        assistant = Assistant(
+            SimpleNamespace(model="test", tables=self.tables, llm=config),
+            db=self.db,
+            provider=provider,
+        )
+        return assistant, provider
+
+    def test_routes_only_when_enabled(self):
+        catalog = load_catalog()
+        self.assertFalse(
+            any(n.startswith("bancos.") for n in available_routes(catalog, self.tables))
+        )
+        routes = available_routes(catalog, self.tables, ("clientes", "bancos"))
+        self.assertEqual(
+            {n for n in routes if n.startswith("bancos.")},
+            {"bancos.saldo_banco", "bancos.saldos_bancos", "bancos.movimientos_banco"},
+        )
+
+    def test_bank_question_uses_its_route_instead_of_the_legacy_veto(self):
+        assistant, provider = self.assistant(
+            reply("select_route", {"route": "bancos.saldo_banco"}),
+            reply("consultar_negocio", {"operation": "saldo_banco", "banco": "ENRIQUE"}),
+        )
+        text = assistant.answer("El banco de Enrique")
+        self.assertIn("Saldo actual: -20.00", text)
+        self.assertEqual(assistant.last_trace["route"], "bancos.saldo_banco")
+        self.assertNotIn("local_decision", assistant.last_trace)
+        tools = provider.complete.call_args_list[1].args[1]
+        properties = tools[0]["function"]["parameters"]["properties"]
+        self.assertEqual(properties["operation"]["enum"], ["saldo_banco"])
+        self.assertIn("banco", properties)
+        self.assertNotIn("customer", properties)
+
+    def test_customer_route_is_still_vetoed_for_bank_words(self):
+        assistant, provider = self.assistant(
+            reply("select_route", {"route": "clientes.saldo"}),
+            reply("consultar_negocio", {"operation": "saldo_banco", "banco": "ENRIQUE"}),
+        )
+        text = assistant.answer("El banco de Enrique")
+        self.assertIn("Saldo actual: -20.00", text)
+        self.assertEqual(assistant.last_trace["modular_fallback"], "route_inconsistent")
+
+    def test_report_followup_stays_local(self):
+        assistant, provider = self.assistant()
+        history = [
+            {"role": "user", "content": "El banco de Enrique"},
+            {
+                "role": "assistant",
+                "content": "Cuenta ENRIQUE (EFECTIVOS ENRIQUE ROJAS)\nSaldo actual: -20.00.",
+            },
+        ]
+        assistant.answer("Dame el reporte de este mes", history)
+        provider.complete.assert_not_called()
+        self.assertEqual(assistant.last_trace["local_decision"], "bank_report_followup")
+
+    def test_without_the_domain_bank_words_skip_routing(self):
+        from dbagg.routing.policy import pre_route
+
+        self.assertEqual(pre_route("El banco de Enrique"), "legacy")
+        self.assertIsNone(pre_route("El banco de Enrique", bank_domain=True))
+        self.assertEqual(pre_route("ok", bank_domain=True), "legacy")

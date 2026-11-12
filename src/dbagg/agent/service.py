@@ -517,8 +517,9 @@ class Assistant:
         routes = available_routes(self.catalog, self.tables, config.domains)
         if not routes:
             return None
-        names = self._bank_names() if mentions_account_words(question) else ()
-        if pre_route(question, history, self.next_state, names) == "legacy":
+        bank_domain = any(r.domain == "bancos" for r in routes.values())
+        names = self._bank_names() if mentions_account_words(question) and not bank_domain else ()
+        if pre_route(question, history, self.next_state, names, bank_domain) == "legacy":
             # The same veto as route_is_consistent, applied before paying for a classification.
             self.last_trace["local_decision"] = "pre_route_legacy"
             self.last_trace["modular_fallback"] = "route_inconsistent"

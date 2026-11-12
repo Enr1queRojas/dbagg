@@ -152,7 +152,9 @@ Sin los dos campos el comportamiento es el anterior. La traza registra `routing_
 `[modular] domains` acepta `clientes`, `gastos`, `proveedores`, `bancos` y `productos`; por defecto
 solo los dos primeros. `proveedores` añade rutas `proveedores.*` (las de personas más
 `movimientos`) con los dos catálogos disponibles: un nombre compartido sigue preguntando si es
-cliente o proveedor.
+cliente o proveedor. `bancos` añade `bancos.saldo_banco`, `bancos.saldos_bancos` y
+`bancos.movimientos_banco`; con él activo, las menciones de banco ya no van directo al intérprete
+completo (el enrutador decide) y el seguimiento local del reporte de banco se conserva.
 
 ## Experimentos de costo (apagados por defecto)
 

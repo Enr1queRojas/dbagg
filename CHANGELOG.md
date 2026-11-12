@@ -1,5 +1,10 @@
 # Cambios
 
+## Sin publicar — Dominio modular de bancos
+
+- `[modular] domains` acepta `bancos` (apagado por defecto): rutas para saldo de una cuenta, saldos
+  de todas y reporte de movimientos. Sin el dominio, los bancos siguen en el intérprete completo.
+
 ## Sin publicar — Dominio modular de proveedores
 
 - `[modular] domains` acepta `proveedores` (apagado por defecto): rutas `proveedores.*` con

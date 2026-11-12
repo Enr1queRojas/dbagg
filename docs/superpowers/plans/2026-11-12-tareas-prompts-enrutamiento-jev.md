@@ -460,12 +460,17 @@ para enrutar.
     `route_is_consistent` veta `proveedores.*` si la pregunta dice que es un
     cliente. `operations/movimientos.md` queda fuera de `system.md`.
 
-- [ ] **T22. Dominio modular de bancos**
+- [x] **T22. Dominio modular de bancos**
   - **Archivos:** como T21, con `templates/domains/banks.md` (de T15) y
     operaciones `saldo_banco`, `saldos_bancos`, `movimientos_banco`.
   - **Qué hacer:** rutas `bancos.*`; quitar de `policy.py` el veto que manda
     todo banco a legacy **solo cuando** el dominio esté habilitado. Conservar
     `bank_report_followup`.
+  - **Resultado:** dominio opcional `bancos`; módulos de operación propios (fuera
+    de `system.md`); la herramienta conserva `banco` y quita `customer`,
+    `entidad` y `codigo_exacto`. Con el dominio activo, `pre_route` deja de
+    mandar bancos a legacy; `route_is_consistent` sigue vetando rutas no
+    bancarias que mencionan bancos.
 
 - [ ] **T23. Dominio modular de productos**
   - **Qué hacer:** rutas `productos.existencias` y `productos.ventas`. El resto
