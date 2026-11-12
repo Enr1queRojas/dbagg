@@ -268,9 +268,8 @@ cubiertos por igual en el conjunto de evaluación.
    va antes que la 5 y toda fase se acepta o descarta con esa métrica.
 3. Ningún dominio tiene prioridad sobre los otros; ver Fase 5.
 
-## Decisión pendiente
+4. «Última nota / última compra» debe existir para clientes. El saldo de un
+   cliente es el balance entre sus notas de crédito y sus notas de cobranza;
+   la última compra de un cliente es su última nota de crédito.
 
-¿«Última nota / última compra» debe existir para clientes? Hoy solo existe
-para proveedores y es la petición sin soporte más repetida del piloto. Los
-casos del conjunto esperan `ultima_nota` y que el servicio decida; si se
-prefiere otra respuesta, se ajustan esos cinco casos.
+Las tareas ejecutables están en `2026-11-12-tareas-prompts-enrutamiento-jev.md`.
