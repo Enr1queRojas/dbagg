@@ -1,0 +1,558 @@
+{
+  "dataset_version": "1",
+  "data_kind": "synthetic",
+  "split": "held-out acceptance; no usar para ajustar reglas",
+  "source": "Redacción real de mensajes del piloto de WhatsApp (2 al 11 de noviembre de 2026), con errores de escritura y transcripciones de voz. Identidades, códigos e importes sustituidos por ficticios; los nombres de cuentas bancarias son los que ya usa bank-routing.json.",
+  "coverage": "Refleja el uso del piloto: 16 clientes, 4 proveedores, 8 bancos, 2 productos. Falta equilibrar proveedores y productos con mensajes reales nuevos.",
+  "business_today": "2026-11-09",
+  "execution": "Elección de herramienta con el modelo real: python -m dbagg.evaluation.routing --dataset evals/cases/whatsapp-pilot.json. No ejecuta consultas.",
+  "cases": [
+    {
+      "id": "pilot-surname-debt",
+      "domain": "clientes",
+      "question": "Cuanto debe robles?",
+      "expected_tool": "consultar_negocio",
+      "expected_arguments": {
+        "operation": "saldo",
+        "customer": "robles"
+      },
+      "criteria": [
+        "Apellido suelto, sin codigo_exacto; el servicio lista homónimos."
+      ]
+    },
+    {
+      "id": "pilot-code-reply-lowercase",
+      "domain": "clientes",
+      "question": "M.robles3",
+      "history": [
+        {
+          "role": "user",
+          "content": "Cuanto debe robles?"
+        },
+        {
+          "role": "assistant",
+          "content": "Encontré varios clientes:\n• Mario Robles (código M.ROBLES)\n• MARIO ROBLES (código M.ROBLES2)\n• MARIO ROBLES (código M.ROBLES3)\n• DIANA ROBLES LUNA (código DIANA)\n• JOSE ROBLES VEGA (código JABON)\nHay más coincidencias; precisa el nombre o código."
+        }
+      ],
+      "expected_tool": "consultar_negocio",
+      "expected_arguments": {
+        "operation": "saldo",
+        "customer": "M.ROBLES3",
+        "codigo_exacto": true
+      },
+      "criteria": [
+        "Código elegido de la lista en minúsculas: conserva la operación pendiente."
+      ]
+    },
+    {
+      "id": "pilot-ordinal-keeps-pending-operation",
+      "domain": "clientes",
+      "question": "El tercero",
+      "history": [
+        {
+          "role": "user",
+          "content": "Cual fue su último pago?"
+        },
+        {
+          "role": "assistant",
+          "content": "¿De qué cliente quieres consultar el saldo o los pagos? Indica su nombre o código."
+        },
+        {
+          "role": "user",
+          "content": "Robles"
+        },
+        {
+          "role": "assistant",
+          "content": "Encontré varios clientes:\n• Mario Robles (código M.ROBLES)\n• MARIO ROBLES (código M.ROBLES2)\n• MARIO ROBLES (código M.ROBLES3)\n• DIANA ROBLES LUNA (código DIANA)\n• JOSE ROBLES VEGA (código JABON)\nHay más coincidencias; precisa el nombre o código."
+        }
+      ],
+      "expected_tool": "consultar_negocio",
+      "expected_arguments": {
+        "operation": "ultimo_pago",
+        "customer": "M.ROBLES3",
+        "codigo_exacto": true
+      },
+      "criteria": [
+        "La posición elige la fila; la operación pendiente es último pago, no saldo."
+      ]
+    },
+    {
+      "id": "pilot-followup-without-session",
+      "domain": "clientes",
+      "question": "Cual fue su último pago?",
+      "expected_tool": "pedir_aclaracion",
+      "expected_arguments": {
+        "reason": "cliente"
+      },
+      "criteria": [
+        "Sin historial (sesión vencida) no hay referente."
+      ]
+    },
+    {
+      "id": "pilot-bare-number-selection",
+      "domain": "clientes",
+      "question": "3",
+      "history": [
+        {
+          "role": "user",
+          "content": "¿Cuál es el saldo de Robles?"
+        },
+        {
+          "role": "assistant",
+          "content": "Saldo actual de cada cliente que coincide con «Robles»:\n1. Mario Robles (código M.ROBLES): 0.00\n2. MARIO ROBLES (código M.ROBLES2): 0.00\n3. MARIO ROBLES (código M.ROBLES3): 300.00\n4. DIANA ROBLES LUNA (código DIANA): 0.00\n5. JOSE ROBLES VEGA (código JABON): 0.00\nSaldos individuales; no se suman. Importes sin moneda confirmada."
+        }
+      ],
+      "expected_tool": "consultar_negocio",
+      "expected_arguments": {
+        "operation": "saldo",
+        "customer": "M.ROBLES3",
+        "codigo_exacto": true
+      },
+      "criteria": [
+        "Un número solo elige la fila de la lista numerada. Falló en el piloto: pidió cliente."
+      ]
+    },
+    {
+      "id": "pilot-ordinal-after-numbered-list",
+      "domain": "clientes",
+      "question": "El tercero",
+      "history": [
+        {
+          "role": "user",
+          "content": "¿Cuál es el saldo de Robles?"
+        },
+        {
+          "role": "assistant",
+          "content": "Saldo actual de cada cliente que coincide con «Robles»:\n1. Mario Robles (código M.ROBLES): 0.00\n2. MARIO ROBLES (código M.ROBLES2): 0.00\n3. MARIO ROBLES (código M.ROBLES3): 300.00\n4. DIANA ROBLES LUNA (código DIANA): 0.00\n5. JOSE ROBLES VEGA (código JABON): 0.00\nSaldos individuales; no se suman. Importes sin moneda confirmada."
+        }
+      ],
+      "expected_tool": "consultar_negocio",
+      "expected_arguments": {
+        "operation": "saldo",
+        "customer": "M.ROBLES3",
+        "codigo_exacto": true
+      },
+      "criteria": [
+        "Posición en lista numerada de saldos."
+      ]
+    },
+    {
+      "id": "pilot-voice-followup-last-payment",
+      "domain": "clientes",
+      "question": "¿Y cuál fue su último pago?",
+      "history": [
+        {
+          "role": "user",
+          "content": "El tercero"
+        },
+        {
+          "role": "assistant",
+          "content": "Saldo actual de MARIO ROBLES (código M.ROBLES3): 300.00.\nImporte sin moneda confirmada."
+        }
+      ],
+      "expected_tool": "consultar_negocio",
+      "expected_arguments": {
+        "operation": "ultimo_pago",
+        "customer": "M.ROBLES3",
+        "codigo_exacto": true
+      },
+      "criteria": [
+        "Continúa con el cliente identificado por código."
+      ]
+    },
+    {
+      "id": "pilot-voice-followup-last-purchase",
+      "domain": "clientes",
+      "question": "¿Y cuál fue su última compra?",
+      "history": [
+        {
+          "role": "user",
+          "content": "El tercero"
+        },
+        {
+          "role": "assistant",
+          "content": "Saldo actual de MARIO ROBLES (código M.ROBLES3): 300.00.\nImporte sin moneda confirmada."
+        }
+      ],
+      "expected_tool": "consultar_negocio",
+      "expected_arguments": {
+        "operation": "ultima_nota",
+        "customer": "M.ROBLES3",
+        "codigo_exacto": true
+      },
+      "criteria": [
+        "«Última compra» de una persona es su última nota; el servicio decide si aplica. Pendiente de decisión de producto para clientes."
+      ]
+    },
+    {
+      "id": "pilot-balance-imperative",
+      "domain": "clientes",
+      "question": "Dame el saldo de montes",
+      "expected_tool": "consultar_negocio",
+      "expected_arguments": {
+        "operation": "saldo",
+        "customer": "montes"
+      },
+      "criteria": [
+        "Imperativo con apellido en minúsculas."
+      ]
+    },
+    {
+      "id": "pilot-last-note-is-not-last-payment",
+      "domain": "clientes",
+      "question": "De cuanto fue la ultima nota del cliente Abril3?",
+      "expected_tool": "consultar_negocio",
+      "expected_arguments": {
+        "operation": "ultima_nota",
+        "customer": "Abril3",
+        "entidad": "cliente"
+      },
+      "criteria": [
+        "Una nota no es un pago. En el piloto respondió con ultimo_pago: respuesta incorrecta."
+      ]
+    },
+    {
+      "id": "pilot-last-purchase-note-by-name",
+      "domain": "clientes",
+      "question": "La ultima nota de compra del cliente Tomás Vidal",
+      "expected_tool": "consultar_negocio",
+      "expected_arguments": {
+        "operation": "ultima_nota",
+        "customer": "Tomás Vidal",
+        "entidad": "cliente"
+      },
+      "criteria": [
+        "Nota de compra de un cliente nombrado; no es fuera_alcance genérico."
+      ]
+    },
+    {
+      "id": "pilot-statement-range-without-year",
+      "domain": "clientes",
+      "question": "Estado de cuenta de M.Robles3 del 30 de agosto al 9 de noviembre",
+      "expected_tool": "consultar_negocio",
+      "expected_arguments": {
+        "operation": "estado_cuenta",
+        "customer": "M.Robles3",
+        "period": "rango",
+        "start": "2026-08-30",
+        "end": "2026-11-09"
+      },
+      "criteria": [
+        "Rango sin año que termina hoy: año actual."
+      ]
+    },
+    {
+      "id": "pilot-last-credit-purchase",
+      "domain": "clientes",
+      "question": "Me puedes dar la ultima compra a crédito de Paleta",
+      "expected_tool": "consultar_negocio",
+      "expected_arguments": {
+        "operation": "ultima_nota",
+        "customer": "Paleta"
+      },
+      "criteria": [
+        "En el piloto pidió precisar el concepto; la petición es concreta."
+      ]
+    },
+    {
+      "id": "pilot-now-last-purchase",
+      "domain": "clientes",
+      "question": "Ahora su ultima compra",
+      "history": [
+        {
+          "role": "user",
+          "content": "Dame el saldo de Paleta"
+        },
+        {
+          "role": "assistant",
+          "content": "Saldo actual de PALETA (código PALETA): 140.00.\nImporte sin moneda confirmada."
+        }
+      ],
+      "expected_tool": "consultar_negocio",
+      "expected_arguments": {
+        "operation": "ultima_nota",
+        "customer": "PALETA",
+        "codigo_exacto": true
+      },
+      "criteria": [
+        "Continuación con «ahora su»; en el piloto pidió precisar el concepto."
+      ]
+    },
+    {
+      "id": "pilot-their-last-note",
+      "domain": "clientes",
+      "question": "Su ultima nota",
+      "history": [
+        {
+          "role": "user",
+          "content": "Dame el saldo de Paleta"
+        },
+        {
+          "role": "assistant",
+          "content": "Saldo actual de PALETA (código PALETA): 140.00.\nImporte sin moneda confirmada."
+        }
+      ],
+      "expected_tool": "consultar_negocio",
+      "expected_arguments": {
+        "operation": "ultima_nota",
+        "customer": "PALETA",
+        "codigo_exacto": true
+      },
+      "criteria": [
+        "Continuación mínima con el mismo código."
+      ]
+    },
+    {
+      "id": "pilot-report-of-person-this-month",
+      "domain": "clientes",
+      "question": "Dame el reporte de Paleta de este mes",
+      "expected_tool": "consultar_negocio",
+      "expected_arguments": {
+        "operation": "estado_cuenta",
+        "customer": "Paleta",
+        "period": "este_mes"
+      },
+      "criteria": [
+        "«Reporte» de una persona nombrada es estado de cuenta."
+      ]
+    },
+    {
+      "id": "pilot-supplier-we-owe",
+      "domain": "proveedores",
+      "question": "¿Cuánto le debemos a PABLO LINARES?",
+      "expected_tool": "consultar_negocio",
+      "expected_arguments": {
+        "operation": "saldo",
+        "customer": "PABLO LINARES",
+        "entidad": "proveedor"
+      },
+      "criteria": [
+        "«Le debemos» indica proveedor."
+      ]
+    },
+    {
+      "id": "pilot-supplier-statement-range",
+      "domain": "proveedores",
+      "question": "Estado de cuenta de PABLO LINARES del 30 de agosto al 9 de noviembre",
+      "expected_tool": "consultar_negocio",
+      "expected_arguments": {
+        "operation": "estado_cuenta",
+        "customer": "PABLO LINARES",
+        "period": "rango",
+        "start": "2026-08-30",
+        "end": "2026-11-09"
+      },
+      "criteria": [
+        "Sin indicio de entidad: el servicio decide."
+      ]
+    },
+    {
+      "id": "pilot-supplier-first-of-list",
+      "domain": "proveedores",
+      "question": "El primero",
+      "history": [
+        {
+          "role": "user",
+          "content": "Cual es el saldo de halcon?"
+        },
+        {
+          "role": "assistant",
+          "content": "Encontré varios proveedores:\n• PABLO LINARES (código HALCON)\n• DAVID LINARES HALCON (código DAVID L) · inactivo\n• HALCON KENDY (código KENDY) · inactivo\n¿Cuál quieres consultar?"
+        }
+      ],
+      "expected_tool": "consultar_negocio",
+      "expected_arguments": {
+        "operation": "saldo",
+        "customer": "HALCON",
+        "codigo_exacto": true
+      },
+      "criteria": [
+        "Posición en lista de proveedores con filas inactivas."
+      ]
+    },
+    {
+      "id": "pilot-vague-review-suppliers",
+      "domain": "proveedores",
+      "question": "Puedes revisar los proveedores?",
+      "expected_tool": "pedir_aclaracion",
+      "expected_arguments": {
+        "reason": "criterio"
+      },
+      "criteria": [
+        "Intención imprecisa: criterio, no fuera_alcance (respuesta del piloto)."
+      ]
+    },
+    {
+      "id": "pilot-bank-of-person",
+      "domain": "bancos",
+      "question": "Cual es el saldo del banco de Enrique?",
+      "expected_tool": "consultar_negocio",
+      "expected_arguments": {
+        "operation": "saldo_banco",
+        "banco": "Enrique"
+      },
+      "criteria": [
+        "«Banco de» una persona es una cuenta."
+      ]
+    },
+    {
+      "id": "pilot-bank-two-words-no-keyword",
+      "domain": "bancos",
+      "question": "Cual es el saldo de Don Leo",
+      "expected_tool": "consultar_negocio",
+      "expected_arguments": {
+        "operation": "saldo_banco",
+        "banco": "Don Leo"
+      },
+      "criteria": [
+        "Cuenta conocida sin la palabra banco."
+      ]
+    },
+    {
+      "id": "pilot-bank-report-typo",
+      "domain": "bancos",
+      "question": "Dame un repoerte del banco de Don Leo de este mes",
+      "expected_tool": "consultar_negocio",
+      "expected_arguments": {
+        "operation": "movimientos_banco",
+        "banco": "Don Leo",
+        "period": "este_mes"
+      },
+      "criteria": [
+        "Error de escritura en «reporte»."
+      ]
+    },
+    {
+      "id": "pilot-person-after-bank-is-party",
+      "domain": "bancos",
+      "question": "Cual es el saldo de Enrique?",
+      "history": [
+        {
+          "role": "user",
+          "content": "Cual es el saldo de Don Leo"
+        },
+        {
+          "role": "assistant",
+          "content": "Cuenta DON LEO (SALDOS DON LEO)\nSaldo actual: 100.00.\nImportes en pesos."
+        }
+      ],
+      "expected_tool": "consultar_negocio",
+      "expected_arguments": {
+        "operation": "saldo",
+        "customer": "Enrique"
+      },
+      "criteria": [
+        "Sin «banco» ni continuación explícita, es una persona; el servicio lista coincidencias."
+      ]
+    },
+    {
+      "id": "pilot-bank-instead-of-listed-party",
+      "domain": "bancos",
+      "question": "El banco de Enrique",
+      "history": [
+        {
+          "role": "user",
+          "content": "Cual es el saldo de Enrique?"
+        },
+        {
+          "role": "assistant",
+          "content": "Encontré «Enrique» como cliente y como proveedor:\n• ENRIQUE DEMO (cliente, código DEMOE)\n• ENRIQUE PRUEBA (proveedor, código PRUEBAE)\n¿Cuál quieres consultar?"
+        }
+      ],
+      "expected_tool": "consultar_negocio",
+      "expected_arguments": {
+        "operation": "saldo_banco",
+        "banco": "Enrique"
+      },
+      "criteria": [
+        "Corrige el dominio tras una lista de personas; conserva la operación saldo."
+      ]
+    },
+    {
+      "id": "pilot-bank-report-followup-typo",
+      "domain": "bancos",
+      "question": "Dame el reporte de ester mes",
+      "history": [
+        {
+          "role": "user",
+          "content": "Cual es el saldo del banco de Enrique?"
+        },
+        {
+          "role": "assistant",
+          "content": "Cuenta ENRIQUE (EFECTIVOS ENRIQUE ROJAS)\nSaldo actual: -20.00.\nImportes en pesos."
+        }
+      ],
+      "expected_tool": "consultar_negocio",
+      "expected_arguments": {
+        "operation": "movimientos_banco",
+        "banco": "ENRIQUE",
+        "period": "este_mes"
+      },
+      "criteria": [
+        "Continuación con error de escritura; en el piloto una variante pidió precisar el concepto."
+      ]
+    },
+    {
+      "id": "pilot-bank-report-without-period",
+      "domain": "bancos",
+      "question": "Reporte del banco Enrique",
+      "expected_tool": "consultar_negocio",
+      "expected_arguments": {
+        "operation": "movimientos_banco",
+        "banco": "Enrique"
+      },
+      "criteria": [
+        "Sin fechas se omite period; el servicio decide si las pide."
+      ]
+    },
+    {
+      "id": "pilot-bank-balance-glued-typo",
+      "domain": "bancos",
+      "question": "Cual es el saldodel banco Enrique?",
+      "expected_tool": "consultar_negocio",
+      "expected_arguments": {
+        "operation": "saldo_banco",
+        "banco": "Enrique"
+      },
+      "criteria": [
+        "Palabras pegadas."
+      ]
+    },
+    {
+      "id": "pilot-stock-of-product",
+      "domain": "productos",
+      "question": "Cuanto maiz hay?",
+      "expected_tool": "consultar_negocio",
+      "expected_arguments": {
+        "operation": "existencias",
+        "producto": "maiz"
+      },
+      "criteria": [
+        "Existencias de un producto sin acento."
+      ]
+    },
+    {
+      "id": "pilot-stock-how-much-of",
+      "domain": "productos",
+      "question": "Cuanto hay de alubia?",
+      "history": [
+        {
+          "role": "user",
+          "content": "Cuanto maiz hay?"
+        },
+        {
+          "role": "assistant",
+          "content": "Existencias actuales de maíz:\nTotal: 10.00 t."
+        }
+      ],
+      "expected_tool": "consultar_negocio",
+      "expected_arguments": {
+        "operation": "existencias",
+        "producto": "alubia"
+      },
+      "criteria": [
+        "Producto nuevo; no hereda el anterior."
+      ]
+    }
+  ]
+}

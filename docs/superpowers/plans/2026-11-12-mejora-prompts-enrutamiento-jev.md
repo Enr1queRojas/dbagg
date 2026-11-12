@@ -90,6 +90,38 @@ ahorro total demostrado: el clasificador y los respaldos añaden llamadas.
    de confusión de Jev ni curva de calibración.
 3. No hay métrica de respuesta final ni de costo por consulta correcta.
 
+### D. Observaciones del piloto real (2 al 11 de noviembre)
+
+Del chat exportado de WhatsApp: 48 preguntas de negocio (4 por voz). El export y sus
+adjuntos no se guardan en el repo; los casos derivados están anonimizados en
+`evals/cases/whatsapp-pilot.json` (30 casos).
+
+1. **Respuesta incorrecta entregada.** «De cuánto fue la última nota del
+   cliente X» se respondió con su último pago. Es el único caso donde el
+   agente contestó otra cosa sin avisar.
+2. **«Última compra / última nota» de un cliente es la petición sin soporte
+   más repetida** (7 veces, con cuatro respuestas distintas: fuera de alcance,
+   precisar concepto, «solo proveedores» y el pago equivocado). `ultima_nota`
+   existe solo para proveedores. Requiere decisión de producto.
+3. **Un número solo no elige de la lista.** Tras una lista numerada, «3» pidió
+   cliente de nuevo; «El tercero» sí funcionó. `list_position` exige artículo.
+4. **Códigos dictados por voz.** «A. Esparza tres» no se reconoció como el
+   código con punto y dígito.
+5. **«Dame un reporte de este mes» tras un saldo de banco** falló una vez
+   (pidió precisar el concepto). Ya está cubierto por `bank_report_followup`.
+6. **Reporte de banco sin fechas** devuelve todo el historial, mientras el
+   estado de cuenta de personas pide fechas. Comportamiento inconsistente.
+7. **«Saldo de Enrique» justo después de consultar su banco** listó clientes y
+   proveedores, sin ofrecer la cuenta bancaria homónima.
+8. **Seguimiento tras varias horas** pierde el cliente (la memoria vence a los
+   30 minutos). Es el diseño actual; se anota por si el uso real lo contradice.
+9. **Muchos `/diagnostico` sin respuesta** y un «Hola» sin contestar: es
+   disponibilidad del webhook local, fuera del alcance de este plan.
+
+Distribución real: clientes domina, bancos concentra las pruebas recientes,
+proveedores y productos casi no aparecen. El conjunto final necesita más
+mensajes reales de esos dos dominios para quedar equilibrado.
+
 ## Plan
 
 Cada fase es independiente, reversible por bandera y termina con medición.
@@ -102,9 +134,10 @@ Orden por relación impacto/riesgo.
   (normales y en caché) y latencia p50/p95.
 - Guardar probabilidades de Jev por caso y generar matriz de confusión y curva
   acierto/cobertura por umbral.
-- Crear un conjunto final separado (objetivo: 80–100 casos, con 3 repeticiones)
-  a partir de preguntas reales anonimizadas del piloto de WhatsApp, con peso en
-  continuaciones, cambios de tema, elección de homónimos y bancos.
+- Conjunto final separado (objetivo: 80–100 casos, con 3 repeticiones). Primer
+  bloque listo: `evals/cases/whatsapp-pilot.json`, 30 casos con la redacción
+  real del piloto e identidades ficticias (16 clientes, 4 proveedores, 8
+  bancos, 2 productos). Falta completar proveedores y productos.
 - Añadir casos de conversación completa con SQLite sintético que comprueben el
   importe final, no solo la primera herramienta.
 
@@ -124,7 +157,10 @@ Criterio de salida: línea base publicada con las cuatro métricas para
    `bank_report_followup`.
 3. **Conservar el estado al pasar por `legacy`**, registrando dominio y
    entidad confirmada por el servicio.
-4. **Sustituir el respaldo idéntico de extracción** por un reintento que
+4. **Aceptar un número solo como posición de la lista abierta** («3») y
+   normalizar códigos dictados («A. Robles tres» → `A.ROBLES3`) antes de
+   buscar; ambos fallaron en el piloto.
+5. **Sustituir el respaldo idéntico de extracción** por un reintento que
    incluya el motivo de validación como resultado de herramienta; si el perfil
    de extracción es el activo, no duplicar la llamada.
 
@@ -231,3 +267,10 @@ cubiertos por igual en el conjunto de evaluación.
 2. La prioridad es el costo por consulta correcta, no la latencia. La Fase 4
    va antes que la 5 y toda fase se acepta o descarta con esa métrica.
 3. Ningún dominio tiene prioridad sobre los otros; ver Fase 5.
+
+## Decisión pendiente
+
+¿«Última nota / última compra» debe existir para clientes? Hoy solo existe
+para proveedores y es la petición sin soporte más repetida del piloto. Los
+casos del conjunto esperan `ultima_nota` y que el servicio decida; si se
+prefiere otra respuesta, se ajustan esos cinco casos.
