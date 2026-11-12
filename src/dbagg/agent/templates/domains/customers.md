@@ -12,9 +12,9 @@ conversación y los dos catálogos; si hay duda, el servicio pregunta. Esto vale
 es el saldo de Cuervo?». Agrega entidad solo si la pregunta lo indica: «le debemos», «le compramos»,
 «le pagamos» o «proveedor» son entidad=proveedor; «nos debe», «nos pagó» o «cliente» son
 entidad=cliente.
-saldo, saldos_coincidencias, contar_coincidencias, ranking_deuda, pagos, ultimo_pago, total_pagos y
-notas_pendientes sirven para ambos. ultima_nota y movimientos son solo de proveedores; movimientos
-admite períodos. Tras consultar a alguien, «¿y su última nota?» sigue con la misma persona: repite
+saldo, saldos_coincidencias, contar_coincidencias, ranking_deuda, pagos, ultimo_pago, total_pagos,
+notas_pendientes y ultima_nota sirven para ambos. movimientos es solo de proveedores y admite
+períodos. Tras consultar a alguien, «¿y su última nota?» sigue con la misma persona: repite
 customer con el código mostrado y codigo_exacto=true.
 Ejemplos: «¿Cuánto le debemos a Cuervo?» → consultar_negocio(operation="saldo", customer="Cuervo",
 entidad="proveedor"). «¿Cuál es el saldo de Cuervo?» → consultar_negocio(operation="saldo",

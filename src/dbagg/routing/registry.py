@@ -1,7 +1,7 @@
 """Local allowlist, constrained by the existing SQL catalogue and runtime grants."""
 
-from dbagg.business.customers import CUSTOMERS, PAYMENTS, OPERATIONS
-from dbagg.business.suppliers import SUPPLIERS, SUPPLIER_PAYMENTS
+from dbagg.business.customers import CREDITS, CUSTOMERS, PAYMENTS, OPERATIONS
+from dbagg.business.suppliers import PURCHASES, SUPPLIERS, SUPPLIER_PAYMENTS
 from dbagg.routing.contracts import Route
 
 CUSTOMER_TOPICS = (
@@ -20,6 +20,7 @@ DESCRIPTIONS = {
     "ultimo_pago": "Pagos de la última fecha de una persona, sin período.",
     "total_pagos": "Cuánto ha pagado una persona, total del período o de todo.",
     "notas_pendientes": "Notas abiertas que componen el saldo actual.",
+    "ultima_nota": "Última nota o última compra (a crédito) de una persona; no es un pago.",
     "estado_cuenta": "Estado de cuenta o reporte completo de una persona.",
 }
 
@@ -40,12 +41,17 @@ def available_routes(catalog, tables, domains=("clientes", "gastos")):
                 and PAYMENTS not in tables
             ):
                 continue
+            if operation == "ultima_nota" and not {CREDITS, PURCHASES} & tables:
+                continue
             name = "clientes." + operation
             operation_topics = ("customer_balance", "supplier_balance")
             operation_sources = frozenset({CUSTOMERS, SUPPLIERS}) & sources
             if operation in {"pagos", "total_pagos", "ultimo_pago"}:
                 operation_topics += ("collections", "supplier_payments")
                 operation_sources |= frozenset({PAYMENTS, SUPPLIER_PAYMENTS}) & sources
+            elif operation == "ultima_nota":
+                # Customers' notes live in credits; suppliers' in purchases.
+                operation_sources |= frozenset({CREDITS, PURCHASES}) & tables
             elif operation in {"notas_pendientes", "estado_cuenta"}:
                 operation_topics = CUSTOMER_TOPICS
                 operation_sources = sources

@@ -64,6 +64,24 @@ class ModularContextTests(unittest.TestCase):
         self.assertEqual(available_routes(self.catalog, set()), {})
         self.assertNotIn("clientes.total_pagos", available_routes(self.catalog, {CUSTOMERS}))
 
+    def test_last_note_route_reads_credit_notes_and_offers_only_that_operation(self):
+        from dbagg.business.customers import CREDITS
+        from dbagg.business.suppliers import PURCHASES
+
+        route = self.routes["clientes.ultima_nota"]
+        self.assertIn(CREDITS, route.tables)
+        self.assertIn(PURCHASES, route.tables)
+        self.assertNotIn(PAYMENTS, route.tables)
+        selected = self.select("clientes.ultima_nota")
+        self.assertIn("operations/ultima_nota", selected.modules)
+        operation = selected.tools[0]["function"]["parameters"]["properties"]["operation"]
+        self.assertEqual(operation["enum"], ["ultima_nota"])
+        self.assertIn("nunca respondas con ultimo_pago", selected.bundle.system)
+        self.assertNotIn(
+            "ultima_nota y movimientos son solo de proveedores", selected.bundle.system
+        )
+        self.assertNotIn("clientes.ultima_nota", available_routes(self.catalog, {CUSTOMERS}))
+
     def test_customer_selection_keeps_shared_party_identity_dependency(self):
         selected = self.select()
         self.assertIn("proadel.catalogo_proveedores_data_v", selected.tables)

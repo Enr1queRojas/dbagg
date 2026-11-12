@@ -1,11 +1,11 @@
 {
   "measurement": "characters, packaged context, full catalog; not billed tokens",
   "baseline": {
-    "system": 18624,
+    "system": 18925,
     "business": 16635,
     "schema": 10663,
-    "tools": 5159,
-    "total": 51081
+    "tools": 5172,
+    "total": 51395
   },
   "sections": [
     {
@@ -22,7 +22,7 @@
     },
     {
       "section": "Operaciones verificadas: consultar_negocio",
-      "characters": 3076
+      "characters": 3360
     },
     {
       "section": "Identidad y continuidad",
@@ -30,7 +30,7 @@
     },
     {
       "section": "Tiempo",
-      "characters": 995
+      "characters": 1025
     },
     {
       "section": "Aclaraciones disponibles",
@@ -38,7 +38,7 @@
     },
     {
       "section": "Clientes y proveedores",
-      "characters": 1291
+      "characters": 1278
     },
     {
       "section": "Bancos",
@@ -62,7 +62,7 @@
   "routes": [
     {
       "route": "clientes.saldo",
-      "version": "modular-v1:67598a46d793ed7f",
+      "version": "modular-v1:5371d53c3edf6438",
       "modules": [
         "core",
         "domains/customers",
@@ -77,17 +77,17 @@
         "proadel.catalogo_proveedores_data_v"
       ],
       "characters": {
-        "system": 8602,
+        "system": 8589,
         "business": 6992,
         "schema": 767,
-        "tools": 3216,
+        "tools": 3229,
         "total": 19577
       },
-      "reduction_percent": 61.67
+      "reduction_percent": 61.91
     },
     {
       "route": "clientes.saldos_coincidencias",
-      "version": "modular-v1:662ea20da21b7ac3",
+      "version": "modular-v1:150514450845c75f",
       "modules": [
         "core",
         "domains/customers",
@@ -102,17 +102,17 @@
         "proadel.catalogo_proveedores_data_v"
       ],
       "characters": {
-        "system": 8804,
+        "system": 8791,
         "business": 6992,
         "schema": 767,
-        "tools": 3231,
+        "tools": 3244,
         "total": 19794
       },
-      "reduction_percent": 61.25
+      "reduction_percent": 61.49
     },
     {
       "route": "clientes.contar_coincidencias",
-      "version": "modular-v1:03e6af0d084f3688",
+      "version": "modular-v1:eebdde1e288f1343",
       "modules": [
         "core",
         "domains/customers",
@@ -127,17 +127,17 @@
         "proadel.catalogo_proveedores_data_v"
       ],
       "characters": {
-        "system": 8799,
+        "system": 8786,
         "business": 6992,
         "schema": 767,
-        "tools": 3231,
+        "tools": 3244,
         "total": 19789
       },
-      "reduction_percent": 61.26
+      "reduction_percent": 61.5
     },
     {
       "route": "clientes.ranking_deuda",
-      "version": "modular-v1:ea0440c066f9a1bc",
+      "version": "modular-v1:15de68d4855998f6",
       "modules": [
         "core",
         "domains/customers",
@@ -152,17 +152,17 @@
         "proadel.catalogo_proveedores_data_v"
       ],
       "characters": {
-        "system": 8911,
+        "system": 8898,
         "business": 6992,
         "schema": 767,
-        "tools": 3224,
+        "tools": 3237,
         "total": 19894
       },
-      "reduction_percent": 61.05
+      "reduction_percent": 61.29
     },
     {
       "route": "clientes.pagos",
-      "version": "modular-v1:eb4bbd61f5df3b95",
+      "version": "modular-v1:3538dc9efbae4e4e",
       "modules": [
         "core",
         "domains/customers",
@@ -181,17 +181,17 @@
         "proadel.pago_proveedor_data"
       ],
       "characters": {
-        "system": 8593,
+        "system": 8580,
         "business": 9311,
         "schema": 1198,
-        "tools": 3216,
+        "tools": 3229,
         "total": 22318
       },
-      "reduction_percent": 56.31
+      "reduction_percent": 56.58
     },
     {
       "route": "clientes.ultimo_pago",
-      "version": "modular-v1:adb08bb7cd8f2444",
+      "version": "modular-v1:a36c87f365ea8d90",
       "modules": [
         "core",
         "domains/customers",
@@ -210,17 +210,17 @@
         "proadel.pago_proveedor_data"
       ],
       "characters": {
-        "system": 8804,
+        "system": 8791,
         "business": 9311,
         "schema": 1198,
-        "tools": 3222,
+        "tools": 3235,
         "total": 22535
       },
-      "reduction_percent": 55.88
+      "reduction_percent": 56.15
     },
     {
       "route": "clientes.total_pagos",
-      "version": "modular-v1:a7b87444a5277c08",
+      "version": "modular-v1:e980ee4b15534ee2",
       "modules": [
         "core",
         "domains/customers",
@@ -239,17 +239,17 @@
         "proadel.pago_proveedor_data"
       ],
       "characters": {
-        "system": 8725,
+        "system": 8712,
         "business": 9311,
         "schema": 1198,
-        "tools": 3222,
+        "tools": 3235,
         "total": 22456
       },
-      "reduction_percent": 56.04
+      "reduction_percent": 56.31
     },
     {
       "route": "clientes.notas_pendientes",
-      "version": "modular-v1:f367801353e20e6a",
+      "version": "modular-v1:3e73481b3b3fbcc7",
       "modules": [
         "core",
         "domains/customers",
@@ -283,17 +283,44 @@
         "proadel.vw_alertascobranza"
       ],
       "characters": {
-        "system": 8793,
+        "system": 8780,
         "business": 11722,
         "schema": 4283,
-        "tools": 3227,
+        "tools": 3240,
         "total": 28025
       },
-      "reduction_percent": 45.14
+      "reduction_percent": 45.47
+    },
+    {
+      "route": "clientes.ultima_nota",
+      "version": "modular-v1:0e89a1c427e39e90",
+      "modules": [
+        "core",
+        "domains/customers",
+        "operations/ultima_nota"
+      ],
+      "topics": [
+        "customer_balance",
+        "supplier_balance"
+      ],
+      "tables": [
+        "proadel.catalogo_clientes_data_v",
+        "proadel.catalogo_proveedores_data_v",
+        "proadel.compras_data",
+        "proadel.credito_data"
+      ],
+      "characters": {
+        "system": 8985,
+        "business": 6992,
+        "schema": 2040,
+        "tools": 3235,
+        "total": 21252
+      },
+      "reduction_percent": 58.65
     },
     {
       "route": "clientes.estado_cuenta",
-      "version": "modular-v1:2a7977e616813889",
+      "version": "modular-v1:a53c4702ad5db797",
       "modules": [
         "core",
         "domains/customers",
@@ -327,13 +354,13 @@
         "proadel.vw_alertascobranza"
       ],
       "characters": {
-        "system": 8756,
+        "system": 8743,
         "business": 11722,
         "schema": 4283,
-        "tools": 3224,
+        "tools": 3237,
         "total": 27985
       },
-      "reduction_percent": 45.21
+      "reduction_percent": 45.55
     },
     {
       "route": "gastos.exploracion",
@@ -356,7 +383,7 @@
         "tools": 1805,
         "total": 17389
       },
-      "reduction_percent": 65.96
+      "reduction_percent": 66.17
     }
   ]
 }

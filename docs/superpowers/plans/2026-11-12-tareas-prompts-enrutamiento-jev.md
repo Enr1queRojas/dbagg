@@ -128,7 +128,7 @@ para enrutar.
 
 ## Bloque B — Respuestas incorrectas detectadas en el piloto
 
-- [ ] **T4. `ultima_nota` para clientes**
+- [x] **T4. `ultima_nota` para clientes**
   - **Contexto:** hoy `ultima_nota` es solo de proveedores
     (`SUPPLIER_ONLY_OPERATIONS` en `business/suppliers.py`, implementada en
     `SupplierQueries._last_note` sobre `COMPRAS_DATA`). En el piloto «última
@@ -166,6 +166,10 @@ para enrutar.
     proveedor sigue usando `COMPRAS_DATA`/`IMPORTE`.
   - **Hecho cuando:** los cinco casos `pilot-*` que esperan `ultima_nota` son
     coherentes con el contrato y `test_eval_cases` pasa.
+  - **Resultado:** `CustomerQueries._last_note` sobre `CREDITO_DATA`; ruta
+    `clientes.ultima_nota` (tablas de crédito y compras); seis casos `pilot-*`
+    esperan `ultima_nota` y son coherentes (se actualizó el criterio obsoleto
+    «pendiente de decisión»). 630 pruebas en verde.
 
 - [ ] **T5. Elegir de una lista con un número solo y con códigos dictados**
   - **Archivos:** `src/dbagg/agent/intent.py` (`list_position`),

@@ -28,8 +28,10 @@ OPERATIONS = (
     "ultimo_pago",
     "total_pagos",
     "notas_pendientes",
+    "ultima_nota",
 )
 NOTE_LIMIT = 50
+NOTE_ITEM_LIMIT = 10
 MATCH_LIMIT = 10
 CUSTOMER_NOT_FOUND = "No encontré un cliente con ese nombre o código. ¿Puedes precisarlo?"
 MATCHES_NOT_FOUND = "No encontré clientes con ese nombre o código. ¿Puedes precisarlo?"
@@ -63,6 +65,10 @@ def date_expression(column_type, subject):
     if column_type in {"varchar", "nvarchar", "char", "nchar"}:
         return "TRY_CONVERT(datetime2, NULLIF(LTRIM(RTRIM([FECHA])), ''), 103)"
     raise BusinessError(f"El tipo de fecha de {subject} requiere una definición verificada.")
+
+
+def _number(value):
+    return "no disponible" if value is None else amount(value)
 
 
 def decimal_value(value):
@@ -221,6 +227,7 @@ class CustomerQueries(CatalogQueries):
             "ranking_deuda",
             "ultimo_pago",
             "notas_pendientes",
+            "ultima_nota",
         } and (period != "todo" or start or end):
             raise BusinessError(
                 "Esta operación no admite ese filtro de fechas; precisa el reporte solicitado."
@@ -236,6 +243,8 @@ class CustomerQueries(CatalogQueries):
             if operation in {"pagos", "ultimo_pago", "total_pagos"}
             else [PAYMENTS, CREDITS, RETURNS]
             if operation == "notas_pendientes"
+            else [CREDITS]
+            if operation == "ultima_nota"
             else []
         )
         try:
@@ -274,6 +283,8 @@ class CustomerQueries(CatalogQueries):
         heading = f"{label(client['nombre'])} (código {label(client['codigo'])})"
         if operation == "notas_pendientes":
             return self._pending_notes(catalog, client, heading)
+        if operation == "ultima_nota":
+            return self._last_note(catalog, client, heading)
         if operation == "saldo":
             return self._answer(
                 f"Saldo actual de {heading}: {amount(client['importe'])}.\nImporte sin moneda confirmada."
@@ -487,6 +498,69 @@ class CustomerQueries(CatalogQueries):
             "las notas más antiguas (FIFO). Importes sin moneda confirmada."
         )
         return self._answer("\n".join(lines), "partial" if warnings else "answered")
+
+    def _last_note(self, catalog, client, heading):
+        """The customer's latest active credit note (their latest purchase on credit).
+
+        A note is CLIENTE + FOLIO; its amount is SUM([TOTAL]) of its active rows, the same
+        rule that builds [SALDO ACTUAL]. Payments are never notes.
+        """
+        self._require(
+            catalog,
+            CREDITS,
+            ["CLIENTE", "ESTADO", "FECHA", "FOLIO", "TOTAL", "CONCEPTO", "CANTIDAD", "PRECIO"],
+            ["TOTAL"],
+        )
+        when = date_expression(catalog[CREDITS]["FECHA"], "notas de crédito")
+        code = client["codigo"]
+        active = "[CLIENTE] = ? AND [ESTADO] = 'ACTIVA'"
+        quality, _ = self._query(
+            f"SELECT COUNT(*) - COUNT({when}) AS invalid_dates FROM {CREDITS} WHERE {active}",
+            (code,),
+            1,
+        )
+        invalid_dates = int(quality[0]["invalid_dates"] or 0)
+        notes, _ = self._query(
+            f"SELECT TOP 2 [FOLIO] AS folio, MAX({when}) AS fecha, SUM([TOTAL]) AS importe "
+            f"FROM {CREDITS} WHERE {active} GROUP BY [FOLIO] "
+            f"HAVING MAX({when}) IS NOT NULL ORDER BY MAX({when}) DESC, [FOLIO] DESC",
+            (code,),
+            2,
+        )
+        if not notes:
+            text = f"No encontré notas de crédito activas con fecha válida para {heading}."
+            if invalid_dates:
+                text += " Hay notas activas sin fecha válida; requieren revisión."
+            return self._answer(text + " ¿Quieres consultar otro reporte?", "needs_clarification")
+        note = notes[0]
+        items, more = self._query(
+            f"SELECT TOP {NOTE_ITEM_LIMIT + 1} [CONCEPTO] AS concepto, [CANTIDAD] AS cantidad, "
+            f"[PRECIO] AS precio, [TOTAL] AS importe FROM {CREDITS} "
+            f"WHERE {active} AND [FOLIO] = ? ORDER BY [TOTAL] DESC",
+            (code, note["folio"]),
+            NOTE_ITEM_LIMIT,
+        )
+        lines = [
+            f"Última nota de crédito de {heading}:",
+            f"Folio {label(note['folio'])} · {str(note['fecha'] or 'sin fecha')[:10]}.",
+            f"Importe de la nota: {amount(note['importe'])}.",
+        ]
+        for item in items:
+            concept = display_label(item["concepto"], "concepto no disponible")[0]
+            lines.append(
+                f"• {concept} · {_number(item['cantidad'])} × {_number(item['precio'])} "
+                f"· {_number(item['importe'])}"
+            )
+        warnings = []
+        if more:
+            warnings.append(f"Muestro {NOTE_ITEM_LIMIT} partidas; el importe sí incluye todas.")
+        if len(notes) > 1 and notes[1]["fecha"] == note["fecha"]:
+            warnings.append("Comparten fecha; el folio no prueba cuál ocurrió después.")
+        if invalid_dates:
+            warnings.append("Hay notas activas sin fecha válida; podrían ser más recientes.")
+        lines += warnings
+        lines.append("Importes sin moneda confirmada.")
+        return self._answer("\n".join(lines), "partial" if more or invalid_dates else "answered")
 
     def _matching_balances(self, customer):
         """Each matching customer's current balance, listed separately and never summed."""

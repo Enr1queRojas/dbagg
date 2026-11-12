@@ -1,5 +1,15 @@
 # Cambios
 
+## Sin publicar — Última nota de clientes
+
+- `ultima_nota` ya existe para clientes: «última nota», «última compra», «última compra a crédito» o
+  «nota de compra» de un cliente devuelven su última nota de crédito activa (`CREDITO_DATA`, folio,
+  fecha, partidas e importe `SUM([TOTAL])`). Antes se respondía con su último pago. Solo todo el
+  historial; con período, `fuera_alcance`. Sin notas pide aclaración.
+- Prompt: `system.md`, `domains/customers.md`, `tools.json` y el módulo nuevo
+  `operations/ultima_nota.md` (huella nueva de `catalog-domains-v6`). Ruta modular
+  `clientes.ultima_nota`. Migración: si el servidor usa `config/prompts/`, copiar estos cambios.
+
 ## Sin publicar — Bancos: reporte tras el saldo y fechas
 
 - «Dame un reporte de este mes» justo después de «Cuenta X» genera el PDF de esa cuenta, aunque el

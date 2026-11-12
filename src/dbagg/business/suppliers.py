@@ -24,7 +24,7 @@ SUPPLIER_OPERATIONS = (
     "ultima_nota",
     "movimientos",
 )
-SUPPLIER_ONLY_OPERATIONS = ("ultima_nota", "movimientos")
+SUPPLIER_ONLY_OPERATIONS = ("movimientos",)
 PERIOD_OPERATIONS = frozenset({"pagos", "total_pagos", "movimientos"})
 MATCH_LIMIT = 10
 MAX_ANSWER_CHARS = 2800

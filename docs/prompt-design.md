@@ -82,3 +82,9 @@ prueba una mejora; mide errores y costo. Los tests con proveedores simulados ver
 del programa, no la interpretación de OpenAI. Las claves y el modelo real siguen siendo requisitos
 para esa evaluación. `/buena` y `/mala motivo` registran valoración si FEEDBACK_ENABLED está activo;
 la valoración se revisa antes de aprobar un ejemplo. No hay entrenamiento automático.
+
+## Historial de cambios del prompt empaquetado
+
+| Fecha | Versión | Alcance |
+| --- | --- | --- |
+| 2026-11-12 | `catalog-domains-v6` (huella nueva) | `ultima_nota` para clientes y proveedores: «última nota/compra» nunca es `ultimo_pago`; solo todo el historial. Archivos: `system.md`, `domains/customers.md`, `operations/ultima_nota.md`, `tools.json`. |

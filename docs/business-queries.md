@@ -18,6 +18,7 @@ respuesta financiera. Versión del prompt: `catalog-domains-v6:<huella del conte
 | ¿Qué pagos hizo Ana esta semana? | `pagos` | Movimientos de `COBRANZA_DATA`, con límite explícito de 1 a 10 |
 | ¿Cuándo pagó Ana por última vez? | `ultimo_pago` | Mayor `FECHA` válida de todo el historial; muestra empates |
 | ¿Cuánto pagó Ana este mes? | `total_pagos` | `SUM(IMPORTE)` en SQL sobre el período; no suma una muestra |
+| ¿Cuál fue la última compra (nota) de Ana? | `ultima_nota` | Última nota de crédito activa de `CREDITO_DATA` (`CLIENTE`+`FOLIO`, mayor `FECHA` válida); importe = `SUM([TOTAL])` por folio; solo todo el historial; sin notas pide aclaración, nunca responde cero. Una nota no es un pago |
 
 Los objetos tienen esquema `proadel` y deben estar autorizados en `SQL_ALLOWED_TABLES`.
 Las columnas se comprueban contra metadatos SQL antes de consultar. Los importes deben
@@ -47,8 +48,9 @@ no es un clasificador universal de comparaciones. Se pueden consultar los códig
 
 ## Proveedores
 
-Mismas operaciones de saldo, coincidencias, ranking, pagos y notas pendientes, más `ultima_nota` y
-`movimientos`, que todavía solo existen para proveedores.
+Mismas operaciones de saldo, coincidencias, ranking, pagos, notas pendientes y `ultima_nota`, más
+`movimientos`, que todavía solo existe para proveedores. La `ultima_nota` de un proveedor sale de
+`COMPRAS_DATA` con `IMPORTE`; la de un cliente, de `CREDITO_DATA` con `TOTAL`.
 
 | Pregunta | Operación | Fuente y regla |
 | --- | --- | --- |

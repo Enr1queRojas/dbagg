@@ -8,10 +8,11 @@ import pyodbc
 
 from dbagg.agent.prompts import tool_definitions
 from dbagg.agent.service import Assistant
-from dbagg.business.customers import CUSTOMERS, PAYMENTS
+from dbagg.business.customers import CREDITS, CUSTOMERS, PAYMENTS
 from dbagg.business.suppliers import PURCHASES, SUPPLIER_PAYMENTS, SUPPLIERS
 from dbagg.llm.config import LLMConfig, ModelProfile
 from dbagg.llm.types import ModelReply, ToolCall
+from tests.unit.test_customer_queries import CREDIT_COLUMNS
 from tests.unit.test_supplier_queries import DEFINITIONS, SupplierDatabase
 
 CUSTOMER_DEFINITIONS = {
@@ -166,6 +167,34 @@ class SupplierRoutingTests(RoutingCase):
     def test_supplier_only_operation_on_customer_is_clear(self):
         text = self.ask("movimientos", customer="Robles")
         self.assertIn("todavía solo está disponible para proveedores", text)
+
+    def test_last_note_of_customer_uses_credit_notes(self):
+        self.db.conn.execute(
+            f"CREATE TABLE {CREDITS} (CLIENTE, ESTADO, FECHA, FOLIO, CONCEPTO, CANTIDAD, "
+            "PRECIO, TOTAL NUMERIC)"
+        )
+        self.db.conn.execute(
+            f"INSERT INTO {CREDITS} VALUES ('R1', 'ACTIVA', '2026-10-01', 7, 'Maíz', 1, 1, 80)"
+        )
+        CUSTOMER_DEFINITIONS[CREDITS] = CREDIT_COLUMNS
+        self.addCleanup(CUSTOMER_DEFINITIONS.pop, CREDITS)
+        text = self.ask(
+            "ultima_nota",
+            customer="Robles",
+            question="¿Cuál fue la última compra de Robles?",
+            tables=self.TABLES | {CREDITS},
+        )
+        self.assertIn("Última nota de crédito de Robles (código R1)", text)
+        self.assertIn("Importe de la nota: 80.00.", text)
+        self.assertNotIn("solo está disponible para proveedores", text)
+        self.assertFalse(any(PURCHASES in sql for sql in self.db.statements))
+
+    def test_last_note_of_supplier_still_uses_purchases(self):
+        self.db.purchase(1, 5, "C1", "2026-10-01", 30, total=999)
+        text = self.ask("ultima_nota", customer="Cuervo", question="la última nota de Cuervo")
+        self.assertTrue(text.startswith("Proveedor Cuervo"))
+        self.assertIn("Importe de la nota: 30.00", text)
+        self.assertNotIn("999", text)
 
     MIXED = (
         "Encontré «Ana» como cliente y como proveedor:\n"
