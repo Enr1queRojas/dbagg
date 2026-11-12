@@ -301,7 +301,7 @@ para enrutar.
     `routing_level` y `route_candidates`; el evaluador cuenta la ruta como
     correcta si la esperada está entre las candidatas.
 
-- [ ] **T12. Enrutador con estado e instrucciones reescritas**
+- [x] **T12. Enrutador con estado e instrucciones reescritas**
   - **Archivos:** `routing/service.py`, `routing/jev.py`, `routing/registry.py`.
   - **Qué hacer:**
     - `routing_state` incluye `previous_route` y `pending_clarification` como datos.

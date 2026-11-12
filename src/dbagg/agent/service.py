@@ -522,7 +522,7 @@ class Assistant:
         decision = None
         reason = None
         try:
-            decision = (self.router or reference).decide(question, history, routes)
+            decision = (self.router or reference).decide(question, history, routes, self.next_state)
         except Exception as exc:
             reason = type(exc).__name__
         elapsed = round((time.monotonic() - started) * 1000, 3)
@@ -595,7 +595,7 @@ class Assistant:
             if self.router is None:
                 return None
             try:
-                decision = reference.decide(question, history, routes)
+                decision = reference.decide(question, history, routes, self.next_state)
                 self.last_trace.setdefault("events", []).append(
                     {
                         "event": "routing",

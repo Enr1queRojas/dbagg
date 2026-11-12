@@ -88,3 +88,4 @@ la valoración se revisa antes de aprobar un ejemplo. No hay entrenamiento autom
 | Fecha | Versión | Alcance |
 | --- | --- | --- |
 | 2026-11-12 | `catalog-domains-v6` (huella nueva) | `ultima_nota` para clientes y proveedores: «última nota/compra» nunca es `ultimo_pago`; solo todo el historial. Archivos: `system.md`, `domains/customers.md`, `operations/ultima_nota.md`, `tools.json`. |
+| 2026-11-12 | enrutador (`routing/service.py`, `registry.py`) | Instrucciones del enrutador reducidas a una regla general sin nombres propios; los casos pasan a cada ruta como «usar cuando / no usar cuando». El estado (`previous_route`, `pending_clarification`) viaja como datos. `ReferenceRouter` envía las instrucciones solo en el mensaje de sistema. |

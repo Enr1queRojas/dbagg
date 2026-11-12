@@ -12,16 +12,26 @@ CUSTOMER_TOPICS = (
     "supplier_payments",
 )
 DESCRIPTIONS = {
-    "saldo": "Saldo actual de una persona; no movimientos ni saldo histórico.",
-    "saldos_coincidencias": "Saldos separados de todos los homónimos; nunca sumar.",
-    "contar_coincidencias": "Contar coincidencias de un nombre; no conteo global.",
-    "ranking_deuda": "Ranking global de deuda actual pedido explícitamente.",
-    "pagos": "Lista de pagos de una persona, sin representar el total.",
-    "ultimo_pago": "Pagos de la última fecha de una persona, sin período.",
-    "total_pagos": "Cuánto ha pagado una persona, total del período o de todo.",
-    "notas_pendientes": "Notas abiertas que componen el saldo actual.",
-    "ultima_nota": "Última nota o última compra (a crédito) de una persona; no es un pago.",
-    "estado_cuenta": "Estado de cuenta o reporte completo de una persona.",
+    "saldo": "Usar cuando piden el saldo o la deuda actual de una persona nombrada o ya "
+    "consultada. No usar cuando: movimientos, saldo a una fecha pasada o ranking.",
+    "saldos_coincidencias": "Usar cuando piden el saldo de cada persona con un mismo nombre. "
+    "No usar cuando: sumar o comparar saldos de un grupo.",
+    "contar_coincidencias": "Usar cuando preguntan cuántas personas coinciden con un nombre. "
+    "No usar cuando: conteo global sin nombre.",
+    "ranking_deuda": "Usar cuando piden explícitamente quiénes deben más o un top de deuda. "
+    "No usar cuando: nombran a una persona.",
+    "pagos": "Usar cuando piden la lista de pagos o abonos de una persona. "
+    "No usar cuando: piden cuánto pagó en total.",
+    "ultimo_pago": "Usar cuando piden la fecha o el importe del último pago de una persona. "
+    "No usar cuando: no dicen «último» o «reciente»; tampoco para notas o compras.",
+    "total_pagos": "Usar cuando preguntan cuánto pagó una persona, también «hoy» o en un "
+    "período. No usar cuando: gastos («cuánto gastamos», «total de gastos registrados»).",
+    "notas_pendientes": "Usar cuando piden las notas abiertas o de qué se compone el saldo "
+    "actual. No usar cuando: la última nota.",
+    "estado_cuenta": "Usar cuando piden el estado de cuenta o reporte completo de una persona. "
+    "No usar cuando: solo pagos o solo saldo.",
+    "ultima_nota": "Usar cuando piden la última nota, última compra o compra a crédito de una "
+    "persona. No usar cuando: piden pagos; una nota no es un pago.",
 }
 
 
@@ -72,7 +82,9 @@ def available_routes(catalog, tables, domains=("clientes", "gastos")):
             name,
             "gastos",
             None,
-            "Saldos, movimientos o totales de gastos y destinos; no clientes.",
+            "Usar cuando preguntan por gastos, destinos o apartados de gasto: saldos, "
+            "movimientos o totales («cuánto gastamos», «total de gastos registrados»), aunque "
+            "antes se hablara de pagos de una persona. No usar cuando: clientes o proveedores.",
             (),
             expenses,
             ("describir_tablas", "consultar_sql", "pedir_aclaracion"),
@@ -84,7 +96,10 @@ def available_routes(catalog, tables, domains=("clientes", "gastos")):
 def route_options(routes):
     return {
         **{name: route.description for name, route in routes.items()},
-        "legacy": "Bancos, inventario, proveedores explícitos, varios conceptos, ruta dudosa o fuera del alcance de estas opciones. Usar el intérprete completo.",
+        "legacy": "Usar cuando: cuentas de banco o efectivo de personas (no son clientes ni "
+        "proveedores), inventario, proveedores explícitos, varios conceptos, ruta dudosa, fuera "
+        "del alcance de estas opciones, o una respuesta corta («sí», un código o una posición de "
+        "una lista) que continúa una operación pendiente. Usa el intérprete completo.",
     }
 
 

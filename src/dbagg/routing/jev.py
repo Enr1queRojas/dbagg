@@ -36,7 +36,7 @@ class JevRouter:
             self.client.close()
 
     @measured("routing")
-    def decide(self, question, history, routes):
+    def decide(self, question, history, routes, state=None):
         if not self.api_key:
             raise ValueError("Credencial Jev no disponible.")
         options = route_options(routes)
@@ -45,7 +45,7 @@ class JevRouter:
             headers={"Authorization": "Bearer " + self.api_key},
             json={
                 "model": self.config.jev_model,
-                "state": routing_state(question, history),
+                "state": routing_state(question, history, state),
                 "questions": {
                     "route": {"type": "choice", "instructions": INSTRUCTIONS, "criteria": options}
                 },

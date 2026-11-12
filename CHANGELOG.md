@@ -1,5 +1,12 @@
 # Cambios
 
+## Sin publicar — Instrucciones del enrutador
+
+- Las instrucciones del enrutador (Jev y referencia) son una regla general breve; los casos viven en
+  la descripción de cada ruta («usar cuando», «no usar cuando»). Se quitó el nombre propio. El
+  enrutador recibe `previous_route` y `pending_clarification` como datos y la referencia ya no repite
+  las instrucciones en la descripción de su herramienta.
+
 ## Sin publicar — Enrutamiento por niveles con Jev
 
 - Campos opcionales `[modular] min_margin` y `min_domain_confidence`: operación si hay confianza y

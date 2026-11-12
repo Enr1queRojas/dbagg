@@ -1213,3 +1213,67 @@ class TieredRoutingTests(unittest.TestCase):
         self.assistant.answer("Saldo de Ana Demo")
         self.assertNotIn("routing_level", self.assistant.last_trace)
         self.assertEqual(self.routing_calls(), 2)  # low confidence → mini, as before
+
+
+class RouterInstructionTests(unittest.TestCase):
+    def setUp(self):
+        self.routes = available_routes(load_catalog(), frozenset(load_catalog().sources))
+
+    def test_instructions_are_general_and_name_nobody(self):
+        import re
+
+        from dbagg.routing.service import INSTRUCTIONS
+
+        self.assertNotIn("Enrique", INSTRUCTIONS)
+        self.assertNotIn("Rojas", INSTRUCTIONS)
+        # Apart from the first word of each sentence, no capitalized words (names) remain.
+        words = re.findall(r"(?<![.¿¡] )(?<!^)\b[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+", INSTRUCTIONS)
+        self.assertEqual(words, [])
+        self.assertLess(len(INSTRUCTIONS), 600)
+
+    def test_cases_live_in_route_descriptions(self):
+        options = route_options(self.routes)
+        for name in (
+            "clientes.total_pagos",
+            "clientes.ultimo_pago",
+            "gastos.exploracion",
+            "legacy",
+        ):
+            with self.subTest(route=name):
+                self.assertIn("Usar cuando", options[name])
+        self.assertIn("No usar cuando", options["clientes.total_pagos"])
+        self.assertIn("gastamos", options["gastos.exploracion"])
+        self.assertIn("banco", options["legacy"])
+
+    def test_reference_sends_the_instructions_once(self):
+        from dbagg.routing.service import INSTRUCTIONS
+
+        provider = Mock()
+        provider.complete.return_value = reply("select_route", {"route": "clientes.saldo"})
+        ReferenceRouter(provider).decide("Saldo de Demo", [], self.routes)
+        messages, tools = provider.complete.call_args.args[:2]
+        self.assertIn(INSTRUCTIONS, messages[0]["content"])
+        description = tools[0]["function"]["description"]
+        self.assertNotIn(INSTRUCTIONS, description)
+        self.assertLess(len(description), 100)
+
+    def test_routing_state_carries_previous_route_and_pending_clarification(self):
+        from dbagg.routing.service import routing_state
+        from dbagg.routing.state import ConversationState
+
+        state = ConversationState(
+            previous_route="clientes.saldo",
+            selected_customer_id="C1",
+            pending_clarification="cliente",
+        )
+        data = routing_state("el tercero", [], state)
+        self.assertEqual(
+            data["state"], {"previous_route": "clientes.saldo", "pending_clarification": "cliente"}
+        )
+        self.assertNotIn("C1", json.dumps(data))
+        self.assertNotIn("state", routing_state("hola", []))
+        provider = Mock()
+        provider.complete.return_value = reply("select_route", {"route": "legacy"})
+        ReferenceRouter(provider).decide("el tercero", [], self.routes, state)
+        sent = json.loads(provider.complete.call_args.args[0][1]["content"])
+        self.assertEqual(sent["state"]["previous_route"], "clientes.saldo")
