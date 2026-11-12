@@ -82,6 +82,42 @@ class ModularContextTests(unittest.TestCase):
         )
         self.assertNotIn("clientes.ultima_nota", available_routes(self.catalog, {CUSTOMERS}))
 
+    def test_domain_module_with_several_operations(self):
+        single = self.select("clientes.saldo")
+        listed = select_context(
+            [self.routes["clientes.saldo"]], self.context, self.bundle, self.catalog, self.tables
+        )
+        self.assertEqual(listed.bundle.version, single.bundle.version)
+        self.assertEqual(listed.tools, single.tools)
+        names = ["clientes.saldo", "clientes.total_pagos", "clientes.ultimo_pago"]
+        several = select_context(
+            [self.routes[n] for n in names], self.context, self.bundle, self.catalog, self.tables
+        )
+        self.assertEqual(
+            several.modules,
+            (
+                "core",
+                "domains/customers",
+                "operations/saldo",
+                "operations/total_pagos",
+                "operations/ultimo_pago",
+            ),
+        )
+        operation = several.tools[0]["function"]["parameters"]["properties"]["operation"]
+        self.assertEqual(operation["enum"], ["saldo", "total_pagos", "ultimo_pago"])
+        self.assertEqual(several.tables, frozenset().union(*(self.routes[n].tables for n in names)))
+        topics = set(json.loads(several.context)["topics"])
+        self.assertTrue({"customer_balance", "collections"} <= topics)
+        self.assertNotIn("producto", several.tools[0]["function"]["parameters"]["properties"])
+        with self.assertRaises(ValueError):
+            select_context(
+                [self.routes["clientes.saldo"], self.routes["gastos.exploracion"]],
+                self.context,
+                self.bundle,
+                self.catalog,
+                self.tables,
+            )
+
     def test_customer_selection_keeps_shared_party_identity_dependency(self):
         selected = self.select()
         self.assertIn("proadel.catalogo_proveedores_data_v", selected.tables)

@@ -19,10 +19,22 @@ class SelectedContext:
 
 
 def select_context(route, context, bundle, catalog, tables):
-    domain = "customers" if route.domain == "clientes" else "expenses"
-    modules = ("core", "domains/" + domain)
-    if route.operation:
-        modules += ("operations/" + route.operation,)
+    """Prompt, data and tools for one route, or for several routes of the same domain.
+
+    With several routes the prompt carries core, domain and each candidate operation module;
+    the operation enum is exactly those operations; tables and topics are the union. One route
+    gives exactly the single-route result (same fingerprint).
+    """
+    routes = list(route) if isinstance(route, (list, tuple)) else [route]
+    if not routes or len({r.domain for r in routes}) != 1:
+        raise ValueError("Las rutas candidatas deben ser de un mismo dominio.")
+    if len({r.name for r in routes}) != len(routes):
+        raise ValueError("Rutas candidatas repetidas.")
+    domain = "customers" if routes[0].domain == "clientes" else "expenses"
+    operations = [r.operation for r in routes if r.operation]
+    if operations and len(operations) != len(routes):
+        raise ValueError("No se mezclan operaciones con exploración.")
+    modules = ("core", "domains/" + domain) + tuple("operations/" + op for op in operations)
     system = "\n".join(_read(TEMPLATES / (name + ".md"), 26000) for name in modules)
     # Unknown/local top-level rules are preserved, not silently discarded.
     data = json.loads(context)
@@ -40,21 +52,23 @@ def select_context(route, context, bundle, catalog, tables):
         "suppliers_and_purchases",
         "risk",
     }
+    wanted = {topic for r in routes for topic in r.topics}
     # Explicitly unknown topics may contain local mandatory guidance. Keep them.
-    data["topics"] = {k: v for k, v in topics.items() if k in route.topics or k not in known_topics}
-    tables = route.tables & catalog.restrict(tables)
+    data["topics"] = {k: v for k, v in topics.items() if k in wanted or k not in known_topics}
+    tables = frozenset().union(*(r.tables for r in routes)) & catalog.restrict(tables)
     schema = json.dumps(catalog.cards(tables), ensure_ascii=False)
     selected = json.dumps(data, ensure_ascii=False)
     fingerprint = hashlib.sha256((system + selected + schema).encode()).hexdigest()[:16]
     modular_bundle = PromptBundle(system, bundle.descriptions, "modular-v1:" + fingerprint)
+    allowed_tools = {tool for r in routes for tool in r.tools}
     tools = [
         t
         for t in tool_definitions(modular_bundle, suppliers=True)
-        if t["function"]["name"] in route.tools
+        if t["function"]["name"] in allowed_tools
     ]
-    if route.operation:
+    if operations:
         properties = tools[0]["function"]["parameters"]["properties"]
-        properties["operation"]["enum"] = [route.operation]
+        properties["operation"]["enum"] = operations
         # No products, banks or comparisons in a customer operation.
         for name in ("producto", "comparar", "banco"):
             properties.pop(name, None)

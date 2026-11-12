@@ -86,3 +86,12 @@ def route_options(routes):
         **{name: route.description for name, route in routes.items()},
         "legacy": "Bancos, inventario, proveedores explícitos, varios conceptos, ruta dudosa o fuera del alcance de estas opciones. Usar el intérprete completo.",
     }
+
+
+def domain_routes(routes, domain, names=None):
+    """Routes of one domain, optionally limited to the given names, in registry order."""
+    return [
+        route
+        for name, route in routes.items()
+        if route.domain == domain and (names is None or name in names)
+    ]

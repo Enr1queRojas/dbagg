@@ -270,7 +270,7 @@ para enrutar.
 
 ## Bloque D — Enrutamiento por niveles
 
-- [ ] **T10. Módulo de dominio con varias operaciones**
+- [x] **T10. Módulo de dominio con varias operaciones**
   - **Archivos:** `agent/context_builder.py`, `routing/registry.py`,
     `routing/contracts.py`; pruebas en `test_modular_context.py`.
   - **Qué hacer:** `select_context` acepta una lista de rutas del mismo
