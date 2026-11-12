@@ -15,6 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "src"))
 
+
 def main():
     from scripts.run_local_jev import prepare
     from dbagg.evaluation.cost import estimate_events
@@ -34,17 +35,34 @@ def main():
             dataset = json.loads((ROOT / "evals/cases" / filename).read_text(encoding="utf-8"))
             cases = list(dataset["cases"])
             if filename == "bank-routing.json":
-                for question in ("dame un reporte de este mes", "dame el reporte de este mes{", "de este mes{"):
-                    cases.append({
-                        "id": "whatsapp-followup-" + str(len(cases)),
-                        "question": question,
-                        "history": [{"role": "assistant", "content":
-                            "Cuenta ENRIQUE (EFECTIVOS ENRIQUE ROJAS)\n"
-                            + ("¿De qué fechas quieres el reporte?" if question.startswith("de ")
-                               else "Saldo actual: -20.00.\nImportes en pesos.")}],
-                        "expected_tool": "consultar_negocio",
-                        "expected_arguments": {"operation": "movimientos_banco", "banco": "ENRIQUE", "period": "este_mes"},
-                    })
+                for question in (
+                    "dame un reporte de este mes",
+                    "dame el reporte de este mes{",
+                    "de este mes{",
+                ):
+                    cases.append(
+                        {
+                            "id": "whatsapp-followup-" + str(len(cases)),
+                            "question": question,
+                            "history": [
+                                {
+                                    "role": "assistant",
+                                    "content": "Cuenta ENRIQUE (EFECTIVOS ENRIQUE ROJAS)\n"
+                                    + (
+                                        "¿De qué fechas quieres el reporte?"
+                                        if question.startswith("de ")
+                                        else "Saldo actual: -20.00.\nImportes en pesos."
+                                    ),
+                                }
+                            ],
+                            "expected_tool": "consultar_negocio",
+                            "expected_arguments": {
+                                "operation": "movimientos_banco",
+                                "banco": "ENRIQUE",
+                                "period": "este_mes",
+                            },
+                        }
+                    )
             for case in cases:
                 result = evaluate(assistant, case, date.fromisoformat(dataset["business_today"]))
                 result["dataset"] = filename
@@ -53,16 +71,21 @@ def main():
                 report = {
                     "scope": "Synthetic first executable tool and parameters, no database execution or answer accuracy",
                     "configuration": summary,
-                    "passed": sum(r["passed"] for r in results), "runs": len(results),
+                    "passed": sum(r["passed"] for r in results),
+                    "runs": len(results),
                     "results": results,
                 }
-                (args.output / "report.json").write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+                (args.output / "report.json").write_text(
+                    json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8"
+                )
     finally:
         assistant.close()
-    report["cost"] = estimate_events([
-        e for r in results for e in r["events"] if e.get("event") == "usage"
-    ])
-    (args.output / "report.json").write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    report["cost"] = estimate_events(
+        [e for r in results for e in r["events"] if e.get("event") == "usage"]
+    )
+    (args.output / "report.json").write_text(
+        json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
     print(f"Passed {report['passed']}/{report['runs']}")
     return 0 if report["passed"] == report["runs"] else 1
 

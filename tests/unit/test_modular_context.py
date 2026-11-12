@@ -605,7 +605,8 @@ class ExpenseTopicChangeTests(unittest.TestCase):
         )
         assistant = Assistant(
             SimpleNamespace(model="test", tables={CUSTOMERS, PAYMENTS, *BANK_SOURCES}, llm=config),
-            db=db, provider=provider,
+            db=db,
+            provider=provider,
         )
         assistant.router.close()
         assistant.router = Mock()

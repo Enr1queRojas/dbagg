@@ -70,11 +70,14 @@ para enrutar.
 
 ## Preparación
 
-- [ ] **T0. Entorno y línea base de pruebas**
+- [x] **T0. Entorno y línea base de pruebas**
   - Instalar: `python -m pip install -r requirements.txt -e '.[dev]'`. En Linux
     `pyodbc` necesita `unixodbc` (`apt-get install -y unixodbc`).
   - Ejecutar la suite completa y anotar el número de pruebas. Si algo falla
     antes de tocar código, repórtalo y no sigas.
+  - **Resultado (2026-11-12):** 623 pruebas en verde con Python 3.13 tras instalar
+    `unixodbc`. `ruff check` limpio; `ruff format` reformateó 5 archivos
+    preexistentes (solo formato, sin cambio de comportamiento).
 
 ---
 

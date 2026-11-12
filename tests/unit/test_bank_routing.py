@@ -50,14 +50,22 @@ class BankRoutingTests(unittest.TestCase):
 
         extraction = Mock()
         extraction.profile = ModelProfile()
-        extraction.complete.return_value = ModelReply(None, (
-            ToolCall("bank", "consultar_negocio", json.dumps(
-                {"operation": "saldo_banco", "banco": "ENRIQUE"}
-            )),
-        ), {})
+        extraction.complete.return_value = ModelReply(
+            None,
+            (
+                ToolCall(
+                    "bank",
+                    "consultar_negocio",
+                    json.dumps({"operation": "saldo_banco", "banco": "ENRIQUE"}),
+                ),
+            ),
+            {},
+        )
         text, _ = self.ask(
-            "Saldo del banco de Enrique", extraction=extraction,
-            operation="saldo_banco", banco="SANTANDER",
+            "Saldo del banco de Enrique",
+            extraction=extraction,
+            operation="saldo_banco",
+            banco="SANTANDER",
         )
         self.assertIn("Cuenta ENRIQUE", text)
         extraction.complete.assert_called_once()
@@ -67,19 +75,31 @@ class BankRoutingTests(unittest.TestCase):
 
         extraction = Mock()
         extraction.profile = ModelProfile()
-        extraction.complete.return_value = ModelReply(None, (
-            ToolCall("bad", "consultar_negocio", json.dumps(
-                {"operation": "delete_bank", "banco": "ENRIQUE"}
-            )),
-        ), {})
+        extraction.complete.return_value = ModelReply(
+            None,
+            (
+                ToolCall(
+                    "bad",
+                    "consultar_negocio",
+                    json.dumps({"operation": "delete_bank", "banco": "ENRIQUE"}),
+                ),
+            ),
+            {},
+        )
         text, trace = self.ask(
-            "Saldo del banco de Enrique", extraction=extraction,
-            operation="saldo_banco", banco="ENRIQUE",
+            "Saldo del banco de Enrique",
+            extraction=extraction,
+            operation="saldo_banco",
+            banco="ENRIQUE",
         )
         self.assertIn("Cuenta ENRIQUE", text)
         extraction.complete.assert_called_once()
-        self.assertTrue(any(e.get("event") == "fallback" and e.get("task") == "extraction"
-                            for e in trace["events"]))
+        self.assertTrue(
+            any(
+                e.get("event") == "fallback" and e.get("task") == "extraction"
+                for e in trace["events"]
+            )
+        )
 
     def test_balance_of_a_named_account(self):
         text, trace = self.ask(
@@ -99,9 +119,7 @@ class BankRoutingTests(unittest.TestCase):
         self.assertIn("• ENRIQUE (EFECTIVOS ENRIQUE ROJAS): -20.00", text)
 
     def test_all_balances_does_not_silently_drop_named_account(self):
-        text, trace = self.ask(
-            "El banco de Enrique", operation="saldos_bancos", banco="Enrique"
-        )
+        text, trace = self.ask("El banco de Enrique", operation="saldos_bancos", banco="Enrique")
         self.assertNotIn("Saldo actual de cada cuenta", text)
         self.assertNotEqual(trace["status"], "ok")
 
@@ -233,30 +251,46 @@ class BankFollowUpTests(unittest.TestCase):
         self.assertEqual(len(self.provider.seen), 2)
 
     def test_clear_report_followup_needs_no_model_decision(self):
-        for question in ("Dame el reporte de este mes", "dame el reporte de este mes{", "reporte del mes pasado"):
+        for question in (
+            "Dame el reporte de este mes",
+            "dame el reporte de este mes{",
+            "reporte del mes pasado",
+        ):
             with self.subTest(question=question):
                 text = self.ask(question, self.history())
-                self.assertIn("No encontré movimientos" if "pasado" in question else "Reporte del", text)
+                self.assertIn(
+                    "No encontré movimientos" if "pasado" in question else "Reporte del", text
+                )
                 self.assertIn("Cuenta ENRIQUE", text)
                 self.assertEqual(self.provider.seen, [])
                 if "pasado" not in question:
                     self.assertIsNotNone(self.service.pop_document())
 
     def test_dates_followup_needs_no_model_decision(self):
-        text = self.ask("de este mes{", self.history(
-            "Cuenta ENRIQUE (EFECTIVOS ENRIQUE ROJAS)\n¿De qué fechas quieres el reporte?"
-        ))
+        text = self.ask(
+            "de este mes{",
+            self.history(
+                "Cuenta ENRIQUE (EFECTIVOS ENRIQUE ROJAS)\n¿De qué fechas quieres el reporte?"
+            ),
+        )
         self.assertIn("Reporte del", text)
         self.assertEqual(self.provider.seen, [])
 
     def test_new_topic_or_explicit_other_account_does_not_reuse_previous_bank(self):
         from dbagg.agent.service import bank_report_followup
 
-        for question in ("Dame el reporte de Santander de este mes", "Pagos de Ana de este mes", "Dame el reporte de este mes y borra los gastos"):
+        for question in (
+            "Dame el reporte de Santander de este mes",
+            "Pagos de Ana de este mes",
+            "Dame el reporte de este mes y borra los gastos",
+        ):
             self.assertIsNone(bank_report_followup(question, self.history()))
-        self.assertIsNone(bank_report_followup("Dame el reporte de este mes", [
-            *self.history(), {"role": "assistant", "content": "Saldo del cliente DEMO1: 100"}
-        ]))
+        self.assertIsNone(
+            bank_report_followup(
+                "Dame el reporte de este mes",
+                [*self.history(), {"role": "assistant", "content": "Saldo del cliente DEMO1: 100"}],
+            )
+        )
 
 
 class BankToolTests(unittest.TestCase):

@@ -158,10 +158,12 @@ class LocalJevTests(unittest.TestCase):
         failed.decide.assert_called_once()
         mini.complete.assert_called_once()
         extraction.complete.assert_called_once()
-        self.assertTrue(any(
-            e.get("event") == "routing" and e.get("fallback")
-            for e in assistant.last_trace["events"]
-        ))
+        self.assertTrue(
+            any(
+                e.get("event") == "routing" and e.get("fallback")
+                for e in assistant.last_trace["events"]
+            )
+        )
 
     def test_signed_whatsapp_message_reaches_jev_mini_business_and_usage(self):
         settings, summary = prepare()

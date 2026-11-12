@@ -226,8 +226,11 @@ def bank_report_followup(question, history):
     )
     if not match:
         return None
-    return {"operation": "movimientos_banco", "banco": bank,
-            "period": "este_mes" if match[1] == "este mes" else "mes_pasado"}
+    return {
+        "operation": "movimientos_banco",
+        "banco": bank,
+        "period": "este_mes" if match[1] == "este mes" else "mes_pasado",
+    }
 
 
 def _abandons_result(call):
@@ -590,7 +593,9 @@ class Assistant:
                     t for t in round_tools if t["function"]["name"] != "consultar_sql"
                 ]
                 try:
-                    message = self._complete(messages, extraction_tools, True, extraction, "extraction")
+                    message = self._complete(
+                        messages, extraction_tools, True, extraction, "extraction"
+                    )
                     if len(message.tool_calls) != 1:
                         raise ModelProtocolError("Extracción inválida.")
                     validate_tool_call(message.tool_calls[0], extraction_tools)
