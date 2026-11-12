@@ -398,6 +398,12 @@ para enrutar.
     copiar casos de `whatsapp-pilot.json`.
   - **Medir [API]:** acierto de parámetros dada la ruta ≥ antes de T17. Si un
     ejemplo empeora un caso, se retira.
+  - **Implementado, medición pendiente (2026-11-12):** un ejemplo ficticio por
+    operación (no había matriz de T3 para priorizar). Solo entran al prompt
+    modular; `system.md` no cambia. Medir con los comandos de
+    `docs/evaluations/thresholds/PENDIENTE.md` (variantes `reference_mini` y
+    `jev_mini`, antes y después de este commit) y retirar el ejemplo que empeore
+    un caso. Casilla sin marcar hasta medir.
 
 ---
 

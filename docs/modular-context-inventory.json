@@ -74,7 +74,7 @@
   "routes": [
     {
       "route": "clientes.saldo",
-      "version": "modular-v1:1ee9ff9bcb724648",
+      "version": "modular-v1:4463f6c1721a4631",
       "modules": [
         "core",
         "shared/identity",
@@ -92,17 +92,17 @@
         "proadel.catalogo_proveedores_data_v"
       ],
       "characters": {
-        "system": 8648,
+        "system": 8776,
         "business": 6992,
         "schema": 767,
         "tools": 3247,
-        "total": 19654
+        "total": 19782
       },
-      "reduction_percent": 63.07
+      "reduction_percent": 62.83
     },
     {
       "route": "clientes.saldos_coincidencias",
-      "version": "modular-v1:0d40b4cc8e73cd47",
+      "version": "modular-v1:4f54fde18b7f9563",
       "modules": [
         "core",
         "shared/identity",
@@ -120,17 +120,17 @@
         "proadel.catalogo_proveedores_data_v"
       ],
       "characters": {
-        "system": 8630,
+        "system": 8775,
         "business": 6992,
         "schema": 767,
         "tools": 3262,
-        "total": 19651
+        "total": 19796
       },
-      "reduction_percent": 63.07
+      "reduction_percent": 62.8
     },
     {
       "route": "clientes.contar_coincidencias",
-      "version": "modular-v1:20aa29e0c9296818",
+      "version": "modular-v1:105659efd8c2343a",
       "modules": [
         "core",
         "shared/identity",
@@ -148,17 +148,17 @@
         "proadel.catalogo_proveedores_data_v"
       ],
       "characters": {
-        "system": 8625,
+        "system": 8764,
         "business": 6992,
         "schema": 767,
         "tools": 3262,
-        "total": 19646
+        "total": 19785
       },
-      "reduction_percent": 63.08
+      "reduction_percent": 62.82
     },
     {
       "route": "clientes.ranking_deuda",
-      "version": "modular-v1:352d012a00b2f6b0",
+      "version": "modular-v1:da87f0f5a1835094",
       "modules": [
         "core",
         "shared/identity",
@@ -176,17 +176,17 @@
         "proadel.catalogo_proveedores_data_v"
       ],
       "characters": {
-        "system": 8852,
+        "system": 8963,
         "business": 6992,
         "schema": 767,
         "tools": 3255,
-        "total": 19866
+        "total": 19977
       },
-      "reduction_percent": 62.67
+      "reduction_percent": 62.46
     },
     {
       "route": "clientes.pagos",
-      "version": "modular-v1:6c3b99b7c5b19d4e",
+      "version": "modular-v1:d46b1cc540254949",
       "modules": [
         "core",
         "shared/identity",
@@ -208,17 +208,17 @@
         "proadel.pago_proveedor_data"
       ],
       "characters": {
-        "system": 8404,
+        "system": 8541,
         "business": 9311,
         "schema": 1198,
         "tools": 3247,
-        "total": 22160
+        "total": 22297
       },
-      "reduction_percent": 58.36
+      "reduction_percent": 58.1
     },
     {
       "route": "clientes.ultimo_pago",
-      "version": "modular-v1:ff0bfdd010f748a3",
+      "version": "modular-v1:0a218fb690f0ee12",
       "modules": [
         "core",
         "shared/identity",
@@ -240,17 +240,17 @@
         "proadel.pago_proveedor_data"
       ],
       "characters": {
-        "system": 8621,
+        "system": 8753,
         "business": 9311,
         "schema": 1198,
         "tools": 3253,
-        "total": 22383
+        "total": 22515
       },
-      "reduction_percent": 57.94
+      "reduction_percent": 57.69
     },
     {
       "route": "clientes.total_pagos",
-      "version": "modular-v1:0f2016b79c6f8939",
+      "version": "modular-v1:93ca78b44eab833f",
       "modules": [
         "core",
         "shared/identity",
@@ -272,17 +272,17 @@
         "proadel.pago_proveedor_data"
       ],
       "characters": {
-        "system": 8542,
+        "system": 8694,
         "business": 9311,
         "schema": 1198,
         "tools": 3253,
-        "total": 22304
+        "total": 22456
       },
-      "reduction_percent": 58.09
+      "reduction_percent": 57.8
     },
     {
       "route": "clientes.notas_pendientes",
-      "version": "modular-v1:ba3f4d5b5f7817ce",
+      "version": "modular-v1:92612a2f00b368db",
       "modules": [
         "core",
         "shared/identity",
@@ -319,17 +319,17 @@
         "proadel.vw_alertascobranza"
       ],
       "characters": {
-        "system": 8615,
+        "system": 8750,
         "business": 11722,
         "schema": 4283,
         "tools": 3258,
-        "total": 27878
+        "total": 28013
       },
-      "reduction_percent": 47.61
+      "reduction_percent": 47.36
     },
     {
       "route": "clientes.ultima_nota",
-      "version": "modular-v1:e719e77e168aea40",
+      "version": "modular-v1:4e4233733df981a5",
       "modules": [
         "core",
         "shared/identity",
@@ -349,17 +349,17 @@
         "proadel.credito_data"
       ],
       "characters": {
-        "system": 8815,
+        "system": 8953,
         "business": 6992,
         "schema": 2040,
         "tools": 3253,
-        "total": 21100
+        "total": 21238
       },
-      "reduction_percent": 60.35
+      "reduction_percent": 60.09
     },
     {
       "route": "clientes.estado_cuenta",
-      "version": "modular-v1:722f95d6ec4913ef",
+      "version": "modular-v1:e019956d11dd7ae8",
       "modules": [
         "core",
         "shared/identity",
@@ -396,13 +396,13 @@
         "proadel.vw_alertascobranza"
       ],
       "characters": {
-        "system": 8575,
+        "system": 8727,
         "business": 11722,
         "schema": 4283,
         "tools": 3255,
-        "total": 27835
+        "total": 27987
       },
-      "reduction_percent": 47.69
+      "reduction_percent": 47.41
     },
     {
       "route": "gastos.exploracion",

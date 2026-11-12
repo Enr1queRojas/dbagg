@@ -36,3 +36,27 @@ class PromptParityTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class OperationExampleTests(unittest.TestCase):
+    def test_each_operation_has_fictitious_examples_only_in_modular_prompts(self):
+        import json
+        from pathlib import Path
+
+        pilot = json.loads(
+            (Path(__file__).resolve().parents[2] / "evals/cases/whatsapp-pilot.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        questions = " ".join(c["question"] for c in pilot["cases"]).casefold()
+        system = (TEMPLATES / "system.md").read_text(encoding="utf-8")
+        for name in OPERATION_MODULES:
+            with self.subTest(operation=name):
+                text = (TEMPLATES / "operations" / f"{name}.md").read_text(encoding="utf-8")
+                examples = [line for line in text.splitlines() if line.startswith("Ejemplo (")]
+                self.assertTrue(1 <= len(examples) <= 2)
+                self.assertTrue(all(line.startswith(f"Ejemplo ({name}):") for line in examples))
+                for line in examples:
+                    self.assertNotIn(line, system)
+                    quoted = line.split("«", 1)[1].split("»", 1)[0].casefold()
+                    self.assertNotIn(quoted, questions)

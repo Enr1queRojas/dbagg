@@ -85,7 +85,10 @@ def compose_system_prompt():
     parts = [_module(name) for name in SYSTEM_MODULES]
     operations = ["# Operaciones verificadas: consultar_negocio"]
     for name in OPERATION_MODULES:
-        body = _module("operations/" + name).split("\n", 1)[1].strip("\n")
+        body = _module("operations/" + name).split("\n", 1)[1]
+        # Per-operation examples stay modular; the full prompt has examples.md.
+        body = body.split("\nEjemplo (", 1)[0] if not body.startswith("Ejemplo (") else ""
+        body = body.strip("\n")
         if not body.startswith("- "):
             body = f"- {name}: " + body.replace("\n", "\n  ")
         operations.append(body)
