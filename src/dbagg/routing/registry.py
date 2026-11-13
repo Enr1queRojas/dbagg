@@ -1,12 +1,7 @@
 """Local allowlist, constrained by the existing SQL catalogue and runtime grants."""
 
 from dbagg.business.customers import CREDITS, CUSTOMERS, PAYMENTS, OPERATIONS
-from dbagg.business.suppliers import (
-    PURCHASES,
-    SUPPLIER_OPERATIONS,
-    SUPPLIER_PAYMENTS,
-    SUPPLIERS,
-)
+from dbagg.business.suppliers import PURCHASES, SUPPLIER_PAYMENTS, SUPPLIERS
 from dbagg.business.banks import BANK_DETAIL, BANK_OPERATIONS, BANKS, MOVEMENT_TABLES
 from dbagg.business.products import CASH, PRODUCT_OPERATIONS, STOCK
 from dbagg.business.products import RETURNS as SALE_RETURNS
@@ -44,25 +39,10 @@ DESCRIPTIONS = {
 }
 
 
+SUPPLIER_ONLY_ROUTES = ("movimientos",)
 SUPPLIER_DESCRIPTIONS = {
-    "saldo": "Usar cuando piden cuánto le debemos a un proveedor o su saldo («le debemos», "
-    "«proveedor»). No usar cuando: «nos debe» o un cliente.",
-    "ranking_deuda": "Usar cuando piden a qué proveedores les debemos más. No usar cuando: "
-    "nombran a uno.",
-    "pagos": "Usar cuando piden la lista de pagos que le hicimos a un proveedor. No usar cuando: "
-    "cuánto le pagamos en total.",
-    "total_pagos": "Usar cuando preguntan cuánto le pagamos a un proveedor, en total o en un "
-    "período. No usar cuando: pagos de un cliente.",
-    "ultimo_pago": "Usar cuando piden el último pago que le hicimos a un proveedor. No usar "
-    "cuando: notas o compras.",
-    "ultima_nota": "Usar cuando piden la última nota o compra a un proveedor («lo último que le "
-    "compramos»). No usar cuando: pagos.",
     "movimientos": "Usar cuando piden los movimientos (compras y pagos) de un proveedor, con o sin "
     "período. No usar cuando: un cliente o gastos.",
-    "notas_pendientes": "Usar cuando piden qué notas le debemos a un proveedor. No usar cuando: "
-    "la última nota.",
-    "estado_cuenta": "Usar cuando piden el estado de cuenta de un proveedor. No usar cuando: solo "
-    "pagos o solo saldo.",
 }
 
 
@@ -128,7 +108,9 @@ def available_routes(catalog, tables, domains=("clientes", "gastos")):
     if "proveedores" in domains and SUPPLIERS in tables:
         # Same party prompts; both catalogues stay available so homonyms are still asked.
         identity = frozenset({CUSTOMERS, SUPPLIERS}) & tables
-        for operation in (*SUPPLIER_OPERATIONS, "estado_cuenta"):
+        # Shared operations stay on the clientes.* routes, which already serve both catalogues:
+        # duplicated routes only split Jev's probability between equivalent choices.
+        for operation in SUPPLIER_ONLY_ROUTES:
             needs = {
                 "pagos": {SUPPLIER_PAYMENTS},
                 "total_pagos": {SUPPLIER_PAYMENTS},

@@ -277,6 +277,51 @@ class ModelDecisionTests(unittest.TestCase):
         self.assertIn("¿Qué período", answer)
         self.assertEqual(self.create.call_count, 2)
 
+    def test_a_yearless_range_ending_today_gets_its_dates(self):
+        from datetime import date
+        from unittest.mock import patch
+
+        from dbagg.agent.intent import range_to_today, range_to_today_hint
+
+        today = date(2026, 11, 9)
+        self.assertEqual(
+            range_to_today("del 30 de agosto a hoy", today), (date(2026, 8, 30), today)
+        )
+        self.assertEqual(
+            range_to_today("Pagos de Ruiz del 30 de agosto al 9 de noviembre", today),
+            (date(2026, 8, 30), today),
+        )
+        self.assertEqual(
+            range_to_today("desde el 15 de diciembre hasta hoy", today),
+            (date(2025, 12, 15), today),
+        )
+        for question in (
+            "del 30 de agosto al 3 de noviembre",
+            "del 30 de agosto de 2025 a hoy",
+            "del 3 al 7",
+            "del 31 de febrero a hoy",
+        ):
+            with self.subTest(question=question):
+                self.assertIsNone(range_to_today(question, today))
+        arguments = {
+            "operation": "pagos",
+            "customer": "Ruiz",
+            "period": "rango",
+            "start": "2026-08-30",
+            "end": "2026-11-09",
+        }
+        self.create.side_effect = [
+            self.reply({"reason": "periodo"}, "pedir_aclaracion"),
+            self.reply(arguments),
+        ]
+        with patch("dbagg.agent.service.business_today", return_value=today):
+            answer = self.assistant.answer("Pagos de Ruiz del 30 de agosto a hoy")
+        self.assertNotIn("¿Qué período", answer)
+        hint = self.create.call_args_list[1].kwargs["messages"][-1]
+        self.assertEqual(
+            json.loads(hint["content"])["error"], range_to_today_hint(date(2026, 8, 30), today)
+        )
+
     def test_an_incomplete_date_is_still_asked(self):
         self.create.return_value = self.reply({"reason": "periodo"}, "pedir_aclaracion")
         self.assertIn("¿Qué período", self.assistant.answer("Pagos de Ruiz del 3 al 7"))

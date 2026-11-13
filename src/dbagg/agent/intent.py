@@ -2,6 +2,7 @@
 
 import re
 import unicodedata
+from datetime import date
 
 COMPARISON_CLARIFICATION = (
     "Para saber cuál de esos clientes tiene saldo hay que comparar sus saldos. "
@@ -124,3 +125,64 @@ def names_month_and_year(question):
     """A named month with its year leaves nothing to ask about the period."""
     text = _plain(question)
     return bool(re.search(MONTHS, text) and re.search(r"\b20\d{2}\b", text))
+
+
+MONTH_NUMBERS = {
+    name: i
+    for i, names in enumerate(
+        (
+            ("enero",),
+            ("febrero",),
+            ("marzo",),
+            ("abril",),
+            ("mayo",),
+            ("junio",),
+            ("julio",),
+            ("agosto",),
+            ("septiembre", "setiembre"),
+            ("octubre",),
+            ("noviembre",),
+            ("diciembre",),
+        ),
+        1,
+    )
+    for name in names
+}
+DAY_MONTH = r"(\d{1,2})\s+(?:de\s+)?(" + "|".join(MONTH_NUMBERS) + r")"
+
+
+def range_to_today(question, today):
+    """(start, end) of «del 30 de agosto a hoy» or «… al <hoy>» written without a year.
+
+    The prompt already says a year-less range that ends today uses the current year; this
+    resolves only that case, and only when the end really is today.
+    """
+    text = _plain(question)
+    if re.search(r"\b(?:19|20)\d{2}\b", text):
+        return None
+    match = re.search(
+        r"\b(?:del?|desde(?:\s+el)?)\s+"
+        + DAY_MONTH
+        + r"\s+(?:a|al|hasta(?:\s+el)?)\s+(?:(hoy|la fecha)|"
+        + DAY_MONTH
+        + r")\b",
+        text,
+    )
+    if not match:
+        return None
+    try:
+        start = date(today.year, MONTH_NUMBERS[match[2]], int(match[1]))
+        if not match[3] and date(today.year, MONTH_NUMBERS[match[5]], int(match[4])) != today:
+            return None
+    except ValueError:
+        return None
+    if start > today:
+        start = start.replace(year=today.year - 1)
+    return start, today
+
+
+def range_to_today_hint(start, end):
+    return (
+        "El rango no dice año pero termina hoy: no es ambiguo. Usa period=rango con "
+        f"start={start.isoformat()} y end={end.isoformat()}."
+    )

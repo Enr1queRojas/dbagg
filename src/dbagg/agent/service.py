@@ -58,6 +58,8 @@ from dbagg.agent.intent import (
     list_position,
     listed_codes,
     names_month_and_year,
+    range_to_today,
+    range_to_today_hint,
     requests_candidate_comparison,
     requests_ranking,
 )
@@ -991,13 +993,14 @@ class Assistant:
                     if call.name == "consultar_negocio":
                         return self._consult_business(arguments, context, question, history, today)
                     elif call.name == "pedir_aclaracion":
-                        if (
-                            arguments["reason"] == "periodo"
-                            and not period_hinted
-                            and names_month_and_year(question)
-                        ):
-                            period_hinted = True
-                            raise ToolHint(PERIOD_HINT)
+                        if arguments["reason"] == "periodo" and not period_hinted:
+                            if names_month_and_year(question):
+                                period_hinted = True
+                                raise ToolHint(PERIOD_HINT)
+                            to_today = range_to_today(question, today)
+                            if to_today:
+                                period_hinted = True
+                                raise ToolHint(range_to_today_hint(*to_today))
                         bank = (
                             bank_in_conversation(question, history)
                             if BANKS in self.tables and not bank_hinted

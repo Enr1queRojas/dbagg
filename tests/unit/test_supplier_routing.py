@@ -383,10 +383,13 @@ class SupplierModularDomainTests(RoutingCase):
             any(n.startswith("proveedores.") for n in available_routes(catalog, self.TABLES))
         )
         routes = available_routes(catalog, self.TABLES, ("clientes", "proveedores"))
-        self.assertIn("proveedores.movimientos", routes)
-        self.assertIn("proveedores.saldo", routes)
-        self.assertIn(CUSTOMERS, routes["proveedores.saldo"].tables)
-        self.assertIn(SUPPLIERS, routes["proveedores.saldo"].tables)
+        # Shared operations stay on clientes.*: duplicates only split Jev's probability.
+        self.assertEqual(
+            {n for n in routes if n.startswith("proveedores.")}, {"proveedores.movimientos"}
+        )
+        self.assertIn(CUSTOMERS, routes["proveedores.movimientos"].tables)
+        self.assertIn(SUPPLIERS, routes["proveedores.movimientos"].tables)
+        self.assertIn("clientes.saldo", routes)
 
     def test_supplier_movements_run_through_their_route(self):
         self.db.purchase(1, 5, "C1", "2026-10-01", 30)
@@ -406,9 +409,12 @@ class SupplierModularDomainTests(RoutingCase):
         )
 
     def test_shared_name_is_still_asked_on_a_supplier_route(self):
-        text, _, _ = self.modular(
-            "proveedores.saldo", {"operation": "saldo", "customer": "Ana"}, "Saldo de Ana"
+        text, service, _ = self.modular(
+            "proveedores.movimientos",
+            {"operation": "movimientos", "customer": "Ana"},
+            "Movimientos de Ana",
         )
+        self.assertEqual(service.last_trace["route"], "proveedores.movimientos")
         self.assertIn("como cliente y como proveedor", text)
 
     def test_person_survives_moving_between_customer_and_supplier_routes(self):
@@ -426,7 +432,6 @@ class SupplierModularDomainTests(RoutingCase):
         from dbagg.routing.registry import available_routes
 
         routes = available_routes(load_catalog(), self.TABLES, ("clientes", "proveedores"))
-        self.assertFalse(route_is_consistent("¿Cuánto nos debe Ana?", routes["proveedores.saldo"]))
-        self.assertTrue(
-            route_is_consistent("¿Cuánto le debemos a Ana?", routes["proveedores.saldo"])
-        )
+        movements = routes["proveedores.movimientos"]
+        self.assertFalse(route_is_consistent("Movimientos del cliente Ana", movements))
+        self.assertTrue(route_is_consistent("Movimientos del proveedor Ana", movements))

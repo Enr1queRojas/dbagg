@@ -1,5 +1,13 @@
 # Cambios
 
+## Sin publicar — Ajustes tras la evaluación final (T25)
+
+- El dominio modular `proveedores` solo añade `movimientos`; las operaciones compartidas siguen en
+  `clientes.*`, que ya sirven a ambos catálogos. En T25 Jev repartía la probabilidad entre rutas
+  equivalentes (`clientes.estado_cuenta` ↔ `proveedores.estado_cuenta`).
+- «Del 30 de agosto a hoy» o un rango sin año que termina hoy: si el modelo pide el período, el
+  servicio le devuelve una sola vez las fechas exactas (regla ya escrita en el prompt).
+
 ## Sin publicar — Dominio modular de productos
 
 - `[modular] domains` acepta `productos` (apagado por defecto): rutas de existencias y ventas
