@@ -355,7 +355,7 @@ para enrutar.
   - **Resultado:** `Route.modules`; orden núcleo → compartidos → dominio →
     operación. La prueba existente que exigía «homónimos» en todas las rutas se
     ajustó, con aprobación del dueño, para exigirlo solo en rutas de personas.
-    Copia del `core.md` anterior en `tests/unit/data/core_before_split.md`.
+    Copia del `core.md` anterior en `tests/unit/fixtures/core_before_split.md`.
 
 - [x] **T15. Una sola fuente de verdad para `system.md`**
   - **Archivos:** crear `templates/domains/banks.md`, `domains/products.md`,
