@@ -54,6 +54,22 @@ consulta correcta −34 % frente al intérprete completo, 0.97 llamadas de enrut
    - «¿Cuánto gastamos en [apartado] este mes?»: exploración de gastos.
    - «Hola»: saludo sin consultar nada.
 
+## Alternativa: desplegar a mano desde la rama
+
+Sin fusionar con `main`, en la VM (`cd /opt/dbagg` o tu `DEPLOY_PATH`):
+
+1. Desplegar el código de la rama: `DBAGG_BRANCH=claude/blissful-mayer-xgcf54 bash scripts/deploy.sh`.
+   El bot arranca con el intérprete completo y la configuración actual.
+2. Respaldar y reemplazar la configuración: copiar `config/llm.toml` a `config/llm.toml.antes-modular`,
+   mover `config/prompts/` a `config/prompts.antes-modular/` y copiar
+   `config/llm.production.example.toml` a `config/llm.toml`.
+3. Añadir `TYPESAFE_API_KEY=...` a `.env`.
+4. Validar con `python -m dbagg.llm check` (paso 2.4) y reiniciar con `docker compose up -d`.
+
+Mientras la rama no esté en `main`, un despliegue automático de `main` volvería al código anterior,
+que rechaza la nueva `config/llm.toml`; `deploy.sh` revierte solo, pero conviene fusionar la rama
+antes del siguiente push a `main`.
+
 ## Seguimiento
 
 El registro de uso guarda por turno la ruta, `routing_level` (`operation`, `domain` o `legacy`),
