@@ -59,7 +59,8 @@ class ReportTests(unittest.TestCase):
             self.assertIn("Corte al 05/10/2026", html)
             self.assertNotIn(name, html)
             self.assertNotIn("__REPORT_", html)
-            self.assertEqual(list(Path(folder).iterdir()), [path])
+            # Windows can name the same temp folder two ways (RUNNER~1 / runneradmin).
+            self.assertEqual([p.resolve() for p in Path(folder).iterdir()], [Path(path).resolve()])
 
     def test_empty_and_missing_values(self):
         with tempfile.TemporaryDirectory() as folder:

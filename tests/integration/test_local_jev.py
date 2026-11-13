@@ -76,8 +76,10 @@ class LocalJevTests(unittest.TestCase):
         self.assertIsNone(settings.llm.tool_descriptions)
         self.assertEqual(custom.read_text(), "existing custom configuration")
         self.assertEqual(self.env_file.read_bytes(), original)
+        # Windows can name the same temp folder two ways (RUNNER~1 / runneradmin).
         self.assertEqual(
-            summary["usage_path"], str(self.root / "work" / "whatsapp-jev" / "usage.jsonl")
+            Path(summary["usage_path"]).resolve(),
+            (self.root / "work" / "whatsapp-jev" / "usage.jsonl").resolve(),
         )
         self.assertTrue(summary["available_routes"])
         self.assertFalse(Path(summary["usage_path"]).exists())
