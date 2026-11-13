@@ -143,6 +143,8 @@ workflow `deploy` despliega esa revisión; si las pruebas fallan, no despliega. 
 *Actions → deploy*. Antes de desplegar revisa la sección de migración de
 [CHANGELOG.md](../CHANGELOG.md): los `GRANT` de SQL y los prompts de `config/prompts/` se aplican
 a mano en la VM.
+Para activar el flujo modular (enrutamiento con Jev) después de desplegar, sigue
+[deploy-modular.md](deploy-modular.md).
 
 ## Volver atrás
 

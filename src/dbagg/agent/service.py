@@ -16,22 +16,35 @@ from dbagg.database.catalog import load_catalog
 from dbagg.database.client import Database
 from dbagg.database.validation import validate_sql
 from dbagg.context.loader import load_business_context, context_version
-from dbagg.agent.prompts import build_messages, tool_definitions
+from dbagg.agent.prompts import (
+    build_messages,
+    build_stable_messages,
+    reporting_calendar,
+    tool_definitions,
+)
 from dbagg.agent.prompt_files import load_prompt_bundle
-from dbagg.agent.context_builder import select_context, validate_tool_call
-from dbagg.routing.registry import available_routes
+from dbagg.agent.context_builder import WRONG_ROUTE_REASON, select_context, validate_tool_call
+from dbagg.routing.registry import available_routes, domain_routes
 from dbagg.routing.service import ReferenceRouter
 from dbagg.routing.jev import JevRouter
 from dbagg.routing.state import ConversationState
-from dbagg.routing.policy import needs_expense_year, route_is_consistent
+from dbagg.routing.policy import (
+    mentions_account_words,
+    needs_expense_year,
+    pre_route,
+    route_is_consistent,
+)
 from dbagg.llm.types import ModelProtocolError, ModelReply, ToolCall
 from dbagg.llm.config import LLMConfig, ModelProfile
 from dbagg.llm.providers import create_provider
 from dbagg.llm.usage import stage, task_scope
+from dbagg.limits import MAX_ROWS
 from dbagg.reporting.bank_pdf import bank_report_filename, bank_report_pdf
 from dbagg.reporting.statement_pdf import statement_filename, statement_pdf
 from dbagg.agent.entity import (
+    BANK,
     conversation_entity,
+    dictated_code,
     explicit_entity,
     listed_row,
     mixed_list_choice,
@@ -44,8 +57,11 @@ from dbagg.agent.intent import (
     PERIOD_HINT,
     RANKING_HINT,
     list_position,
+    list_row_details,
     listed_codes,
     names_month_and_year,
+    range_to_today,
+    range_to_today_hint,
     requests_candidate_comparison,
     requests_ranking,
 )
@@ -70,6 +86,7 @@ from dbagg.business.evidence import (
     BusinessError,
     amount,
     label,
+    records,
     render_exploratory,
 )
 from dbagg.business.parties import CUSTOMER, SUPPLIER, PartyDirectory, ambiguous_answer
@@ -95,6 +112,7 @@ ALL_NOT_FOUND_ANSWERS = NOT_FOUND_ANSWERS | {SUPPLIER_NOT_FOUND, SUPPLIER_MATCHE
 MAX_MODEL_ROUNDS = 9
 MAX_SQL_QUERIES = 4
 MAX_SCHEMA_REQUESTS = 4
+BANK_NAMES_TTL = 600
 
 
 class ToolHint(Exception):
@@ -105,7 +123,7 @@ CLARIFICATIONS = {
     "comparacion": COMPARISON_CLARIFICATION,
     "cliente": "¿De qué cliente quieres consultar el saldo o los pagos? Indica su nombre o código.",
     "periodo": "¿Qué período quieres consultar? Puedes indicar esta semana, este mes o un rango de fechas.",
-    "criterio": "Necesito precisar el concepto. De clientes: saldo actual, saldos de varios clientes con un nombre, pagos, último pago o ranking de deuda. También puedo consultar existencias de inventario, gastos registrados y compras a proveedores. ¿Qué quieres revisar?",
+    "criterio": "Necesito precisar el concepto. De clientes: saldo actual, saldos de varios clientes con un nombre, pagos, último pago, última nota o ranking de deuda. También puedo consultar existencias de inventario, gastos registrados y compras a proveedores. ¿Qué quieres revisar?",
     "escritura": "Solo puedo consultar información; no puedo modificar ni eliminar datos.",
     "fuera_alcance": "Ese reporte todavía no tiene una definición de negocio verificada. Puedo ayudarte con saldos, pagos y rankings de deuda, y consultar existencias de inventario, gastos y compras.",
 }
@@ -113,7 +131,7 @@ CLARIFICATIONS = {
 # Only offered where the supplier sources are authorised.
 SUPPLIER_CLARIFICATIONS = {
     "cliente": "¿De qué cliente o proveedor quieres consultar el saldo o los pagos? Indica su nombre o código.",
-    "criterio": "Necesito precisar el concepto. De clientes y proveedores: saldo actual, saldos de varios con un nombre, pagos, último pago o ranking de deuda. De proveedores, también última nota y movimientos. También puedo consultar existencias de inventario, gastos registrados y compras a proveedores. ¿Qué quieres revisar?",
+    "criterio": "Necesito precisar el concepto. De clientes y proveedores: saldo actual, saldos de varios con un nombre, pagos, último pago, última nota o ranking de deuda. De proveedores, también movimientos. También puedo consultar existencias de inventario, gastos registrados y compras a proveedores. ¿Qué quieres revisar?",
 }
 
 NO_EVIDENCE = (
@@ -170,7 +188,7 @@ def customer_left_unselected(customer, question, history):
     """A list of customers identifies none: the customer must be named or pointed at, because
     the model tends to continue with the first row and would answer about the wrong person."""
     codes = _open_list(history)
-    position = list_position(question)
+    position = list_position(question, codes)
     return (
         bool(codes)
         and not customer_in_conversation(customer, question, None)
@@ -181,7 +199,7 @@ def customer_left_unselected(customer, question, history):
 def chosen_customer(customer, question, history):
     """«El segundo» is resolved from the list itself; the model may pick another row."""
     codes = _open_list(history)
-    position = list_position(question)
+    position = list_position(question, codes)
     if not position or not 1 <= position <= len(codes):
         return None
     return None if customer_in_conversation(customer, question, None) else codes[position - 1]
@@ -226,8 +244,164 @@ def bank_report_followup(question, history):
     )
     if not match:
         return None
-    return {"operation": "movimientos_banco", "banco": bank,
-            "period": "este_mes" if match[1] == "este mes" else "mes_pasado"}
+    return {
+        "operation": "movimientos_banco",
+        "banco": bank,
+        "period": "este_mes" if match[1] == "este mes" else "mes_pasado",
+    }
+
+
+PARTY_ROUTE_PREFIXES = ("clientes.", "proveedores.")
+PERIOD_OPERATIONS = frozenset({"pagos", "total_pagos", "estado_cuenta", "movimientos"})
+RELATIVE_PERIODS = {
+    "este mes": "este_mes",
+    "mes pasado": "mes_pasado",
+    "el mes pasado": "mes_pasado",
+    "esta semana": "esta_semana",
+    "semana pasada": "semana_pasada",
+    "la semana pasada": "semana_pasada",
+}
+
+
+def pending_clarification_answer(question, history, state):
+    """Arguments that answer the clarification the service itself asked, or None.
+
+    Only a listed code or a valid position after «¿cuál?», or exactly a relative period after
+    «¿qué período?». Anything else is a new question for the normal flow. The arguments still
+    pass every check of ``_consult_business``; this only skips the model.
+    """
+    if not isinstance(state, ConversationState) or not state.pending_operation:
+        return None
+    if not (state.previous_route or "").startswith(PARTY_ROUTE_PREFIXES):
+        return None
+    operation = state.pending_operation
+    if state.pending_clarification == "cliente":
+        codes = _open_list(history)
+        if not codes:
+            return None
+        text = _normalize(question).strip(" ¿?¡!.,")
+        position = list_position(question, codes)
+        named = [code for code in codes if _normalize(code) == text]
+        if len(named) == 1:
+            code = named[0]
+        elif position and 1 <= position <= len(codes):
+            code = codes[position - 1]
+        else:
+            return None
+        arguments = {"operation": operation, "customer": code, "codigo_exacto": True}
+        if operation in PERIOD_OPERATIONS and state.period and state.period != "todo":
+            arguments["period"] = state.period
+            if state.period == "rango":
+                arguments.update(start=state.start, end=state.end)
+        return arguments
+    if state.pending_clarification == "periodo":
+        period = RELATIVE_PERIODS.get(_normalize(question).strip(" ¿?¡!.,"))
+        code = state.selected_customer_id
+        if not period or operation not in PERIOD_OPERATIONS or not code:
+            return None
+        if not code_confirmed(code, "", history):
+            return None
+        arguments = {"operation": operation, "customer": code, "codigo_exacto": True}
+        if state.entity in {"cliente", "proveedor"}:
+            arguments["entidad"] = state.entity
+        return {**arguments, "period": period}
+    return None
+
+
+DOMAIN_ROUTE_FLOOR = 0.05
+MAX_DOMAIN_ROUTES = 3
+
+
+def tiered_decision(decision, routes, config):
+    """(level, candidate routes) from Jev's probabilities.
+
+    1. confidence ≥ min_confidence and margin ≥ min_margin → that operation;
+    2. else a domain whose routes add up to ≥ min_domain_confidence → up to three of its
+       routes above a small floor, most probable first;
+    3. else legacy.
+    """
+    probabilities = {k: v for k, v in (decision.probabilities or {}).items() if k in routes}
+    ranked = sorted((decision.probabilities or {}).values(), reverse=True)
+    margin = ranked[0] - (ranked[1] if len(ranked) > 1 else 0.0) if ranked else 0.0
+    top = routes.get(decision.route)
+    if (
+        top is not None
+        and decision.confidence is not None
+        and config.min_confidence is not None
+        and decision.confidence >= config.min_confidence
+        and margin >= (config.min_margin or 0.0)
+    ):
+        return "operation", [top]
+    if config.min_domain_confidence is not None and probabilities:
+        sums = {}
+        for name, probability in probabilities.items():
+            sums[routes[name].domain] = sums.get(routes[name].domain, 0.0) + probability
+        domain = max(sums, key=sums.get)
+        if sums[domain] >= config.min_domain_confidence:
+            chosen = sorted(
+                (
+                    name
+                    for name, probability in probabilities.items()
+                    if routes[name].domain == domain and probability > DOMAIN_ROUTE_FLOOR
+                ),
+                key=lambda name: -probabilities[name],
+            )[:MAX_DOMAIN_ROUTES]
+            if chosen:
+                return "domain", [routes[name] for name in chosen]
+    return "legacy", []
+
+
+def _rejected_call_messages(reply, reason):
+    """The rejected assistant turn plus one tool result per call, carrying the reason."""
+    calls = list(reply.tool_calls)
+    assistant = {
+        "role": "assistant",
+        "content": None,
+        "tool_calls": [
+            {
+                "id": call.id,
+                "type": "function",
+                "function": {"name": call.name, "arguments": call.arguments},
+            }
+            for call in calls
+        ],
+    }
+    error = json.dumps(
+        {"error": "Solicitud rechazada. Motivo: " + reason + " Corrige según el motivo."},
+        ensure_ascii=False,
+    )
+    return [assistant] + [
+        {"role": "tool", "tool_call_id": call.id, "content": error} for call in calls
+    ]
+
+
+def _reason(call):
+    try:
+        arguments = json.loads(call.arguments)
+    except (TypeError, ValueError):
+        return None
+    return arguments.get("reason") if isinstance(arguments, dict) else None
+
+
+BANK_CHOICE = re.compile(
+    r"(?:(?:la|el|en la|en el|de la|del)\s+)?(?:cuenta(?: de banco)?|banco|efectivo)"
+)
+
+
+def _latest_answer(history):
+    for message in reversed(history or []):
+        if message.get("role") == "assistant" and isinstance(message.get("content"), str):
+            return message["content"]
+    return ""
+
+
+def latest_bank_account(history):
+    """(code, name) when the latest answer is a bank account («Cuenta X (NOMBRE)»)."""
+    content = _latest_answer(history)
+    found = re.match(
+        r"Cuenta (\S.*?)(?: \(([^()]*)\))?$", content.splitlines()[0] if content else ""
+    )
+    return (found[1], found[2]) if found else None
 
 
 def _abandons_result(call):
@@ -270,7 +444,10 @@ class Assistant:
         if modular.enabled and modular.extraction_profile:
             extraction = self.llm_config.profiles[modular.extraction_profile]
             key = os.getenv(extraction.api_key_env)
-            if key:
+            if extraction == self.llm_config.profile:
+                # The active profile already interprets: share its instance, no second client.
+                self.extraction_provider = self.provider
+            elif key:
                 self.extraction_provider = create_provider(extraction, key)
         self.router = None
         if modular.enabled and modular.router == "jev":
@@ -303,7 +480,7 @@ class Assistant:
 
     def close(self):
         self.provider.close()
-        if self.extraction_provider is not None:
+        if self.extraction_provider is not None and self.extraction_provider is not self.provider:
             self.extraction_provider.close()
         if self.router is not None:
             self.router.close()
@@ -324,6 +501,36 @@ class Assistant:
             event["duration_ms"] = round((time.monotonic() - started) * 1000, 3)
             self.last_trace.setdefault("events", []).append(event)
 
+    def _route_operation(self):
+        """The operation of this turn's modular route, if any."""
+        route = self.last_trace.get("route") or ""
+        return route.split(".", 1)[1] if route.startswith(PARTY_ROUTE_PREFIXES) else None
+
+    def _bank_names(self):
+        """Account codes and names, cached for ten minutes; empty when banks are not granted."""
+        if BANKS not in self.tables:
+            return ()
+        cached = getattr(self, "_bank_names_cache", None)
+        if cached and time.monotonic() - cached[0] < BANK_NAMES_TTL:
+            return cached[1]
+        try:
+            result = self.db.query(
+                f"SELECT TOP {MAX_ROWS} [CODIGO] AS codigo, [CUENTA BANCARIA] AS cuenta "
+                f"FROM {BANKS} ORDER BY [CODIGO]",
+                row_limit=MAX_ROWS,
+            )
+            names = tuple(
+                value
+                for row in records(result)
+                for value in (row.get("codigo"), row.get("cuenta"))
+                if isinstance(value, str) and value.strip()
+            )
+        except Exception as exc:
+            logger.info("dbagg stage=bank_names_failed error_type=%s", type(exc).__name__)
+            return ()
+        self._bank_names_cache = (time.monotonic(), names)
+        return names
+
     def _select_modular(self, question, history, context, bundle):
         config = self.llm_config.modular
         if not config.enabled:
@@ -334,6 +541,14 @@ class Assistant:
             return None
         routes = available_routes(self.catalog, self.tables, config.domains)
         if not routes:
+            return None
+        bank_domain = any(r.domain == "bancos" for r in routes.values())
+        names = self._bank_names() if mentions_account_words(question) and not bank_domain else ()
+        if pre_route(question, history, self.next_state, names, bank_domain) == "legacy":
+            # The same veto as route_is_consistent, applied before paying for a classification.
+            self.last_trace["local_decision"] = "pre_route_legacy"
+            self.last_trace["modular_fallback"] = "route_inconsistent"
+            logger.info("dbagg stage=pre_route_legacy")
             return None
 
         assistant = self
@@ -347,7 +562,7 @@ class Assistant:
         decision = None
         reason = None
         try:
-            decision = (self.router or reference).decide(question, history, routes)
+            decision = (self.router or reference).decide(question, history, routes, self.next_state)
         except Exception as exc:
             reason = type(exc).__name__
         elapsed = round((time.monotonic() - started) * 1000, 3)
@@ -386,7 +601,20 @@ class Assistant:
             if reason:
                 self.last_trace["modular_fallback"] = reason
             return None
-        if (
+        tiered = config.min_margin is not None or config.min_domain_confidence is not None
+        candidates = None
+        if self.router is not None and decision is not None and tiered:
+            level, candidates = tiered_decision(decision, routes, config)
+            self.last_trace["routing_level"] = level
+            self.last_trace.setdefault("events", []).append(
+                {"event": "routing_level", "level": level, "candidates": len(candidates)}
+            )
+            if level == "legacy":
+                # Jev answered: an unsure distribution goes to the full interpreter without
+                # paying for a second classification. The mini classifier covers only errors.
+                self.last_trace["modular_fallback"] = "low_confidence"
+                return None
+        elif (
             self.router is not None
             and decision is not None
             and (
@@ -407,7 +635,7 @@ class Assistant:
             if self.router is None:
                 return None
             try:
-                decision = reference.decide(question, history, routes)
+                decision = reference.decide(question, history, routes, self.next_state)
                 self.last_trace.setdefault("events", []).append(
                     {
                         "event": "routing",
@@ -421,26 +649,40 @@ class Assistant:
             except Exception:
                 self.last_trace["modular_fallback"] = "routing_unavailable"
                 return None
-        route = routes.get(decision.route)
-        if route is None:
-            self.last_trace["modular_fallback"] = "legacy_route"
-            return None
-        if not route_is_consistent(question, route):
+        if candidates is None:
+            route = routes.get(decision.route)
+            if route is None:
+                self.last_trace["modular_fallback"] = "legacy_route"
+                return None
+            candidates = [route]
+        consistent = [r for r in candidates if route_is_consistent(question, r, history)]
+        if not consistent:
             self.last_trace["modular_fallback"] = "route_inconsistent"
             self.last_trace.setdefault("events", []).append(
                 {
                     "event": "fallback",
                     "task": "routing",
                     "reason": "route_inconsistent",
-                    "rejected_route": route.name,
+                    "rejected_route": candidates[0].name,
                     "destination": "legacy",
                 }
             )
             return None
-        selected = select_context(route, context, bundle, self.catalog, self.tables)
+        route = consistent[0]
+        selected = select_context(
+            consistent if len(consistent) > 1 else route,
+            context,
+            bundle,
+            self.catalog,
+            self.tables,
+            domain_routes(routes, route.domain) if config.stable_prefix else None,
+            domain_routes(routes, route.domain) if config.fixed_tool_schema else None,
+        )
         self._local.next_state = self.next_state.for_route(route.name)
         self._local.route_tables = selected.tables
         self.last_trace.update(route=route.name, prompt_version=selected.bundle.version)
+        if len(consistent) > 1:
+            self.last_trace["route_candidates"] = [r.name for r in consistent]
         self.last_trace.setdefault("events", []).append(
             {
                 "event": "context_selection",
@@ -457,6 +699,8 @@ class Assistant:
     @stage("answer")
     def answer(self, question, history=None, conversation_state=None):
         self._local.route_tables = None
+        self._local.pending_request = None
+        self._local.legacy_state = None
         self._local.next_state = (
             conversation_state
             if isinstance(conversation_state, ConversationState)
@@ -497,36 +741,104 @@ class Assistant:
             self.last_trace["local_decision"] = "bank_report_followup"
             logger.info("dbagg stage=bank_report_followup_resolved")
             return self._consult_business(followup, context, question, history, today)
+        pending = (
+            pending_clarification_answer(question, history, self.next_state)
+            if self.llm_config.modular.enabled
+            else None
+        )
+        if pending is not None:
+            self.last_trace["local_decision"] = "pending_clarification"
+            if self.next_state.previous_route:
+                self.last_trace["route"] = self.next_state.previous_route
+            logger.info("dbagg stage=pending_clarification_resolved")
+            try:
+                return self._consult_business(pending, context, question, history, today)
+            except ToolHint:
+                # Not resolvable without the model after all; the normal flow decides.
+                self.last_trace.pop("local_decision", None)
+                self.last_trace.pop("route", None)
+            except BusinessError as exc:
+                self.last_trace.update(status="unavailable", sources=[])
+                return str(exc)
         selected = self._select_modular(question, history, context, bundle)
         if selected is None:
+            # Legacy starts clean; only a result the service verifies restores continuity.
+            if self.llm_config.modular.enabled:
+                self._local.legacy_state = self.next_state
             self._local.next_state = ConversationState()
         model_context = context
+        full_bundle, full_schema = bundle, schema
         if selected is not None:
             bundle, model_context, schema = selected.bundle, selected.context, selected.schema
-        messages = build_messages(
-            schema, model_context, question, history, today=today, bundle=bundle
+        # The model may see less history; every service check still uses the full one.
+        model_history = history
+        if (
+            selected is not None
+            and self.llm_config.modular.compact_history
+            and self.next_state.selected_customer_id
+            and not self.next_state.pending_clarification
+            and not _open_list(history)
+        ):
+            model_history = [m for m in (history or []) if m.get("role") in ("user", "assistant")][
+                -2:
+            ]
+            self.last_trace["compact_history"] = True
+        state_text = "Estado conversacional confirmado (datos): " + json.dumps(
+            self.next_state.payload(), ensure_ascii=False
         )
-        if selected is not None:
-            messages[0]["content"] += "\nEstado conversacional confirmado (datos): " + json.dumps(
-                self.next_state.payload(), ensure_ascii=False
+        if selected is not None and selected.suffix:
+            messages = build_stable_messages(
+                selected.bundle.system,
+                schema,
+                model_context,
+                selected.suffix,
+                "Calendario de la zona horaria del negocio: "
+                + json.dumps(reporting_calendar(today))
+                + "\n"
+                + state_text,
+                model_history,
+                question,
             )
+        else:
+            messages = build_messages(
+                schema, model_context, question, model_history, today=today, bundle=bundle
+            )
+            if selected is not None:
+                messages[0]["content"] += "\n" + state_text
         tools = tool_definitions(
             bundle, suppliers=SUPPLIERS in self.tables, banks=BANKS in self.tables
         )
         if selected is not None:
             tools = selected.tools
-            needs_dates = self.last_trace.get(
-                "route"
-            ) == "gastos.exploracion" or self.last_trace.get("route") in {
-                "clientes.pagos",
-                "clientes.total_pagos",
-                "clientes.estado_cuenta",
-            }
-            if needs_dates and needs_expense_year(question, history, self.next_state):
+            turn_routes = self.last_trace.get("route_candidates") or [self.last_trace.get("route")]
+            needs_dates = any(
+                route
+                in {
+                    "gastos.exploracion",
+                    "clientes.pagos",
+                    "clientes.total_pagos",
+                    "clientes.estado_cuenta",
+                    "proveedores.pagos",
+                    "proveedores.total_pagos",
+                    "proveedores.estado_cuenta",
+                    "proveedores.movimientos",
+                }
+                for route in turn_routes
+            )
+            if (
+                needs_dates
+                and needs_expense_year(question, history, self.next_state)
+                # A year-less range that ends today is not ambiguous (prompt rule).
+                and not range_to_today(question, today)
+            ):
                 self.last_trace.update(
                     status="needs_clarification", sources=[], clarification="periodo"
                 )
-                self._local.next_state = replace(self.next_state, pending_clarification="periodo")
+                self._local.next_state = replace(
+                    self.next_state,
+                    pending_clarification="periodo",
+                    pending_operation=self._route_operation(),
+                )
                 return self._clarifications()["periodo"]
         attempts, descriptions = 0, 0
         described = set()
@@ -543,6 +855,7 @@ class Assistant:
         bounded_extraction = selected is not None and any(
             t["function"]["name"] == "consultar_negocio" for t in tools
         )
+        wrong_route = False
         local_expense_source = (
             selected is not None
             and self.last_trace.get("route") == "gastos.exploracion"
@@ -589,11 +902,18 @@ class Assistant:
                 extraction_tools = [
                     t for t in round_tools if t["function"]["name"] != "consultar_sql"
                 ]
+                rejected = None
                 try:
-                    message = self._complete(messages, extraction_tools, True, extraction, "extraction")
+                    rejected = message = self._complete(
+                        messages, extraction_tools, True, extraction, "extraction"
+                    )
                     if len(message.tool_calls) != 1:
                         raise ModelProtocolError("Extracción inválida.")
-                    validate_tool_call(message.tool_calls[0], extraction_tools)
+                    validate_tool_call(
+                        message.tool_calls[0],
+                        extraction_tools,
+                        selected.allowed_operations if selected is not None else (),
+                    )
                     self.last_trace.setdefault("events", []).append(
                         {
                             "event": "extraction",
@@ -609,6 +929,10 @@ class Assistant:
                         }
                     )
                     interpretation_calls += 1
+                    if rejected is not None and rejected.tool_calls and isinstance(exc, ValueError):
+                        # The fallback sees what was rejected and why, as ToolHint does; the
+                        # validator texts are fixed, never echoes of the model or the user.
+                        messages.extend(_rejected_call_messages(rejected, str(exc)[:400]))
                     message = self._complete(
                         messages, round_tools, True, task="extraction_fallback"
                     )
@@ -638,6 +962,48 @@ class Assistant:
                     status="needs_clarification", sources=[], clarification="criterio"
                 )
                 return self._clarifications()["criterio"]
+            if (
+                selected is not None
+                and not wrong_route
+                and len(calls) == 1
+                and calls[0].name == "pedir_aclaracion"
+                and _reason(calls[0]) == WRONG_ROUTE_REASON
+            ):
+                # The modular route cannot express the request: one return to the full
+                # interpreter in the same turn. Logged in the trace, never shown to the user.
+                wrong_route = True
+                logger.info("dbagg stage=modular_wrong_route")
+                self.last_trace["modular_fallback"] = "wrong_route"
+                self.last_trace.setdefault("events", []).append(
+                    {
+                        "event": "fallback",
+                        "task": "interpretation",
+                        "reason": "wrong_route",
+                        "rejected_route": self.last_trace.pop("route", None),
+                        "destination": "legacy",
+                    }
+                )
+                self.last_trace.pop("route_candidates", None)
+                self._local.legacy_state = self.next_state
+                self._local.next_state = ConversationState()
+                self._local.route_tables = None
+                selected, bundle, schema = None, full_bundle, full_schema
+                messages = build_messages(
+                    schema, context, question, history, today=today, bundle=bundle
+                )
+                tools = tool_definitions(
+                    bundle, suppliers=SUPPLIERS in self.tables, banks=BANKS in self.tables
+                )
+                extraction, bounded_extraction, local_expense_source = None, False, False
+                continue
+            if any(
+                c.name == "pedir_aclaracion" and _reason(c) == WRONG_ROUTE_REASON for c in calls
+            ):
+                # Never a loop: a second «wrong route» (or one outside modular) asks for criteria.
+                self.last_trace.update(
+                    status="needs_clarification", sources=[], clarification="criterio"
+                )
+                return self._clarifications()["criterio"]
             messages.append(message.history_message)
             for call in calls:
                 if latest_result is not None and _abandons_result(call):
@@ -651,17 +1017,18 @@ class Assistant:
                     if not isinstance(arguments, dict):
                         raise ValueError("Los argumentos deben ser un objeto JSON.")
                     if selected is not None:
-                        arguments = validate_tool_call(call, tools)
+                        arguments = validate_tool_call(call, tools, selected.allowed_operations)
                     if call.name == "consultar_negocio":
                         return self._consult_business(arguments, context, question, history, today)
                     elif call.name == "pedir_aclaracion":
-                        if (
-                            arguments["reason"] == "periodo"
-                            and not period_hinted
-                            and names_month_and_year(question)
-                        ):
-                            period_hinted = True
-                            raise ToolHint(PERIOD_HINT)
+                        if arguments["reason"] == "periodo" and not period_hinted:
+                            if names_month_and_year(question):
+                                period_hinted = True
+                                raise ToolHint(PERIOD_HINT)
+                            to_today = range_to_today(question, today)
+                            if to_today:
+                                period_hinted = True
+                                raise ToolHint(range_to_today_hint(*to_today))
                         bank = (
                             bank_in_conversation(question, history)
                             if BANKS in self.tables and not bank_hinted
@@ -683,7 +1050,9 @@ class Assistant:
                             clarification=arguments["reason"],
                         )
                         self._local.next_state = replace(
-                            self.next_state, pending_clarification=arguments["reason"]
+                            self.next_state,
+                            pending_clarification=arguments["reason"],
+                            pending_operation=self._route_operation(),
                         )
                         if arguments["reason"] == "fuera_alcance":
                             self.last_trace["gap"] = "fuera_alcance"
@@ -777,6 +1146,19 @@ class Assistant:
             "saldos_coincidencias",
             "contar_coincidencias",
         )
+        bank_code = self._chosen_bank_row(question, history) if single_customer else None
+        if bank_code:
+            # The person chose the bank account the service offered next to the people.
+            logger.info("dbagg stage=bank_row_chosen")
+            operation = arguments.get("operation")
+            bank_arguments = {"operation": "saldo_banco", "banco": bank_code}
+            if operation not in ("saldo", None):
+                bank_arguments = {
+                    "operation": "movimientos_banco",
+                    "banco": bank_code,
+                    **{k: arguments[k] for k in ("period", "start", "end") if arguments.get(k)},
+                }
+            return self._bank(bank_arguments, context, today)
         chosen = (
             chosen_customer(arguments.get("customer"), question, history)
             if single_customer
@@ -805,7 +1187,7 @@ class Assistant:
         elif routed and chosen:
             row = listed_row(
                 history,
-                list_position(question),
+                list_position(question, _open_list(history)),
                 explicit_entity(question, arguments.get("customer")),
             )
             if row is None:
@@ -853,6 +1235,9 @@ class Assistant:
             or (picked and picked[1])
             or code_confirmed(arguments.get("customer"), question, history)
         )
+        self._local.pending_request = {
+            key: customer_arguments.get(key) for key in ("operation", "period", "start", "end")
+        }
         entity = CUSTOMER
         if routed:
             if row and row[0]:
@@ -864,35 +1249,113 @@ class Assistant:
                     directory, customer_arguments, model_entity, question, history
                 )
             if isinstance(entity, BusinessAnswer):
-                return self._business_answer(entity)
+                return self._business_answer(
+                    self._offer_bank_account(entity, customer_arguments.get("customer"), history)
+                )
         if arguments.get("operation") == STATEMENT_OPERATION:
             return self._statement(entity, customer_arguments, context, today)
-        if entity == SUPPLIER:
-            validate_supplier_context(context)
-            supplier_arguments = dict(customer_arguments)
-            supplier_arguments["supplier"] = supplier_arguments.pop("customer", None)
-            answer = SupplierQueries(self.db, self.tables, today=today).execute(
-                **supplier_arguments
+        answer = self._party_query(entity, customer_arguments, context, today, routed)
+        if answer.text in ALL_NOT_FOUND_ANSWERS and single_customer and not chosen and not picked:
+            dictated = self._dictated_code_answer(
+                directory, customer_arguments, question, context, today, routed
             )
-        elif arguments.get("operation") in SUPPLIER_ONLY_OPERATIONS:
-            answer = BusinessAnswer.make(
-                "Ese reporte todavía solo está disponible para proveedores.",
-                "needs_clarification",
-                arguments["operation"],
-                [],
-            )
-        else:
-            if routed:
-                validate_context(context, arguments.get("operation"))
-            answer = CustomerQueries(self.db, self.tables, today=today).execute(
-                **customer_arguments
-            )
+            if dictated is not None:
+                answer = dictated
         if answer.text in ALL_NOT_FOUND_ANSWERS and not self._customer_missed:
             # One retry: the name may be an expense section, product or warehouse.
             self._customer_missed = True
             logger.info("dbagg stage=customer_not_found_retry")
             raise ToolHint(NOT_A_CUSTOMER_HINT)
+        answer = self._offer_bank_account(answer, customer_arguments.get("customer"), history)
         return self._business_answer(answer)
+
+    def _offer_bank_account(self, answer, term, history):
+        """After «Cuenta X», a list of people named like X also offers that bank account.
+
+        Owner decision (2026-11-13): «saldo de Enrique» right after his bank balance must not
+        hide the account. Only the latest answer counts and only an exact word of its code or
+        name; the account is offered, never chosen.
+        """
+        account = latest_bank_account(history) if BANKS in self.tables else None
+        if (
+            account is None
+            or answer.status != "needs_clarification"
+            or not isinstance(term, str)
+            or not term.strip()
+        ):
+            return answer
+        code, name = account
+        words = set(_normalize(f"{code} {name or ''}").split())
+        if not set(_normalize(term).split()) <= words:
+            return answer
+        lines = answer.text.split("\n")
+        rows = [i for i, line in enumerate(lines) if line.startswith("• ")]
+        if not rows:
+            return answer
+        lines.insert(rows[-1] + 1, f"• {name or code} (cuenta de banco, código {code})")
+        logger.info("dbagg stage=bank_account_offered")
+        return replace(answer, text="\n".join(lines))
+
+    def _chosen_bank_row(self, question, history):
+        """Code of the bank row of the open list the question points at, if any."""
+        if BANKS not in self.tables:
+            return None
+        codes = _open_list(history)
+        if not codes:
+            return None
+        named = named_row(question, history)
+        if named and named[0] == BANK:
+            return named[1]
+        position = list_position(question, codes)
+        if position:
+            row = listed_row(history, position)
+            return row[1] if row and row[0] == BANK else None
+        if BANK_CHOICE.fullmatch(_normalize(question).strip(" ¿?¡!.,")):
+            banks = [
+                code
+                for mark, _, code in list_row_details(_latest_answer(history))
+                if mark == "cuenta de banco"
+            ]
+            return banks[0] if len(banks) == 1 else None
+        return None
+
+    def _party_query(self, entity, arguments, context, today, routed):
+        if entity == SUPPLIER:
+            validate_supplier_context(context)
+            supplier_arguments = dict(arguments)
+            supplier_arguments["supplier"] = supplier_arguments.pop("customer", None)
+            return SupplierQueries(self.db, self.tables, today=today).execute(**supplier_arguments)
+        if arguments.get("operation") in SUPPLIER_ONLY_OPERATIONS:
+            return BusinessAnswer.make(
+                "Ese reporte todavía solo está disponible para proveedores.",
+                "needs_clarification",
+                arguments["operation"],
+                [],
+            )
+        if routed:
+            validate_context(context, arguments.get("operation"))
+        return CustomerQueries(self.db, self.tables, today=today).execute(**arguments)
+
+    def _dictated_code_answer(self, directory, arguments, question, context, today, routed):
+        """One retry of a dictated code («A. Robles tres» → A.ROBLES3), exact codes only.
+
+        Never by similarity: the normalized value must equal an existing code in exactly one
+        catalogue, which must agree with any entity the question states.
+        """
+        code = dictated_code(arguments.get("customer"))
+        if code is None:
+            return None
+        found = directory.find(code, exact_code=True)
+        entities = [entity for entity in (CUSTOMER, SUPPLIER) if found[entity]]
+        explicit = explicit_entity(question, arguments.get("customer"))
+        if explicit:
+            entities = [entity for entity in entities if entity == explicit]
+        if len(entities) != 1:
+            return None
+        logger.info("dbagg stage=dictated_code_resolved")
+        self.last_trace["local_decision"] = "dictated_code"
+        retried = {**arguments, "customer": code, "codigo_exacto": True}
+        return self._party_query(entities[0], retried, context, today, routed)
 
     def _bank(self, arguments, context, today):
         """Accounts are resolved in their own catalogue, never against customers or suppliers."""
@@ -1060,7 +1523,26 @@ class Assistant:
         return CLARIFICATIONS
 
     def _business_answer(self, answer):
-        self._local.next_state = self.next_state.after_result(answer.metadata, answer.status)
+        pending = (
+            getattr(self._local, "pending_request", None)
+            if answer.status == "needs_clarification"
+            else None
+        )
+        legacy = getattr(self._local, "legacy_state", None)
+        if (
+            legacy is not None
+            and answer.metadata.get("entity") in {"cliente", "proveedor"}
+            and answer.metadata.get("code")
+        ):
+            # A verified legacy result keeps domain, operation, identity and period confirmed
+            # by the service; nothing proposed only by the model is stored.
+            self._local.next_state = legacy.for_route("clientes." + answer.operation).after_result(
+                answer.metadata, answer.status
+            )
+        else:
+            self._local.next_state = self.next_state.after_result(
+                answer.metadata, answer.status, pending
+            )
         self.last_trace.update(
             status=answer.status,
             operation=answer.operation,

@@ -42,7 +42,8 @@ BARE_ENTITY = re.compile(
     r"(?:(?:y|si|el|la|al|del|de|como|es|son|a|un|una|quiero|consulta|ver)\s+)*"
     r"(?:proveedor|cliente)"
 )
-ROW_ENTITIES = {"cliente": CUSTOMER, "proveedor": SUPPLIER}
+BANK = "banco"
+ROW_ENTITIES = {"cliente": CUSTOMER, "proveedor": SUPPLIER, "cuenta de banco": BANK}
 
 
 def _without_party(question, party):
@@ -93,7 +94,8 @@ def _answer_parties(text):
     other = OTHER_ENTITY.match(text)
     if other:
         parties.append((ROW_ENTITIES[other[2]], None, other[1]))
-    return [party for party in parties if party[0]]
+    # A bank account offered in a list is never a customer or supplier of the conversation.
+    return [party for party in parties if party[0] in (CUSTOMER, SUPPLIER)]
 
 
 def _assistant_messages(history):
@@ -174,3 +176,45 @@ def named_row(question, history):
         ]
         return rows[0] if len(rows) == 1 else None
     return None
+
+
+NUMBER_WORDS = {
+    "cero": "0",
+    "uno": "1",
+    "una": "1",
+    "dos": "2",
+    "tres": "3",
+    "cuatro": "4",
+    "cinco": "5",
+    "seis": "6",
+    "siete": "7",
+    "ocho": "8",
+    "nueve": "9",
+    "diez": "10",
+    "once": "11",
+    "doce": "12",
+    "trece": "13",
+    "catorce": "14",
+    "quince": "15",
+    "dieciseis": "16",
+    "diecisiete": "17",
+    "dieciocho": "18",
+    "diecinueve": "19",
+    "veinte": "20",
+}
+CODE_SHAPE = re.compile(r"[A-Z0-9][A-Z0-9.\-_/]{0,29}")
+
+
+def dictated_code(term):
+    """The code a voice note spelled out: «A. Robles tres» → «A.ROBLES3».
+
+    Only a candidate for an exact code lookup; None when nothing changes but the case, so a
+    retry could not find anything the literal search missed.
+    """
+    if not isinstance(term, str) or not term.strip():
+        return None
+    words = [NUMBER_WORDS.get(word, word) for word in _plain(term).split()]
+    code = "".join(words).upper()
+    if not CODE_SHAPE.fullmatch(code) or code == term.strip().upper():
+        return None
+    return code

@@ -32,3 +32,7 @@ timeout_seconds = 5
 # extraction_profile = "nano" # No disponible en la cuenta probada: HTTP 404.
 # Para observar Jev: enabled=true, router="jev", shadow=true.
 # Para Jev activo: shadow=false y min_confidence explícito, calibrado con tus casos.
+# Niveles opcionales con Jev (sin ellos, solo min_confidence):
+# min_margin = 0.2              # operación si confianza ≥ min_confidence y margen ≥ min_margin
+# min_domain_confidence = 0.8   # si no, módulo del dominio con hasta 3 operaciones probables
+# Si ninguno se cumple: intérprete completo, sin segunda clasificación.

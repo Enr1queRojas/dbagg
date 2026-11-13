@@ -42,7 +42,7 @@ include = ["dbagg*"]
 "dbagg.database" = ["catalog.json"]
 "dbagg.business" = ["units.json"]
 "dbagg.reporting" = ["templates/*.html", "static/*.js"]
-"dbagg.agent" = ["templates/*.md", "templates/*.json", "templates/domains/*.md", "templates/operations/*.md"]
+"dbagg.agent" = ["templates/*.md", "templates/*.json", "templates/domains/*.md", "templates/operations/*.md", "templates/shared/*.md"]
 "dbagg.llm" = ["default.toml"]
 
 [tool.ruff]

@@ -1,0 +1,29 @@
+# T18: config de T13 con stable_prefix = true (experimento).
+# Calibrados para este conjunto, no garantía de producción. stable_prefix/fixed_tool_schema apagados.
+version = 1
+active_profile = "openai"
+
+[profiles.openai]
+provider = "openai"
+model = "gpt-4.1-mini"
+api_key_env = "OPENAI_API_KEY"
+base_url = "https://api.openai.com/v1"
+max_output_tokens = 1200
+temperature = 0.0
+timeout_seconds = 30
+max_retries = 0
+
+[modular]
+enabled = true
+domains = ["clientes", "gastos", "proveedores", "bancos", "productos"]
+router = "jev"
+shadow = false
+jev_model = "jev-1.14.0"
+jev_api_key_env = "TYPESAFE_API_KEY"
+timeout_seconds = 5
+min_confidence = 0.8
+min_margin = 0.2
+min_domain_confidence = 0.4
+stable_prefix = true
+fixed_tool_schema = false
+compact_history = true

@@ -8,10 +8,11 @@ import pyodbc
 
 from dbagg.agent.prompts import tool_definitions
 from dbagg.agent.service import Assistant
-from dbagg.business.customers import CUSTOMERS, PAYMENTS
+from dbagg.business.customers import CREDITS, CUSTOMERS, PAYMENTS
 from dbagg.business.suppliers import PURCHASES, SUPPLIER_PAYMENTS, SUPPLIERS
 from dbagg.llm.config import LLMConfig, ModelProfile
 from dbagg.llm.types import ModelReply, ToolCall
+from tests.unit.test_customer_queries import CREDIT_COLUMNS
 from tests.unit.test_supplier_queries import DEFINITIONS, SupplierDatabase
 
 CUSTOMER_DEFINITIONS = {
@@ -167,6 +168,34 @@ class SupplierRoutingTests(RoutingCase):
         text = self.ask("movimientos", customer="Robles")
         self.assertIn("todavía solo está disponible para proveedores", text)
 
+    def test_last_note_of_customer_uses_credit_notes(self):
+        self.db.conn.execute(
+            f"CREATE TABLE {CREDITS} (CLIENTE, ESTADO, FECHA, FOLIO, CONCEPTO, CANTIDAD, "
+            "PRECIO, TOTAL NUMERIC)"
+        )
+        self.db.conn.execute(
+            f"INSERT INTO {CREDITS} VALUES ('R1', 'ACTIVA', '2026-10-01', 7, 'Maíz', 1, 1, 80)"
+        )
+        CUSTOMER_DEFINITIONS[CREDITS] = CREDIT_COLUMNS
+        self.addCleanup(CUSTOMER_DEFINITIONS.pop, CREDITS)
+        text = self.ask(
+            "ultima_nota",
+            customer="Robles",
+            question="¿Cuál fue la última compra de Robles?",
+            tables=self.TABLES | {CREDITS},
+        )
+        self.assertIn("Última nota de crédito de Robles (código R1)", text)
+        self.assertIn("Importe de la nota: 80.00.", text)
+        self.assertNotIn("solo está disponible para proveedores", text)
+        self.assertFalse(any(PURCHASES in sql for sql in self.db.statements))
+
+    def test_last_note_of_supplier_still_uses_purchases(self):
+        self.db.purchase(1, 5, "C1", "2026-10-01", 30, total=999)
+        text = self.ask("ultima_nota", customer="Cuervo", question="la última nota de Cuervo")
+        self.assertTrue(text.startswith("Proveedor Cuervo"))
+        self.assertIn("Importe de la nota: 30.00", text)
+        self.assertNotIn("999", text)
+
     MIXED = (
         "Encontré «Ana» como cliente y como proveedor:\n"
         "• Ana (cliente, código A1)\n• Ana (proveedor, código P1)\n"
@@ -317,3 +346,110 @@ class ToolDefinitionTests(unittest.TestCase):
     def test_tool_description_requires_no_table_names(self):
         function, _ = self.properties()
         self.assertNotIn("PAGO_PROVEEDOR", function["description"])
+
+
+class SupplierModularDomainTests(RoutingCase):
+    """Optional «proveedores» modular domain; both catalogues stay available."""
+
+    def modular(self, route, arguments, question, history=None, state=None):
+        from tests.unit.test_modular_context import reply as tool_reply
+        from unittest.mock import Mock
+
+        from dbagg.llm.config import ModularConfig
+
+        provider = Mock()
+        provider.complete.side_effect = [
+            tool_reply("select_route", {"route": route}),
+            tool_reply("consultar_negocio", arguments),
+        ]
+        settings = SimpleNamespace(
+            model="test-model",
+            api_key="synthetic",
+            tables=self.TABLES,
+            llm=LLMConfig(
+                ModelProfile(model="test-model"),
+                modular=ModularConfig(enabled=True, domains=("clientes", "proveedores")),
+            ),
+        )
+        service = Assistant(settings, db=self.db, provider=provider)
+        return service.answer(question, history, state), service, provider
+
+    def test_routes_exist_only_when_the_domain_is_enabled(self):
+        from dbagg.database.catalog import load_catalog
+        from dbagg.routing.registry import available_routes
+
+        catalog = load_catalog()
+        self.assertFalse(
+            any(n.startswith("proveedores.") for n in available_routes(catalog, self.TABLES))
+        )
+        routes = available_routes(catalog, self.TABLES, ("clientes", "proveedores"))
+        # Shared operations stay on clientes.*: duplicates only split Jev's probability.
+        self.assertEqual(
+            {n for n in routes if n.startswith("proveedores.")}, {"proveedores.movimientos"}
+        )
+        self.assertIn(CUSTOMERS, routes["proveedores.movimientos"].tables)
+        self.assertIn(SUPPLIERS, routes["proveedores.movimientos"].tables)
+        self.assertIn("clientes.saldo", routes)
+
+    def test_supplier_movements_run_through_their_route(self):
+        self.db.purchase(1, 5, "C1", "2026-10-01", 30)
+        text, service, provider = self.modular(
+            "proveedores.movimientos",
+            {"operation": "movimientos", "customer": "Cuervo"},
+            "Movimientos de Cuervo",
+        )
+        self.assertTrue(text.startswith("Proveedor Cuervo"))
+        self.assertEqual(service.last_trace["route"], "proveedores.movimientos")
+        tools = provider.complete.call_args_list[1].args[1]
+        enum = tools[0]["function"]["parameters"]["properties"]["operation"]["enum"]
+        self.assertEqual(enum, ["movimientos"])
+        self.assertIn(
+            "movimientos sirve para ambos",
+            provider.complete.call_args_list[1].args[0][0]["content"],
+        )
+
+    def test_shared_name_is_still_asked_on_a_supplier_route(self):
+        text, service, _ = self.modular(
+            "proveedores.movimientos",
+            {"operation": "movimientos", "customer": "Ana"},
+            "Movimientos de Ana",
+        )
+        self.assertEqual(service.last_trace["route"], "proveedores.movimientos")
+        self.assertIn("como cliente y como proveedor", text)
+
+    def test_person_survives_moving_between_customer_and_supplier_routes(self):
+        from dbagg.routing.state import ConversationState
+
+        state = ConversationState(
+            previous_route="clientes.saldo", selected_customer_id="C1", entity="proveedor"
+        )
+        self.assertEqual(state.for_route("proveedores.movimientos").selected_customer_id, "C1")
+        self.assertIsNone(state.for_route("gastos.exploracion").selected_customer_id)
+
+    def test_supplier_route_is_vetoed_for_explicit_customer_questions(self):
+        from dbagg.database.catalog import load_catalog
+        from dbagg.routing.policy import route_is_consistent
+        from dbagg.routing.registry import available_routes
+
+        routes = available_routes(load_catalog(), self.TABLES, ("clientes", "proveedores"))
+        movements = routes["proveedores.movimientos"]
+        self.assertFalse(route_is_consistent("Movimientos del cliente Ana", movements))
+        self.assertTrue(route_is_consistent("Movimientos del proveedor Ana", movements))
+
+    def test_report_or_statement_never_runs_as_supplier_movements(self):
+        from dbagg.database.catalog import load_catalog
+        from dbagg.routing.policy import route_is_consistent
+        from dbagg.routing.registry import available_routes
+
+        routes = available_routes(load_catalog(), self.TABLES, ("clientes", "proveedores"))
+        movements = routes["proveedores.movimientos"]
+        self.assertFalse(route_is_consistent("Reporte del proveedor Cuervo de este mes", movements))
+        self.assertFalse(route_is_consistent("Estado de cuenta de Cuervo", movements))
+        asked = [
+            assistant_message(
+                "Proveedor Cuervo (código C1)\n¿De qué fechas quieres el estado de cuenta?"
+            )
+        ]
+        self.assertFalse(route_is_consistent("del 30 de agosto a hoy", movements, asked))
+        self.assertTrue(route_is_consistent("Movimientos de Cuervo de este mes", movements))
+        self.assertTrue(route_is_consistent("Reporte de movimientos de Cuervo", movements))

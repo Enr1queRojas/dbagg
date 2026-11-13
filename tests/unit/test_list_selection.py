@@ -154,6 +154,56 @@ class ListSelectionGuardTests(unittest.TestCase):
         self.assertIn("DIEGO SEGURA (código DIEGO)", answer)
         self.assertNotIn("Encontré varios", answer)
 
+    THREE = [
+        {"role": "user", "content": "Saldo de Robles"},
+        {
+            "role": "assistant",
+            "content": "Encontré varios clientes:\n• ANA ROBLES (código A.ROBLES1)\n"
+            "• LUIS ROBLES (código L.ROBLES2)\n• MARIO ROBLES (código M.ROBLES3)\n"
+            "¿Cuál quieres consultar?",
+        },
+    ]
+
+    def three(self, question, arguments, history=None):
+        self.ask("x", {"operation": "saldo", "customer": "R1"})
+        for code, name in (
+            ("A.ROBLES1", "ANA ROBLES"),
+            ("L.ROBLES2", "LUIS ROBLES"),
+            ("M.ROBLES3", "MARIO ROBLES"),
+        ):
+            self.db.customer(code, name, "300")
+        reply = self.reply(arguments)
+        self.assistant.client.chat.completions.create.return_value = reply
+        return self.assistant.answer(question, self.THREE if history is None else history)
+
+    def test_a_bare_number_after_a_list_chooses_that_row(self):
+        answer = self.three("3", {"operation": "saldo", "customer": "Robles"})
+        self.assertIn("MARIO ROBLES (código M.ROBLES3)", answer)
+        self.assertEqual(chosen_customer("Robles", "3", self.THREE), "M.ROBLES3")
+        self.assertFalse(customer_left_unselected("Robles", "3", self.THREE))
+
+    def test_a_number_inside_a_sentence_chooses_nobody(self):
+        self.assertIsNone(chosen_customer("Robles", "tengo 3 dudas", self.THREE))
+        self.assertTrue(customer_left_unselected("Robles", "tengo 3 dudas", self.THREE))
+
+    def test_a_bare_number_without_a_list_chooses_nobody(self):
+        self.assertIsNone(chosen_customer("Robles", "3", SINGLE))
+        self.assertFalse(customer_left_unselected("Robles", "3", SINGLE))
+
+    def test_a_dictated_code_resolves_to_an_existing_code(self):
+        answer = self.three(
+            "Saldo de M. Robles tres", {"operation": "saldo", "customer": "M. Robles tres"}, []
+        )
+        self.assertIn("MARIO ROBLES (código M.ROBLES3)", answer)
+        self.assertEqual(self.assistant.last_trace.get("local_decision"), "dictated_code")
+
+    def test_a_dictated_code_that_does_not_exist_still_asks(self):
+        answer = self.three(
+            "Saldo de M. Robles nueve", {"operation": "saldo", "customer": "M. Robles nueve"}, []
+        )
+        self.assertIn("No encontré", answer)
+        self.assertNotIn("ROBLES (código", answer)
+
     def test_the_whole_list_can_still_be_requested(self):
         history = [
             {"role": "user", "content": "Saldo de Ana Robles"},
@@ -226,6 +276,51 @@ class ModelDecisionTests(unittest.TestCase):
         answer = self.assistant.answer("Pagos de Ruiz de octubre de 2026")
         self.assertIn("¿Qué período", answer)
         self.assertEqual(self.create.call_count, 2)
+
+    def test_a_yearless_range_ending_today_gets_its_dates(self):
+        from datetime import date
+        from unittest.mock import patch
+
+        from dbagg.agent.intent import range_to_today, range_to_today_hint
+
+        today = date(2026, 11, 9)
+        self.assertEqual(
+            range_to_today("del 30 de agosto a hoy", today), (date(2026, 8, 30), today)
+        )
+        self.assertEqual(
+            range_to_today("Pagos de Ruiz del 30 de agosto al 9 de noviembre", today),
+            (date(2026, 8, 30), today),
+        )
+        self.assertEqual(
+            range_to_today("desde el 15 de diciembre hasta hoy", today),
+            (date(2025, 12, 15), today),
+        )
+        for question in (
+            "del 30 de agosto al 3 de noviembre",
+            "del 30 de agosto de 2025 a hoy",
+            "del 3 al 7",
+            "del 31 de febrero a hoy",
+        ):
+            with self.subTest(question=question):
+                self.assertIsNone(range_to_today(question, today))
+        arguments = {
+            "operation": "pagos",
+            "customer": "Ruiz",
+            "period": "rango",
+            "start": "2026-08-30",
+            "end": "2026-11-09",
+        }
+        self.create.side_effect = [
+            self.reply({"reason": "periodo"}, "pedir_aclaracion"),
+            self.reply(arguments),
+        ]
+        with patch("dbagg.agent.service.business_today", return_value=today):
+            answer = self.assistant.answer("Pagos de Ruiz del 30 de agosto a hoy")
+        self.assertNotIn("¿Qué período", answer)
+        hint = self.create.call_args_list[1].kwargs["messages"][-1]
+        self.assertEqual(
+            json.loads(hint["content"])["error"], range_to_today_hint(date(2026, 8, 30), today)
+        )
 
     def test_an_incomplete_date_is_still_asked(self):
         self.create.return_value = self.reply({"reason": "periodo"}, "pedir_aclaracion")

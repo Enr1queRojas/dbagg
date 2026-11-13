@@ -10,6 +10,7 @@ from urllib.parse import urlsplit
 
 from dbagg.paths import project_root
 
+MODULAR_DOMAINS = {"clientes", "gastos", "proveedores", "bancos", "productos"}
 PROVIDERS = {"openai", "glm", "gemini", "anthropic", "openai_compatible"}
 EXTRA_OPTIONS = {"thinking", "reasoning_effort", "google", "output_config", "verbosity"}
 
@@ -54,7 +55,14 @@ class ModularConfig:
     jev_api_key_env: str = "TYPESAFE_API_KEY"
     timeout_seconds: float = 5
     min_confidence: float | None = None
+    # Optional tiers: operation needs confidence and margin; else a domain module; else legacy.
+    min_margin: float | None = None
+    min_domain_confidence: float | None = None
     extraction_profile: str | None = None
+    # Experiments, off until measured (docs/llm-configuration.md).
+    stable_prefix: bool = False
+    fixed_tool_schema: bool = False
+    compact_history: bool = False
 
 
 @dataclass(frozen=True)
@@ -75,14 +83,23 @@ def _modular(data, profiles):
     if (
         not isinstance(domains, list)
         or not domains
-        or any(not isinstance(d, str) or d not in {"clientes", "gastos"} for d in domains)
+        or any(not isinstance(d, str) or d not in MODULAR_DOMAINS for d in domains)
         or len(domains) != len(set(domains))
     ):
         raise ValueError("LLM: dominios modulares inválidos.")
     values["domains"] = tuple(domains)
     config = ModularConfig(**values)
-    if type(config.enabled) is not bool or type(config.shadow) is not bool:
-        raise ValueError("LLM: enabled y shadow requieren booleanos.")
+    if any(
+        type(getattr(config, n)) is not bool
+        for n in (
+            "enabled",
+            "shadow",
+            "stable_prefix",
+            "fixed_tool_schema",
+            "compact_history",
+        )
+    ):
+        raise ValueError("LLM: enabled, shadow y las banderas requieren booleanos.")
     if not isinstance(config.router, str) or config.router not in {"reference", "jev"}:
         raise ValueError("LLM: router debe ser reference o jev.")
     if not isinstance(config.jev_model, str) or not re.fullmatch(
@@ -94,8 +111,9 @@ def _modular(data, profiles):
     ):
         raise ValueError("LLM: jev_api_key_env debe ser un nombre de variable.")
     _number(config.timeout_seconds, 1, 30, "modular.timeout_seconds")
-    if config.min_confidence is not None:
-        _number(config.min_confidence, 0, 1, "modular.min_confidence")
+    for name in ("min_confidence", "min_margin", "min_domain_confidence"):
+        if getattr(config, name) is not None:
+            _number(getattr(config, name), 0, 1, "modular." + name)
     if (
         config.enabled
         and config.router == "jev"

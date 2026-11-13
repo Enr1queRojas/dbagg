@@ -125,11 +125,55 @@ excesivo produce un error; no se sustituye silenciosamente por instrucciones ant
 Puedes usar otras rutas mediante `[prompts] system_file` y `tools_file`, relativas al
 TOML o absolutas. Sin esas opciones se usan los recursos distribuidos del paquete.
 
-Cada respuesta conserva `catalog-domains-v6:<huella>` calculada con el texto y las
+Cada respuesta conserva `catalog-domains-v7:<huella>` calculada con el texto y las
 descripciones realmente cargadas. Las valoraciones `/buena` y `/mala` guardan también
 el modelo, proveedor y perfil seleccionados. La base SQLite existente recibe las dos
 columnas nuevas sin borrar registros, revisiones ni ejemplos aprobados; las entradas
 anteriores mantienen esos campos vacíos cuando se desconoce el proveedor.
+
+## Enrutamiento modular por niveles
+
+Con `[modular] router = "jev"` y `shadow = false`, `min_confidence` es obligatorio. Dos campos
+opcionales activan la decisión por niveles con las probabilidades de Jev:
+
+- `min_margin`: la ruta de operación se usa solo si la confianza es ≥ `min_confidence` y la
+  diferencia entre la primera y la segunda probabilidad es ≥ `min_margin`.
+- `min_domain_confidence`: si no, cuando las rutas de un dominio suman ≥ este valor se usa el
+  módulo de ese dominio con sus operaciones más probables (hasta tres, por encima de 0.05).
+- Si ninguno se cumple, el turno va al intérprete completo **sin** llamar al clasificador mini;
+  ese clasificador queda solo para errores HTTP o timeouts de Jev.
+
+Sin los dos campos el comportamiento es el anterior. La traza registra `routing_level`
+(`operation`, `domain` o `legacy`). Los valores deben calibrarse con
+`python -m dbagg.evaluation.calibration` sobre tus casos; no hay valores por defecto.
+
+## Dominios modulares
+
+`[modular] domains` acepta `clientes`, `gastos`, `proveedores`, `bancos` y `productos`; por defecto
+solo los dos primeros. `proveedores` añade solo `proveedores.movimientos` (las demás operaciones de
+proveedores ya las sirven las rutas `clientes.*`, con los dos catálogos): un nombre compartido sigue
+preguntando si es cliente o proveedor. `bancos` añade `bancos.saldo_banco`, `bancos.saldos_bancos` y
+`bancos.movimientos_banco`; con él activo, las menciones de banco ya no van directo al intérprete
+completo (el enrutador decide) y el seguimiento local del reporte de banco se conserva.
+`productos` añade solo `productos.existencias` y `productos.ventas`; precios, insumos y entradas
+de inventario siguen como exploración acotada en el intérprete completo.
+
+## Experimentos de costo (apagados por defecto)
+
+- `[modular] stable_prefix = true`: el mensaje de sistema va de estable a variable (núcleo →
+  compartidos → dominio → esquema y contexto de todo el dominio → operaciones del turno) y el
+  calendario y el estado van en un segundo mensaje de sistema al final, para que las operaciones
+  de un mismo dominio compartan prefijo en la caché del proveedor. Las herramientas siguen
+  limitando `operation` por ruta, y en OpenAI forman parte del prefijo. Adoptarlo solo si la
+  medición con `--repeat 3` baja el costo por consulta correcta sin perder acierto.
+- `[modular] fixed_tool_schema = true`: el enum de `operation` es el del dominio completo (mismo
+  esquema de herramienta para todas sus rutas) y la operación de la ruta se exige al validar la
+  llamada; una operación fuera de la ruta vuelve al modelo con el motivo. Adoptarlo solo si baja el
+  costo por consulta correcta y no baja el acierto de parámetros.
+- `[modular] compact_history = true`: en rutas modulares con una persona confirmada en el estado, el
+  modelo recibe solo el último intercambio más el estado; con lista abierta, aclaración pendiente o
+  en el intérprete completo recibe el historial completo. Las comprobaciones del servicio siempre
+  usan el historial completo.
 
 ## Transcripción de notas de voz
 

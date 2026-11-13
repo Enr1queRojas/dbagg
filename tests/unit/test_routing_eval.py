@@ -218,3 +218,173 @@ class RunTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SeparatedMetricsTests(unittest.TestCase):
+    """Route, parameters given the route, calls and cost are scored in separate columns."""
+
+    def probe(self, *replies):
+        from dbagg.evaluation.modular import ProbeAssistant
+        from dbagg.llm.config import ModularConfig
+
+        settings = SimpleNamespace(
+            model="test-model",
+            api_key="synthetic",
+            tables={CUSTOMERS, PAYMENTS},
+            llm=LLMConfig(ModelProfile(model="test-model"), modular=ModularConfig(enabled=True)),
+        )
+        return ProbeAssistant(settings, db=NoDatabase(), provider=FakeProvider(*replies))
+
+    @staticmethod
+    def usage_reply(name, **arguments):
+        call = ToolCall("t1", name, json.dumps(arguments))
+        return ModelReply(None, (call,), {}, {"prompt_tokens": 100, "completion_tokens": 5})
+
+    def run_case(self, route, **arguments):
+        from dbagg.evaluation.modular import evaluate
+
+        probe = self.probe(
+            self.usage_reply("select_route", route=route),
+            self.usage_reply("consultar_negocio", **arguments),
+        )
+        return evaluate(probe, case(**SALDO), date(2026, 10, 8))
+
+    def test_right_route_with_wrong_parameters_counts_only_against_parameters(self):
+        result = self.run_case("clientes.saldo", operation="saldo", customer="OTRO")
+        self.assertEqual(result["route_expected"], "clientes.saldo")
+        self.assertEqual(result["route_selected"], "clientes.saldo")
+        self.assertTrue(result["route_correct"])
+        self.assertFalse(result["arguments_correct"])
+        self.assertFalse(result["passed"])
+        self.assertEqual(result["calls"], {"routing": 1, "interpretation": 1})
+        self.assertEqual(result["tokens"]["input"], 200)
+        self.assertEqual(result["domain"], "clientes")
+        self.assertIsNotNone(result["duration_ms"])
+
+    def test_wrong_route_is_not_scored_for_parameters(self):
+        result = self.run_case("clientes.pagos", operation="pagos", customer="DEMO1")
+        self.assertFalse(result["route_correct"])
+        self.assertIsNone(result["arguments_correct"])
+
+    def test_summary_columns_and_cost_per_correct(self):
+        from dbagg.evaluation.modular import summarize, summarize_by_domain
+
+        wrong_params = self.run_case("clientes.saldo", operation="saldo", customer="OTRO")
+        wrong_route = self.run_case("clientes.pagos", operation="pagos", customer="DEMO1")
+        summary = summarize([wrong_params, wrong_route])
+        self.assertEqual(summary["route_accuracy"], 0.5)
+        self.assertEqual(summary["arguments_accuracy_given_route"], 0.0)
+        self.assertEqual(summary["arguments_scored"], 1)
+        self.assertEqual(summary["calls_per_turn"], 2)
+        self.assertEqual(summary["routing_calls_per_turn"], 1)
+        self.assertIsNone(summary["cost_per_correct_usd"])
+        self.assertIsNotNone(summary["latency_ms"]["p95"])
+        right = self.run_case("clientes.saldo", operation="saldo", customer="DEMO1")
+        summary = summarize([right, wrong_route])
+        self.assertEqual(summary["passed"], 1)
+        self.assertEqual(summary["cost_per_correct_usd"], summary["cost"]["usd_known"])
+        self.assertEqual(set(summarize_by_domain([right, wrong_route])), {"clientes"})
+
+    def test_expected_route_comes_from_the_registry(self):
+        from dbagg.database.catalog import load_catalog
+        from dbagg.evaluation.modular import case_domain, expected_route
+        from dbagg.routing.registry import available_routes
+
+        catalog = load_catalog()
+        routes = available_routes(catalog, frozenset(catalog.sources))
+        bank = {
+            "expected_tool": "consultar_negocio",
+            "expected_arguments": {"operation": "saldo_banco"},
+        }
+        expense = {
+            "expected_tool": "describir_tablas",
+            "expected_arguments": {"tables": ["proadel.GASTOS_DATA"]},
+        }
+        ask = {"expected_tool": "pedir_aclaracion", "expected_arguments": {"reason": "cliente"}}
+        self.assertEqual(expected_route(SALDO, routes), "clientes.saldo")
+        self.assertEqual(expected_route(bank, routes), "legacy")
+        self.assertEqual(expected_route(expense, routes), "gastos.exploracion")
+        self.assertIsNone(expected_route(ask, routes))
+        self.assertEqual(case_domain(bank), "bancos")
+        self.assertEqual(case_domain(expense, catalog), "gastos")
+        self.assertEqual(case_domain({**SALDO, "domain": "proveedores"}), "proveedores")
+
+    def test_report_shows_the_four_metrics_per_variant_and_domain(self):
+        from dbagg.evaluation.modular import render_report, summarize, summarize_by_domain
+
+        results = [self.run_case("clientes.saldo", operation="saldo", customer="DEMO1")]
+        report = {
+            "variants": {
+                "reference_mini": {
+                    "status": "measured",
+                    "passed": 1,
+                    "runs": 1,
+                    "cost": {},
+                    "summary": summarize(results),
+                    "domains": summarize_by_domain(results),
+                }
+            }
+        }
+        page = render_report(report)
+        for header in (
+            "Acierto de ruta",
+            "Parámetros dada la ruta",
+            "Llamadas/turno",
+            "Costo por consulta correcta",
+        ):
+            self.assertIn(header, page)
+        self.assertIn("<td>clientes</td>", page)
+        json.dumps(report)
+
+
+class EvaluatorCommandTests(unittest.TestCase):
+    def test_dataset_can_be_repeated(self):
+        import tempfile
+        from pathlib import Path
+        from unittest.mock import patch
+
+        from dbagg.evaluation import modular
+
+        with tempfile.TemporaryDirectory() as folder:
+            with patch.dict("os.environ", {"TYPESAFE_API_KEY": ""}):
+                modular.main(
+                    [
+                        "--dataset",
+                        "evals/cases/bank-routing.json",
+                        "--dataset",
+                        "evals/cases/intent-routing.json",
+                        "--output",
+                        folder,
+                        "--variants",
+                        "jev_mini",
+                    ]
+                )
+            report = json.loads((Path(folder) / "benchmark.json").read_text(encoding="utf-8"))
+        self.assertEqual(set(report["datasets"]), {"bank-routing.json", "intent-routing.json"})
+        self.assertEqual(report["variants"]["jev_mini"]["status"], "unavailable")
+
+
+class CustomVariantTests(unittest.TestCase):
+    def test_local_config_becomes_the_custom_variant(self):
+        import tempfile
+        from pathlib import Path
+        from unittest.mock import patch
+
+        from dbagg.evaluation import modular
+
+        with tempfile.TemporaryDirectory() as folder:
+            with patch.dict("os.environ", {"TYPESAFE_API_KEY": ""}):
+                modular.main(
+                    [
+                        "--dataset",
+                        "evals/cases/bank-routing.json",
+                        "--output",
+                        folder,
+                        "--variants",
+                        "custom",
+                        "--config",
+                        "docs/evaluations/final/llm.all.example.toml",
+                    ]
+                )
+            report = json.loads((Path(folder) / "benchmark.json").read_text(encoding="utf-8"))
+        self.assertEqual(report["variants"]["custom"]["status"], "unavailable")

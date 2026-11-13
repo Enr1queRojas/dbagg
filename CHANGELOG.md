@@ -1,5 +1,126 @@
 # Cambios
 
+## Sin publicar — Migración en producción: flujo modular con Jev
+
+Desplegar el código no cambia el comportamiento del enrutamiento: sigue el intérprete completo hasta
+activar `[modular]` en la VM. Pasos, verificación y vuelta atrás en
+[docs/deploy-modular.md](docs/deploy-modular.md):
+
+1. Fusionar con `main` y esperar el despliegue automático.
+2. En la VM: añadir `TYPESAFE_API_KEY` a `.env`; copiar `[modular]` de
+   `config/llm.production.example.toml` a `config/llm.toml` y **quitar `[prompts]`** (con prompts
+   locales el modular se apaga y no llegan las correcciones del prompt `catalog-domains-v7`).
+3. `docker compose run --rm --no-deps dbagg python -m dbagg.llm check` debe mostrar
+   `"active": true` y sin avisos; después `docker compose up -d`.
+
+No copiar las claves nuevas de `[modular]` antes de desplegar: la versión anterior las rechaza.
+
+## Sin publicar — Ajustes tras la evaluación final (T25)
+
+- El dominio modular `proveedores` solo añade `movimientos`; las operaciones compartidas siguen en
+  `clientes.*`, que ya sirven a ambos catálogos. En T25 Jev repartía la probabilidad entre rutas
+  equivalentes (`clientes.estado_cuenta` ↔ `proveedores.estado_cuenta`).
+- «Del 30 de agosto a hoy» o un rango sin año que termina hoy: si el modelo pide el período, el
+  servicio le devuelve una sola vez las fechas exactas (regla ya escrita en el prompt).
+- Correcciones tras T25-v2: la guarda modular de «mes sin año» ya no corta un rango que termina hoy
+  (la pista nunca llegaba al modelo), y «reporte» o «estado de cuenta» de un proveedor, o la
+  respuesta a «¿De qué fechas quieres el estado de cuenta?», ya no entra a `proveedores.movimientos`.
+- Tras «Cuenta X», si «¿y el saldo de X?» lista personas homónimas, la lista ofrece también la cuenta
+  de banco; elegirla consulta la cuenta. El reporte de banco sin fechas sigue pidiéndolas y la memoria
+  sigue venciendo a los 30 minutos (decisiones del responsable).
+
+## Sin publicar — Dominio modular de productos
+
+- `[modular] domains` acepta `productos` (apagado por defecto): rutas de existencias y ventas
+  globales; el resto del inventario sigue en exploración acotada.
+
+## Sin publicar — Dominio modular de bancos
+
+- `[modular] domains` acepta `bancos` (apagado por defecto): rutas para saldo de una cuenta, saldos
+  de todas y reporte de movimientos. Sin el dominio, los bancos siguen en el intérprete completo.
+
+## Sin publicar — Dominio modular de proveedores
+
+- `[modular] domains` acepta `proveedores` (apagado por defecto): rutas `proveedores.*` con
+  `movimientos`, sin perder la pregunta de homónimos entre clientes y proveedores.
+
+## Sin publicar — Experimento: prefijo estable
+
+- Bandera `[modular] stable_prefix` (apagada): ordena el prompt modular de estable a variable y
+  separa calendario y estado en un mensaje final. Pendiente de medición antes de adoptarla.
+- Bandera `[modular] fixed_tool_schema` (apagada): esquema de herramienta igual para todo el dominio
+  y la operación de la ruta exigida al validar. Pendiente de medición.
+- Bandera `[modular] compact_history` (apagada): con una persona confirmada, el modelo recibe solo el
+  último intercambio y el estado.
+
+## Sin publicar — Prompt modular coherente con sus operaciones
+
+- El prompt modular solo nombra las operaciones habilitadas en el turno.
+- Con `[modular]`, si la ruta no permite lo pedido, el modelo puede responder
+  `pedir_aclaracion(reason="otra_operacion")`: el servicio repite el turno una vez con el intérprete
+  completo (`modular_fallback = "wrong_route"`), sin mostrarlo al usuario.
+
+## Sin publicar — `system.md` generado desde los módulos (`catalog-domains-v7`)
+
+- `src/dbagg/agent/templates/system.md` se genera con `python scripts/build_system_prompt.py` a
+  partir de los módulos modulares; editar un módulo exige regenerarlo (`test_prompt_parity`).
+- Módulos nuevos `domains/banks.md`, `domains/products.md`, `examples.md`, `shared/identity.md` y
+  `shared/time.md`. El prompt completo incluye ahora las reglas de gastos y de `estado_cuenta`.
+- Los prompts locales (`[prompts]` / `config/prompts/`) no cambian y siguen forzando el flujo anterior.
+
+## Sin publicar — Instrucciones del enrutador
+
+- Las instrucciones del enrutador (Jev y referencia) son una regla general breve; los casos viven en
+  la descripción de cada ruta («usar cuando», «no usar cuando»). Se quitó el nombre propio. El
+  enrutador recibe `previous_route` y `pending_clarification` como datos y la referencia ya no repite
+  las instrucciones en la descripción de su herramienta.
+
+## Sin publicar — Enrutamiento por niveles con Jev
+
+- Campos opcionales `[modular] min_margin` y `min_domain_confidence`: operación si hay confianza y
+  margen; si no, módulo del dominio con hasta tres operaciones; si no, intérprete completo sin
+  segunda clasificación. El clasificador mini queda solo para errores de Jev. Sin los campos, nada
+  cambia. Ver [docs/llm-configuration.md](docs/llm-configuration.md).
+
+## Sin publicar — Respaldo de extracción con motivo
+
+- Si la extracción modular propone una llamada fuera del contrato, el respaldo recibe esa llamada y
+  el motivo del rechazo. Con `extraction_profile` igual al perfil activo no se crea un segundo cliente.
+
+## Sin publicar — Continuidad tras el intérprete completo
+
+- Con `[modular]`, un resultado verificado del intérprete completo (cliente o proveedor con código)
+  conserva operación, identidad y período para el siguiente turno modular; antes se perdían.
+
+## Sin publicar — Aclaraciones resueltas sin modelo
+
+- Tras «Encontré varios clientes», responder con un código de la lista o su posición ejecuta la
+  operación pendiente (con su período) sin llamar al modelo. Tras «¿Qué período?», «este mes»,
+  «mes pasado», «esta semana» o «semana pasada» repiten la operación con el cliente confirmado.
+
+## Sin publicar — Pre-enrutador sin llamadas
+
+- Con `[modular]`, respuestas cortas («sí», «ok»), menciones de banco y nombres de cuentas junto a
+  «efectivo», «cuenta» o «caja» van al intérprete completo sin llamar al enrutador
+  (`local_decision = "pre_route_legacy"`). `route_is_consistent` sigue como red de seguridad.
+
+## Sin publicar — Elegir de una lista con un número y códigos dictados
+
+- Con una lista de personas abierta, un mensaje que es solo un número («3») elige esa fila. Un número
+  dentro de una frase no elige; si el número es también un código de la lista, gana el código.
+- Si un nombre no se encuentra, se reintenta una vez como código dictado por voz («M. Robles tres» →
+  `M.ROBLES3`), solo con coincidencia exacta de código en un único catálogo; nunca por similitud.
+
+## Sin publicar — Última nota de clientes
+
+- `ultima_nota` ya existe para clientes: «última nota», «última compra», «última compra a crédito» o
+  «nota de compra» de un cliente devuelven su última nota de crédito activa (`CREDITO_DATA`, folio,
+  fecha, partidas e importe `SUM([TOTAL])`). Antes se respondía con su último pago. Solo todo el
+  historial; con período, `fuera_alcance`. Sin notas pide aclaración.
+- Prompt: `system.md`, `domains/customers.md`, `tools.json` y el módulo nuevo
+  `operations/ultima_nota.md` (huella nueva de `catalog-domains-v6`). Ruta modular
+  `clientes.ultima_nota`. Migración: si el servidor usa `config/prompts/`, copiar estos cambios.
+
 ## Sin publicar — Bancos: reporte tras el saldo y fechas
 
 - «Dame un reporte de este mes» justo después de «Cuenta X» genera el PDF de esa cuenta, aunque el

@@ -347,3 +347,97 @@ class EvidenceAndCalendarTests(unittest.TestCase):
         self.assertEqual(table[0], "producto     anio  toneladas  costo_tonelada")
         self.assertEqual(table[2], "MAIZ BLANCO  2026   1,814.43        5,028.11")
         self.assertEqual(table[3], "SORGO        2026       5.20            4100")
+
+
+CREDIT_COLUMNS = {
+    "CLIENTE": "nvarchar",
+    "ESTADO": "nvarchar",
+    "FECHA": "date",
+    "FOLIO": "bigint",
+    "CONCEPTO": "nvarchar",
+    "CANTIDAD": "decimal",
+    "PRECIO": "decimal",
+    "TOTAL": "decimal",
+}
+
+
+class CreditNoteDatabase(SyntheticDatabase):
+    def __init__(self):
+        super().__init__()
+        from dbagg.business.customers import CREDITS
+
+        self.credits = CREDITS
+        self.conn.execute(
+            f"CREATE TABLE {CREDITS} (CLIENTE TEXT, ESTADO TEXT, FECHA TEXT, FOLIO INTEGER, "
+            "CONCEPTO TEXT, CANTIDAD NUMERIC, PRECIO NUMERIC, TOTAL NUMERIC)"
+        )
+
+    def schema(self, sources):
+        entries = catalogue() + [
+            {
+                "table": self.credits,
+                "columns": [{"name": n, "type": t} for n, t in CREDIT_COLUMNS.items()],
+            }
+        ]
+        return json.dumps([e for e in entries if e["table"] in sources])
+
+    def note(self, folio, fecha, total, estado="ACTIVA", customer="C1", concept="Maíz"):
+        self.conn.execute(
+            f"INSERT INTO {self.credits} VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (customer, estado, fecha, folio, concept, 10, total / 10, total),
+        )
+
+
+class CustomerLastNoteTests(unittest.TestCase):
+    """«Última nota / última compra» of a customer is their latest active credit note."""
+
+    def setUp(self):
+        from dbagg.business.customers import CREDITS
+
+        self.db = CreditNoteDatabase()
+        self.addCleanup(self.db.conn.close)
+        self.queries = CustomerQueries(self.db, {CUSTOMERS, PAYMENTS, CREDITS}, today=TODAY)
+        self.db.customer()
+
+    def ask(self, **kwargs):
+        return self.queries.execute("ultima_nota", customer="Ana", **kwargs)
+
+    def test_latest_active_note_sums_its_rows_and_ignores_cancelled(self):
+        self.db.note(10, "2026-09-01", 100)
+        self.db.note(11, "2026-09-15", 200, concept="Frijol")
+        self.db.note(11, "2026-09-15", 50, concept="Flete")
+        self.db.note(12, "2026-10-01", 999, estado="CANCELADA")
+        self.db.payment(1, "2026-10-05", 77)
+        answer = self.ask()
+        self.assertEqual(answer.status, "answered")
+        self.assertIn("Última nota de crédito de Ana Demo (código C1):", answer.text)
+        self.assertIn("Folio 11 · 2026-09-15", answer.text)
+        self.assertIn(f"Importe de la nota: {amount(250)}.", answer.text)
+        self.assertIn("Frijol", answer.text)
+        self.assertIn("Flete", answer.text)
+        self.assertNotIn("999", answer.text)
+        self.assertNotIn("77", answer.text)
+        self.assertIn("Importes sin moneda confirmada.", answer.text)
+        self.assertEqual(answer.operation, "ultima_nota")
+        self.assertEqual(answer.metadata["entity"], "cliente")
+        self.assertEqual(answer.metadata["code"], "C1")
+        self.assertTrue(all(PAYMENTS not in sql for sql, _, _ in self.db.calls))
+
+    def test_customer_without_notes_asks_instead_of_answering_zero(self):
+        self.db.note(12, "2026-10-01", 999, estado="CANCELADA")
+        answer = self.ask()
+        self.assertEqual(answer.status, "needs_clarification")
+        self.assertIn("No encontré notas de crédito activas", answer.text)
+        self.assertNotIn("0.00", answer.text)
+
+    def test_period_is_rejected(self):
+        self.db.note(10, "2026-09-01", 100)
+        for kwargs in ({"period": "este_mes"}, {"period": "rango", "start": "2026-09-01"}):
+            with self.subTest(**kwargs), self.assertRaises(BusinessError):
+                self.ask(**kwargs)
+
+    def test_missing_verified_columns_are_rejected(self):
+        original = CREDIT_COLUMNS.pop("TOTAL")
+        self.addCleanup(CREDIT_COLUMNS.__setitem__, "TOTAL", original)
+        with self.assertRaises(BusinessError):
+            self.ask()

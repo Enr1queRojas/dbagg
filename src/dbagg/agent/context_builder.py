@@ -4,8 +4,24 @@ import hashlib
 import json
 from dataclasses import dataclass
 
-from dbagg.agent.prompt_files import PromptBundle, TEMPLATES, _read
+from dbagg.agent.prompt_files import (
+    PromptBundle,
+    TEMPLATES,
+    _read,
+    example_paragraphs,
+    operations_text,
+)
 from dbagg.agent.prompts import tool_definitions
+
+
+WRONG_ROUTE_REASON = "otra_operacion"
+DOMAIN_MODULES = {
+    "clientes": "customers",
+    "proveedores": "customers",
+    "gastos": "expenses",
+    "bancos": "banks",
+    "productos": "products",
+}
 
 
 @dataclass(frozen=True)
@@ -16,14 +32,63 @@ class SelectedContext:
     tools: list[dict]
     modules: tuple[str, ...]
     tables: frozenset[str]
+    # Stable-prefix layout: per-turn operation text after schema and context.
+    suffix: str = ""
+    # With a fixed per-domain tool schema, the operations this route may still execute.
+    allowed_operations: tuple[str, ...] = ()
 
 
-def select_context(route, context, bundle, catalog, tables):
-    domain = "customers" if route.domain == "clientes" else "expenses"
-    modules = ("core", "domains/" + domain)
-    if route.operation:
-        modules += ("operations/" + route.operation,)
-    system = "\n".join(_read(TEMPLATES / (name + ".md"), 26000) for name in modules)
+def select_context(
+    route, context, bundle, catalog, tables, domain_scope=None, fixed_schema_scope=None
+):
+    """Prompt, data and tools for one route, or for several routes of the same domain.
+
+    With several routes the prompt carries core, domain and each candidate operation module;
+    the operation enum is exactly those operations; tables and topics are the union. One route
+    gives exactly the single-route result (same fingerprint).
+
+    With ``domain_scope`` (every route of the domain) the layout is stable-prefix: core,
+    shared and domain modules first, then schema and context of the whole domain, and only
+    then the per-turn operation text (``suffix``), so operations of a domain share a prefix.
+    """
+    routes = list(route) if isinstance(route, (list, tuple)) else [route]
+    if not routes or len({r.domain for r in routes}) != 1:
+        raise ValueError("Las rutas candidatas deben ser de un mismo dominio.")
+    if len({r.name for r in routes}) != len(routes):
+        raise ValueError("Rutas candidatas repetidas.")
+    domain = DOMAIN_MODULES[routes[0].domain]
+    operations = [r.operation for r in routes if r.operation]
+    if operations and len(operations) != len(routes):
+        raise ValueError("No se mezclan operaciones con exploración.")
+    shared = tuple(dict.fromkeys(module for r in routes for module in r.modules))
+    modules = (
+        ("core",)
+        + shared
+        + ("domains/" + domain,)
+        + tuple("operations/" + op for op in operations)
+        + (("shared/wrong_route",) if operations else ())
+    )
+    texts = {name: _read(TEMPLATES / (name + ".md"), 26000) for name in modules}
+    suffix = ""
+    if domain_scope and operations:
+        prefix_names = ("core",) + shared + ("domains/" + domain,)
+        domain_text = texts["domains/" + domain]
+        examples = [
+            p
+            for p in example_paragraphs(domain_text)
+            if p[len("Ejemplo (") :].split(")", 1)[0] in operations
+        ]
+        system = operations_text("\n".join(texts[n] for n in prefix_names), [])
+        suffix = "\n".join(
+            ["# Operaciones de este turno", operations_text("[[operaciones]]", operations)]
+            + examples
+            + [texts[n] for n in modules if n not in prefix_names]
+        )
+    else:
+        system = "\n".join(texts[name] for name in modules)
+        if operations:
+            # The prompt names exactly the operations this turn's enum offers.
+            system = operations_text(system, operations)
     # Unknown/local top-level rules are preserved, not silently discarded.
     data = json.loads(context)
     topics = data.get("topics", {})
@@ -40,28 +105,53 @@ def select_context(route, context, bundle, catalog, tables):
         "suppliers_and_purchases",
         "risk",
     }
+    scope = list(domain_scope) if domain_scope and operations else routes
+    wanted = {topic for r in scope for topic in r.topics}
     # Explicitly unknown topics may contain local mandatory guidance. Keep them.
-    data["topics"] = {k: v for k, v in topics.items() if k in route.topics or k not in known_topics}
-    tables = route.tables & catalog.restrict(tables)
+    data["topics"] = {k: v for k, v in topics.items() if k in wanted or k not in known_topics}
+    tables = frozenset().union(*(r.tables for r in scope)) & catalog.restrict(tables)
     schema = json.dumps(catalog.cards(tables), ensure_ascii=False)
     selected = json.dumps(data, ensure_ascii=False)
-    fingerprint = hashlib.sha256((system + selected + schema).encode()).hexdigest()[:16]
+    fingerprint = hashlib.sha256((system + selected + schema + suffix).encode()).hexdigest()[:16]
     modular_bundle = PromptBundle(system, bundle.descriptions, "modular-v1:" + fingerprint)
+    allowed_tools = {tool for r in routes for tool in r.tools}
     tools = [
         t
-        for t in tool_definitions(modular_bundle, suppliers=True)
-        if t["function"]["name"] in route.tools
+        for t in tool_definitions(
+            modular_bundle, suppliers=True, banks=routes[0].domain == "bancos"
+        )
+        if t["function"]["name"] in allowed_tools
     ]
-    if route.operation:
+    for tool in tools:
+        if tool["function"]["name"] == "pedir_aclaracion":
+            # Modular only: the route was wrong; the service retries once with the full prompt.
+            tool["function"]["parameters"]["properties"]["reason"]["enum"].append(
+                WRONG_ROUTE_REASON
+            )
+    allowed = ()
+    if operations:
         properties = tools[0]["function"]["parameters"]["properties"]
-        properties["operation"]["enum"] = [route.operation]
-        # No products, banks or comparisons in a customer operation.
-        for name in ("producto", "comparar", "banco"):
+        properties["operation"]["enum"] = operations
+        if fixed_schema_scope:
+            # Experiment: the same schema for every operation of the domain; the route's
+            # operations are then enforced by validate_tool_call.
+            properties["operation"]["enum"] = [
+                r.operation for r in fixed_schema_scope if r.operation
+            ]
+            allowed = tuple(operations)
+        # Each domain keeps only its own parameters.
+        dropped = {
+            "bancos": ("producto", "comparar", "customer", "entidad", "codigo_exacto"),
+            "productos": ("banco", "customer", "entidad", "codigo_exacto"),
+        }.get(routes[0].domain, ("producto", "comparar", "banco"))
+        for name in dropped:
             properties.pop(name, None)
-    return SelectedContext(modular_bundle, selected, schema, tools, modules, tables)
+    return SelectedContext(
+        modular_bundle, selected, schema, tools, modules, tables, suffix, allowed
+    )
 
 
-def validate_tool_call(call, tools):
+def validate_tool_call(call, tools, allowed_operations=()):
     """Validate the selected closed contract before any database or business call."""
     definitions = {t["function"]["name"]: t["function"]["parameters"] for t in tools}
     if call.name not in definitions:
@@ -89,4 +179,10 @@ def validate_tool_call(call, tools):
             or any(not isinstance(item, str) for item in value)
         ):
             raise ValueError("Lista fuera del contrato seleccionado.")
+    if (
+        allowed_operations
+        and call.name == "consultar_negocio"
+        and arguments.get("operation") not in allowed_operations
+    ):
+        raise ValueError("Operación fuera de la ruta seleccionada.")
     return arguments

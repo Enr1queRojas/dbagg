@@ -158,3 +158,78 @@ class LLMConfigurationTests(unittest.TestCase):
         load_prompt_bundle(config)
         with self.assertRaises(ValueError):
             load_prompt_bundle(replace(config, system_prompt=self.root / "absent.md"))
+
+
+class TieredRoutingConfigTests(unittest.TestCase):
+    def test_tier_thresholds_are_optional_and_bounded(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            base = Path("src/dbagg/llm/default.toml").read_text()
+            path = root / "llm.toml"
+            path.write_text(base)
+            modular = load_llm_config(root, {"LLM_CONFIG": str(path)}).modular
+            self.assertIsNone(modular.min_margin)
+            self.assertIsNone(modular.min_domain_confidence)
+            path.write_text(
+                base
+                + "\n[modular]\nmin_confidence=0.8\nmin_margin=0.2\nmin_domain_confidence=0.7\n"
+            )
+            modular = load_llm_config(root, {"LLM_CONFIG": str(path)}).modular
+            self.assertEqual((modular.min_margin, modular.min_domain_confidence), (0.2, 0.7))
+            for section in ("min_margin=1.5", 'min_domain_confidence="alta"', "min_margin=-0.1"):
+                path.write_text(base + "\n[modular]\n" + section + "\n")
+                with self.subTest(section=section), self.assertRaises(ValueError):
+                    load_llm_config(root, {"LLM_CONFIG": str(path)})
+
+
+class ModularDomainConfigTests(unittest.TestCase):
+    def test_new_domains_are_accepted_but_not_enabled_by_default(self):
+        from dbagg.llm.config import ModularConfig, _modular
+
+        self.assertEqual(ModularConfig().domains, ("clientes", "gastos"))
+        config = _modular({"domains": ["clientes", "proveedores", "bancos", "productos"]}, {})
+        self.assertIn("proveedores", config.domains)
+        with self.assertRaises(ValueError):
+            _modular({"domains": ["inventario"]}, {})
+
+
+class ModularSummaryTests(unittest.TestCase):
+    def test_check_reports_modular_state_and_warns_about_blockers(self):
+        from pathlib import Path as _Path
+
+        from dbagg.llm.__main__ import modular_summary
+        from dbagg.llm.config import LLMConfig, ModelProfile, ModularConfig
+
+        modular = ModularConfig(
+            enabled=True, router="jev", min_confidence=0.8, min_domain_confidence=0.4
+        )
+        config = LLMConfig(ModelProfile(), modular=modular)
+        summary, warnings = modular_summary(config, {"TYPESAFE_API_KEY": "synthetic-secret-123"})
+        self.assertTrue(summary["active"])
+        self.assertTrue(summary["jev_api_key_present"])
+        self.assertEqual(summary["min_domain_confidence"], 0.4)
+        self.assertEqual(warnings, [])
+        self.assertNotIn("synthetic-secret-123", json.dumps(summary))
+        summary, warnings = modular_summary(
+            LLMConfig(ModelProfile(), system_prompt=_Path("agent.md"), modular=modular), {}
+        )
+        self.assertFalse(summary["active"])
+        self.assertEqual(len(warnings), 2)
+        summary, warnings = modular_summary(LLMConfig(ModelProfile()), {})
+        self.assertFalse(summary["active"])
+        self.assertEqual(warnings, [])
+
+
+class ProductionExampleTests(unittest.TestCase):
+    def test_production_example_is_valid_and_matches_the_measured_configuration(self):
+        root = Path(__file__).resolve().parents[2]
+        production = load_llm_config(
+            root, {"LLM_CONFIG": str(root / "config/llm.production.example.toml")}
+        )
+        measured = load_llm_config(
+            root, {"LLM_CONFIG": str(root / "docs/evaluations/final-v2/llm.all.toml")}
+        )
+        self.assertEqual(production.modular, measured.modular)
+        self.assertTrue(production.modular.enabled)
+        self.assertIsNone(production.system_prompt)
+        self.assertIsNone(production.tool_descriptions)

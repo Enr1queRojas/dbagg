@@ -156,6 +156,21 @@ python -m dbagg.evaluation.modular \
   --output work/modular-evaluation --repeat 1
 ```
 
+`--dataset` se puede repetir (cada conjunto usa su propio `business_today`) y `--repeat N`
+repite todos los casos. Por caso se guardan `route_expected` (derivada de la herramienta y la
+operación esperadas con el registro; las aclaraciones no se puntúan por ruta),
+`route_selected`, `route_correct`, `arguments_correct` (solo si la ruta fue correcta o se usó
+legacy), llamadas por tarea, tokens de entrada/caché/salida, probabilidades de Jev y
+`duration_ms`. El resumen por variante y por dominio muestra acierto de ruta, acierto de
+parámetros dada la ruta, llamadas y tokens por turno, costo conocido, **costo por consulta
+correcta** (`null` sin aciertos; «incompleto» si hubo consumo desconocido) y latencia p50/p95.
+
+Para calibrar umbrales de Jev sin llamar a ninguna API:
+`python -m dbagg.evaluation.calibration --input <benchmark.json> [--variant jev_mini]
+[--output calibration.json]` produce la matriz de confusión ruta esperada × elegida, las curvas
+cobertura/acierto por confianza y por margen (primera − segunda probabilidad) de 0.50 a 0.95, y
+el acierto por dominio (suma de probabilidades de sus rutas).
+
 El evaluador ejecuta la orquestación real y captura la primera herramienta ejecutable,
 aplicando restricciones de herramientas y de esquema antes del SQL. No evalúa
 respuestas financieras ni debe confundirse con una prueba completa contra SQL Server.
@@ -222,3 +237,28 @@ no una autorización para ejecutar SQL ni una sustitución automática de pregun
 mixtas. Las instrucciones del enrutador priorizan la pregunta actual sobre el
 historial. Un total exploratorio de gastos sin fechas usa movimientos activos de
 todo el historial; conserva negativos y no se presenta como reporte contable verificado.
+
+
+## Cambios de 2026-11-12 (plan de prompts y enrutamiento con Jev)
+
+Todo queda detrás de `[modular]` o de banderas apagadas; `default.toml` conserva `enabled = false`.
+
+- **Sin llamadas cuando el resultado ya se conoce:** `pre_route` manda a legacy respuestas cortas,
+  menciones de banco y nombres de cuentas (salvo con el dominio `bancos`); las respuestas a una
+  aclaración del propio servicio (código o posición de la lista, período relativo) se ejecutan sin
+  modelo; un resultado legacy verificado conserva el estado.
+- **Enrutamiento por niveles:** `min_margin` y `min_domain_confidence` eligen operación, módulo de
+  dominio (hasta tres operaciones, `select_context` con varias rutas) o legacy sin segunda
+  clasificación. El enrutador recibe `previous_route` y `pending_clarification`; sus instrucciones
+  son generales y los casos viven en cada ruta.
+- **Módulos:** `core.md` se partió en `shared/identity.md` y `shared/time.md` (declarados por ruta);
+  `system.md` se genera desde los módulos (`scripts/build_system_prompt.py`); el texto modular solo
+  nombra las operaciones del turno; `otra_operacion` permite un único regreso al intérprete completo;
+  cada operación tiene un ejemplo ficticio solo en modular.
+- **Dominios opcionales:** `proveedores`, `bancos` y `productos`.
+- **Experimentos apagados:** `stable_prefix`, `fixed_tool_schema` y `compact_history`.
+- **Medición:** el evaluador separa ruta, parámetros dada la ruta, llamadas, tokens, costo por
+  consulta correcta y latencia; `dbagg.evaluation.calibration` calibra umbrales sin API.
+
+Las mediciones con API (línea base, umbrales, ejemplos, experimentos y evaluación final) están
+pendientes; los comandos están en `docs/evaluations/*/PENDIENTE.md`.
