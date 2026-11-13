@@ -319,15 +319,20 @@ para enrutar.
     casos de desarrollo de enrutamiento existentes siguen pasando con
     enrutador simulado.
 
-- [ ] **T13. Calibrar umbrales [API]**
+- [x] **T13. Calibrar umbrales [API]**
   - Repetir T3 con T10–T12. Elegir `min_confidence`, `min_margin` y
     `min_domain_confidence` con las curvas de T2 sobre los conjuntos de
     desarrollo, y verificar una sola vez en `whatsapp-pilot.json`.
   - **Aceptar si:** acierto de ruta ≥ línea base y ≤ 1.1 llamadas de
     enrutamiento por turno. Documentar los valores como calibrados para este
     conjunto, no como garantía de producción.
-  - **Pendiente (2026-11-12):** sin claves ni red. Comandos en
-    `docs/evaluations/thresholds/PENDIENTE.md`.
+  - **Resultado (2026-11-12, con API):** `min_confidence = 0.8`, `min_margin = 0.2`
+    (sin efecto con 0.8: el margen ya es ≥ 0.6), `min_domain_confidence = 0.4`,
+    elegidos con las curvas de desarrollo con 5 dominios (corrida adicional
+    `development-all-domains`, porque las probabilidades de Jev dependen del conjunto
+    de rutas). Verificación única en el piloto: ruta 73.8 % ≥ 71.4 % de la línea base,
+    1.00 llamadas de enrutamiento por turno → **se acepta**. Calibrado para estos
+    conjuntos, no garantía de producción: `docs/evaluations/thresholds/summary.md`.
 
 ---
 
