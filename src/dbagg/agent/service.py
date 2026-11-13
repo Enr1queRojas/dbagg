@@ -655,7 +655,7 @@ class Assistant:
                 self.last_trace["modular_fallback"] = "legacy_route"
                 return None
             candidates = [route]
-        consistent = [r for r in candidates if route_is_consistent(question, r)]
+        consistent = [r for r in candidates if route_is_consistent(question, r, history)]
         if not consistent:
             self.last_trace["modular_fallback"] = "route_inconsistent"
             self.last_trace.setdefault("events", []).append(
@@ -825,7 +825,12 @@ class Assistant:
                 }
                 for route in turn_routes
             )
-            if needs_dates and needs_expense_year(question, history, self.next_state):
+            if (
+                needs_dates
+                and needs_expense_year(question, history, self.next_state)
+                # A year-less range that ends today is not ambiguous (prompt rule).
+                and not range_to_today(question, today)
+            ):
                 self.last_trace.update(
                     status="needs_clarification", sources=[], clarification="periodo"
                 )

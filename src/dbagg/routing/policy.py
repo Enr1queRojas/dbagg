@@ -46,8 +46,29 @@ def pre_route(question, history=None, state=None, bank_names=(), bank_domain=Fal
     return None
 
 
-def route_is_consistent(question, route):
+STATEMENT_WORDS = re.compile(r"\b(reportes?|estados? de cuenta)\b")
+
+
+def _latest_answer(history):
+    for message in reversed(history or []):
+        if message.get("role") == "assistant" and isinstance(message.get("content"), str):
+            return message["content"]
+    return ""
+
+
+def route_is_consistent(question, route, history=None):
     text = normalize(question)
+    # «Reporte» or «estado de cuenta» of a person is estado_cuenta, also while answering the
+    # dates the service asked for it; a supplier's movements are only asked as movements.
+    if (
+        route.operation == "movimientos"
+        and not re.search(r"\bmovimientos?\b", text)
+        and (
+            STATEMENT_WORDS.search(text)
+            or STATEMENT_WORDS.search(normalize(_latest_answer(history)))
+        )
+    ):
+        return False
     # Bank tools are available only in the full interpreter in this pilot.
     # Explicit bank references must not be trapped in another domain's tools.
     if route.domain != "bancos" and re.search(r"\bbancos?\b", text):

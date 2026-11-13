@@ -1746,3 +1746,42 @@ class ProductModularDomainTests(unittest.TestCase):
         text = assistant.answer("¿Cuánto maíz tenemos?")
         self.assertEqual(assistant.last_trace["route"], "productos.existencias")
         self.assertIn("MAIZ", text.upper())
+
+
+class RangeToTodayGateTests(unittest.TestCase):
+    def test_modular_period_gate_lets_a_range_ending_today_reach_the_model(self):
+        from datetime import date
+        from unittest.mock import patch
+
+        db = SyntheticDatabase()
+        self.addCleanup(db.conn.close)
+        db.customer()
+        db.payment(1, "2026-09-02", "40")
+        provider = Mock()
+        provider.complete.side_effect = [
+            reply("select_route", {"route": "clientes.total_pagos"}),
+            reply(
+                "consultar_negocio",
+                {
+                    "operation": "total_pagos",
+                    "customer": "Ana Demo",
+                    "period": "rango",
+                    "start": "2026-08-30",
+                    "end": "2026-10-08",
+                },
+            ),
+        ]
+        config = LLMConfig(ModelProfile(), modular=ModularConfig(enabled=True))
+        assistant = Assistant(
+            SimpleNamespace(model="test", tables={CUSTOMERS, PAYMENTS}, llm=config),
+            db=db,
+            provider=provider,
+        )
+        with patch("dbagg.agent.service.business_today", return_value=date(2026, 10, 8)):
+            text = assistant.answer("¿Cuánto pagó Ana Demo del 30 de agosto a hoy?")
+            self.assertIn("Total de pagos activos de Ana Demo (código C1): 40.00", text)
+            provider.complete.side_effect = [
+                reply("select_route", {"route": "clientes.total_pagos"})
+            ]
+            text = assistant.answer("¿Cuánto pagó Ana Demo en septiembre?")
+        self.assertIn("¿Qué período", text)  # a month without a year is still asked

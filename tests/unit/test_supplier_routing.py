@@ -435,3 +435,21 @@ class SupplierModularDomainTests(RoutingCase):
         movements = routes["proveedores.movimientos"]
         self.assertFalse(route_is_consistent("Movimientos del cliente Ana", movements))
         self.assertTrue(route_is_consistent("Movimientos del proveedor Ana", movements))
+
+    def test_report_or_statement_never_runs_as_supplier_movements(self):
+        from dbagg.database.catalog import load_catalog
+        from dbagg.routing.policy import route_is_consistent
+        from dbagg.routing.registry import available_routes
+
+        routes = available_routes(load_catalog(), self.TABLES, ("clientes", "proveedores"))
+        movements = routes["proveedores.movimientos"]
+        self.assertFalse(route_is_consistent("Reporte del proveedor Cuervo de este mes", movements))
+        self.assertFalse(route_is_consistent("Estado de cuenta de Cuervo", movements))
+        asked = [
+            assistant_message(
+                "Proveedor Cuervo (código C1)\n¿De qué fechas quieres el estado de cuenta?"
+            )
+        ]
+        self.assertFalse(route_is_consistent("del 30 de agosto a hoy", movements, asked))
+        self.assertTrue(route_is_consistent("Movimientos de Cuervo de este mes", movements))
+        self.assertTrue(route_is_consistent("Reporte de movimientos de Cuervo", movements))
