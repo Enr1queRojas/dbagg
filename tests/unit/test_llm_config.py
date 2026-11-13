@@ -191,3 +191,45 @@ class ModularDomainConfigTests(unittest.TestCase):
         self.assertIn("proveedores", config.domains)
         with self.assertRaises(ValueError):
             _modular({"domains": ["inventario"]}, {})
+
+
+class ModularSummaryTests(unittest.TestCase):
+    def test_check_reports_modular_state_and_warns_about_blockers(self):
+        from pathlib import Path as _Path
+
+        from dbagg.llm.__main__ import modular_summary
+        from dbagg.llm.config import LLMConfig, ModelProfile, ModularConfig
+
+        modular = ModularConfig(
+            enabled=True, router="jev", min_confidence=0.8, min_domain_confidence=0.4
+        )
+        config = LLMConfig(ModelProfile(), modular=modular)
+        summary, warnings = modular_summary(config, {"TYPESAFE_API_KEY": "synthetic-secret-123"})
+        self.assertTrue(summary["active"])
+        self.assertTrue(summary["jev_api_key_present"])
+        self.assertEqual(summary["min_domain_confidence"], 0.4)
+        self.assertEqual(warnings, [])
+        self.assertNotIn("synthetic-secret-123", json.dumps(summary))
+        summary, warnings = modular_summary(
+            LLMConfig(ModelProfile(), system_prompt=_Path("agent.md"), modular=modular), {}
+        )
+        self.assertFalse(summary["active"])
+        self.assertEqual(len(warnings), 2)
+        summary, warnings = modular_summary(LLMConfig(ModelProfile()), {})
+        self.assertFalse(summary["active"])
+        self.assertEqual(warnings, [])
+
+
+class ProductionExampleTests(unittest.TestCase):
+    def test_production_example_is_valid_and_matches_the_measured_configuration(self):
+        root = Path(__file__).resolve().parents[2]
+        production = load_llm_config(
+            root, {"LLM_CONFIG": str(root / "config/llm.production.example.toml")}
+        )
+        measured = load_llm_config(
+            root, {"LLM_CONFIG": str(root / "docs/evaluations/final-v2/llm.all.toml")}
+        )
+        self.assertEqual(production.modular, measured.modular)
+        self.assertTrue(production.modular.enabled)
+        self.assertIsNone(production.system_prompt)
+        self.assertIsNone(production.tool_descriptions)

@@ -1,0 +1,37 @@
+# Configuración de producción con el flujo modular («todo activado», medido en T25-v2:
+# docs/evaluations/final-v2/summary.md). Copiar a config/llm.toml en la VM SOLO después de que el
+# código nuevo esté desplegado: la versión anterior rechaza las claves nuevas de [modular].
+# Guía completa: docs/deploy-modular.md. Volver atrás: enabled = false y reiniciar.
+version = 1
+active_profile = "openai"
+
+[profiles.openai]
+provider = "openai"
+model = "gpt-4.1-mini"
+api_key_env = "OPENAI_API_KEY"
+base_url = "https://api.openai.com/v1"
+max_output_tokens = 1200
+temperature = 0.0
+timeout_seconds = 30
+max_retries = 0
+
+# Sin sección [prompts]: con prompts locales el flujo modular se apaga solo y tampoco llegan las
+# correcciones del prompt empaquetado (catalog-domains-v7).
+
+[modular]
+enabled = true
+domains = ["clientes", "gastos", "proveedores", "bancos", "productos"]
+router = "jev"
+shadow = false
+jev_model = "jev-1.14.0"
+jev_api_key_env = "TYPESAFE_API_KEY"
+timeout_seconds = 5
+# Umbrales calibrados en los conjuntos de desarrollo (T13, confirmados en T25-v2); no son una
+# garantía para otros datos.
+min_confidence = 0.8
+min_margin = 0.2
+min_domain_confidence = 0.4
+compact_history = true
+# Medidos y descartados (subían el costo o bajaban el acierto): dejar apagados.
+stable_prefix = false
+fixed_tool_schema = false

@@ -1,5 +1,20 @@
 # Cambios
 
+## Sin publicar — Migración en producción: flujo modular con Jev
+
+Desplegar el código no cambia el comportamiento del enrutamiento: sigue el intérprete completo hasta
+activar `[modular]` en la VM. Pasos, verificación y vuelta atrás en
+[docs/deploy-modular.md](docs/deploy-modular.md):
+
+1. Fusionar con `main` y esperar el despliegue automático.
+2. En la VM: añadir `TYPESAFE_API_KEY` a `.env`; copiar `[modular]` de
+   `config/llm.production.example.toml` a `config/llm.toml` y **quitar `[prompts]`** (con prompts
+   locales el modular se apaga y no llegan las correcciones del prompt `catalog-domains-v7`).
+3. `docker compose run --rm --no-deps dbagg python -m dbagg.llm check` debe mostrar
+   `"active": true` y sin avisos; después `docker compose up -d`.
+
+No copiar las claves nuevas de `[modular]` antes de desplegar: la versión anterior las rechaza.
+
 ## Sin publicar — Ajustes tras la evaluación final (T25)
 
 - El dominio modular `proveedores` solo añade `movimientos`; las operaciones compartidas siguen en
