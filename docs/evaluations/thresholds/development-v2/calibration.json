@@ -1,0 +1,196 @@
+{
+  "decisions": 180,
+  "route_accuracy": 0.8555555555555555,
+  "confusion": {
+    "bancos.movimientos_banco": {
+      "bancos.movimientos_banco": 8,
+      "gastos.exploracion": 1,
+      "legacy": 3
+    },
+    "bancos.saldo_banco": {
+      "bancos.saldo_banco": 6,
+      "legacy": 9
+    },
+    "bancos.saldos_bancos": {
+      "bancos.saldos_bancos": 6
+    },
+    "clientes.contar_coincidencias": {
+      "clientes.contar_coincidencias": 6
+    },
+    "clientes.estado_cuenta": {
+      "clientes.estado_cuenta": 14,
+      "proveedores.movimientos": 4
+    },
+    "clientes.notas_pendientes": {
+      "clientes.notas_pendientes": 6
+    },
+    "clientes.pagos": {
+      "clientes.pagos": 6
+    },
+    "clientes.ranking_deuda": {
+      "clientes.ranking_deuda": 12
+    },
+    "clientes.saldo": {
+      "clientes.saldo": 23,
+      "clientes.saldos_coincidencias": 2,
+      "clientes.total_pagos": 1,
+      "legacy": 4
+    },
+    "clientes.saldos_coincidencias": {
+      "clientes.saldos_coincidencias": 3
+    },
+    "clientes.total_pagos": {
+      "clientes.total_pagos": 22,
+      "legacy": 2
+    },
+    "clientes.ultima_nota": {
+      "clientes.ultima_nota": 3
+    },
+    "clientes.ultimo_pago": {
+      "clientes.ultimo_pago": 6
+    },
+    "gastos.exploracion": {
+      "gastos.exploracion": 12
+    },
+    "legacy": {
+      "legacy": 3
+    },
+    "productos.existencias": {
+      "productos.existencias": 6
+    },
+    "productos.ventas": {
+      "productos.ventas": 9
+    },
+    "proveedores.movimientos": {
+      "proveedores.movimientos": 3
+    }
+  },
+  "confidence_curve": [
+    {
+      "threshold": 0.5,
+      "covered": 166,
+      "coverage": 0.9222222222222223,
+      "accuracy": 0.8855421686746988
+    },
+    {
+      "threshold": 0.55,
+      "covered": 151,
+      "coverage": 0.8388888888888889,
+      "accuracy": 0.9072847682119205
+    },
+    {
+      "threshold": 0.6,
+      "covered": 144,
+      "coverage": 0.8,
+      "accuracy": 0.9236111111111112
+    },
+    {
+      "threshold": 0.65,
+      "covered": 136,
+      "coverage": 0.7555555555555555,
+      "accuracy": 0.9485294117647058
+    },
+    {
+      "threshold": 0.7,
+      "covered": 124,
+      "coverage": 0.6888888888888889,
+      "accuracy": 0.9758064516129032
+    },
+    {
+      "threshold": 0.75,
+      "covered": 120,
+      "coverage": 0.6666666666666666,
+      "accuracy": 0.975
+    },
+    {
+      "threshold": 0.8,
+      "covered": 117,
+      "coverage": 0.65,
+      "accuracy": 0.9829059829059829
+    },
+    {
+      "threshold": 0.85,
+      "covered": 106,
+      "coverage": 0.5888888888888889,
+      "accuracy": 1.0
+    },
+    {
+      "threshold": 0.9,
+      "covered": 100,
+      "coverage": 0.5555555555555556,
+      "accuracy": 1.0
+    },
+    {
+      "threshold": 0.95,
+      "covered": 85,
+      "coverage": 0.4722222222222222,
+      "accuracy": 1.0
+    }
+  ],
+  "margin_curve": [
+    {
+      "threshold": 0.5,
+      "covered": 121,
+      "coverage": 0.6722222222222223,
+      "accuracy": 0.9752066115702479
+    },
+    {
+      "threshold": 0.55,
+      "covered": 120,
+      "coverage": 0.6666666666666666,
+      "accuracy": 0.975
+    },
+    {
+      "threshold": 0.6,
+      "covered": 119,
+      "coverage": 0.6611111111111111,
+      "accuracy": 0.9747899159663865
+    },
+    {
+      "threshold": 0.65,
+      "covered": 117,
+      "coverage": 0.65,
+      "accuracy": 0.9829059829059829
+    },
+    {
+      "threshold": 0.7,
+      "covered": 111,
+      "coverage": 0.6166666666666667,
+      "accuracy": 0.990990990990991
+    },
+    {
+      "threshold": 0.75,
+      "covered": 108,
+      "coverage": 0.6,
+      "accuracy": 1.0
+    },
+    {
+      "threshold": 0.8,
+      "covered": 103,
+      "coverage": 0.5722222222222222,
+      "accuracy": 1.0
+    },
+    {
+      "threshold": 0.85,
+      "covered": 95,
+      "coverage": 0.5277777777777778,
+      "accuracy": 1.0
+    },
+    {
+      "threshold": 0.9,
+      "covered": 87,
+      "coverage": 0.48333333333333334,
+      "accuracy": 1.0
+    },
+    {
+      "threshold": 0.95,
+      "covered": 56,
+      "coverage": 0.3111111111111111,
+      "accuracy": 1.0
+    }
+  ],
+  "domain": {
+    "scored": 180,
+    "accuracy": 0.8777777777777778
+  }
+}
