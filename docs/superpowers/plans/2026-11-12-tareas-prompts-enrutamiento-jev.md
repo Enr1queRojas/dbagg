@@ -412,12 +412,20 @@ para enrutar.
     `docs/evaluations/thresholds/PENDIENTE.md` (variantes `reference_mini` y
     `jev_mini`, antes y después de este commit) y retirar el ejemplo que empeore
     un caso. Casilla sin marcar hasta medir.
+  - **Medición parcial (2026-11-12, con API), sigue sin marcar:** con la config de
+    T13 en intent + bank, `arguments_accuracy_given_route` da 88.5 %, frente a 86.0 %
+    (`jev_mini`) y 84.5 % (`reference_mini`) de la línea base. No baja, pero la
+    línea base ya incluía los ejemplos de T17, así que no se aísla su efecto (no se
+    ejecutó el código anterior a T17). Empeoraron `homonym-balances`
+    (`saldos_coincidencias`), `last-payment-keeps-chosen-code` (`ultimo_pago`) y
+    `global-customer-count` (aclaración). No se retiró ningún ejemplo; queda a
+    decisión del dueño. Detalle en `docs/evaluations/experiments/summary.md`.
 
 ---
 
 ## Bloque F — Costo: caché, historial y cobertura de dominios
 
-- [ ] **T18. Ordenar el prompt de estable a variable**
+- [x] **T18. Ordenar el prompt de estable a variable**
   - **Archivos:** `agent/prompts.py` (`build_messages`), `agent/context_builder.py`,
     `agent/service.py` (hoy añade el estado al final del sistema, `:509-512`).
   - **Qué hacer:** orden del mensaje de sistema: núcleo → compartidos →
@@ -434,8 +442,13 @@ para enrutar.
     bandera, comparando `tokens_per_turn.cached` y `cost_per_correct_usd`
     (`--repeat 3`). Nota: el esquema de herramientas sigue variando por
     operación (ver T19), lo que limita el prefijo común en OpenAI.
+  - **Medido (2026-11-12, con API): no se adopta.** En desarrollo, con la config de
+    T13, los tokens en caché suben de 6039 a 6557 por turno, pero la entrada crece de
+    8494 a 9434 y el costo por consulta correcta sube 18.8 % ($0.001140 → $0.001354).
+    El acierto total sube 2.4 puntos, en el límite del ruido. La bandera queda
+    apagada. Resultado negativo publicado en `docs/evaluations/experiments/summary.md`.
 
-- [ ] **T19. Esquema de herramienta fijo por dominio (experimento) [API]**
+- [x] **T19. Esquema de herramienta fijo por dominio (experimento) [API]**
   - **Qué hacer:** bandera `fixed_tool_schema`. Con ella, el enum de
     `operation` es el del dominio completo y la operación de la ruta se exige
     en `validate_tool_call`. Comparar con T18.
@@ -444,6 +457,10 @@ para enrutar.
   - **Implementado, apagado, medición pendiente (2026-11-12):** bandera
     `[modular] fixed_tool_schema`; `validate_tool_call(..., allowed_operations)`.
     Comparar contra T18 con `--repeat 3` cuando haya claves.
+  - **Medido (2026-11-12, con API): no se adopta.** El costo por consulta correcta
+    no cambia de forma apreciable ($0.001140 → $0.001136), los tokens en caché bajan
+    levemente y `arguments_accuracy_given_route` baja de 90.4 % a 89.4 %. La bandera
+    queda apagada (`docs/evaluations/experiments/summary.md`).
 
 - [x] **T20. Historial reducido con estado confirmado**
   - **Archivos:** `agent/service.py`, `agent/prompts.py`.
