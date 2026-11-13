@@ -86,7 +86,8 @@ def requests_candidate_comparison(question):
 def list_row_details(answer):
     """(entity mark, name, code) of a party list's rows; movements carry « · » and never match."""
     rows = re.findall(
-        r"^\s*(?:\d+\.|[•*])\s([^·\n]*?)\s*\((?:(cliente|proveedor),\s*)?(?:c[oó]digo\s+)?"
+        r"^\s*(?:\d+\.|[•*])\s([^·\n]*?)\s*\((?:(cliente|proveedor|cuenta de banco),\s*)?"
+        r"(?:c[oó]digo\s+)?"
         r"([^()\n]+)\)(?::[^·\n]*)?(?:\s·\sinactivo)?\s*$",
         answer,
         flags=re.MULTILINE,

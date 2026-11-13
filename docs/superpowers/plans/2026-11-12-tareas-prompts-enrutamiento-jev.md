@@ -549,14 +549,16 @@ T24               (requiere datos nuevos del dueño)
 T25               (al final)
 ```
 
-## Decisiones pendientes del dueño — no implementar sin respuesta
+## Decisiones del dueño (respondidas el 2026-11-13)
 
-1. **Reporte de banco sin fechas:** hoy devuelve todo el historial, mientras el
-   estado de cuenta de personas pide fechas. ¿Debe pedirlas también?
-2. **«Saldo de Enrique» tras consultar su banco:** hoy lista clientes y
-   proveedores. ¿Debe ofrecer también la cuenta bancaria homónima?
-3. **Vencimiento de la memoria (30 minutos):** un seguimiento horas después
-   pierde el cliente. ¿Se mantiene?
+1. **Reporte de banco sin fechas → sí, pedirlas.** Ya era así en el código
+   (`BankQueries._movements` confirma la cuenta y pregunta «¿De qué fechas quieres
+   el reporte?»; prueba en `test_bank_queries`). Sin cambios.
+2. **«Saldo de Enrique» tras consultar su banco → sí, ofrecer la cuenta.**
+   Implementado: la lista de personas añade la fila «(cuenta de banco, código X)»
+   y elegirla consulta la cuenta (`Assistant._offer_bank_account`,
+   `_chosen_bank_row`; pruebas en `test_bank_routing.BankAccountOfferTests`).
+3. **Vencimiento de la memoria de 30 minutos → sí, se mantiene.** Sin cambios.
 
 ## Condiciones para detenerse y preguntar
 

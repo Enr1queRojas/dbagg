@@ -328,3 +328,84 @@ class BankToolTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class BankAccountOfferTests(unittest.TestCase):
+    """Owner decision: after «Cuenta X», a list of people named like X also offers X."""
+
+    BANK_ANSWER = [
+        {"role": "user", "content": "El banco de Enrique"},
+        {
+            "role": "assistant",
+            "content": "Cuenta ENRIQUE (EFECTIVOS ENRIQUE ROJAS)\nSaldo actual: -20.00.",
+        },
+    ]
+
+    def setUp(self):
+        from tests.unit.test_customer_queries import catalogue
+
+        class Combined(BankDatabase):
+            def schema(inner, sources):
+                bank = [t for t in sources if t != CUSTOMERS]
+                entries = json.loads(BankDatabase.schema(inner, bank)) if bank else []
+                if CUSTOMERS in sources:
+                    entries += [e for e in catalogue() if e["table"] == CUSTOMERS]
+                return json.dumps(entries)
+
+        self.db = Combined()
+        self.addCleanup(self.db.conn.close)
+        self.db.account("ENRIQUE", "EFECTIVOS ENRIQUE ROJAS", opening="-20")
+        self.db.conn.execute(f'CREATE TABLE {CUSTOMERS} (CODIGO, NOMBRE, "SALDO ACTUAL" NUMERIC)')
+        for row in (("E1", "ENRIQUE PEREZ", 10), ("E2", "ENRIQUE SOTO", 20)):
+            self.db.conn.execute(f"INSERT INTO {CUSTOMERS} VALUES (?, ?, ?)", row)
+
+    def ask(self, question, history, **arguments):
+        call = ToolCall("t1", "consultar_negocio", json.dumps(arguments))
+        settings = SimpleNamespace(
+            model="test-model",
+            api_key="synthetic",
+            tables={CUSTOMERS, *BANK_SOURCES},
+            llm=LLMConfig(ModelProfile(model="test-model")),
+        )
+        service = Assistant(
+            settings, db=self.db, provider=OneCallProvider(ModelReply(None, (call,), {}))
+        )
+        return service.answer(question, history)
+
+    def listed(self):
+        text = self.ask(
+            "¿Y el saldo de Enrique?", self.BANK_ANSWER, operation="saldo", customer="Enrique"
+        )
+        self.assertIn("ENRIQUE PEREZ (código E1)", text)
+        self.assertIn("• EFECTIVOS ENRIQUE ROJAS (cuenta de banco, código ENRIQUE)", text)
+        self.assertTrue(text.rstrip().endswith("¿Cuál quieres consultar?"))
+        return self.BANK_ANSWER + [
+            {"role": "user", "content": "¿Y el saldo de Enrique?"},
+            {"role": "assistant", "content": text},
+        ]
+
+    def test_choosing_the_bank_row_queries_the_account(self):
+        history = self.listed()
+        for question in ("3", "el tercero", "la cuenta", "ENRIQUE"):
+            with self.subTest(question=question):
+                text = self.ask(question, history, operation="saldo", customer="Enrique")
+                self.assertIn("Cuenta ENRIQUE", text)
+                self.assertIn("Saldo actual: -20.00", text)
+
+    def test_choosing_a_person_still_queries_the_person(self):
+        history = self.listed()
+        text = self.ask("1", history, operation="saldo", customer="E1", codigo_exacto=True)
+        self.assertIn("Saldo actual de ENRIQUE PEREZ (código E1)", text)
+
+    def test_no_offer_without_the_bank_answer_or_for_other_names(self):
+        text = self.ask("Saldo de Enrique", [], operation="saldo", customer="Enrique")
+        self.assertNotIn("cuenta de banco", text)
+        self.db.conn.execute(f"INSERT INTO {CUSTOMERS} VALUES ('S9', 'LUIS SOTO', 5)")
+        text = self.ask("¿Y el de Soto?", self.BANK_ANSWER, operation="saldo", customer="Soto")
+        self.assertNotIn("cuenta de banco", text)
+
+    def test_bank_rows_never_become_a_conversation_party(self):
+        from dbagg.agent.entity import conversation_entity
+
+        history = self.listed()
+        self.assertIsNone(conversation_entity("ENRIQUE", history))

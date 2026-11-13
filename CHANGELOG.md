@@ -7,6 +7,9 @@
   equivalentes (`clientes.estado_cuenta` ↔ `proveedores.estado_cuenta`).
 - «Del 30 de agosto a hoy» o un rango sin año que termina hoy: si el modelo pide el período, el
   servicio le devuelve una sola vez las fechas exactas (regla ya escrita en el prompt).
+- Tras «Cuenta X», si «¿y el saldo de X?» lista personas homónimas, la lista ofrece también la cuenta
+  de banco; elegirla consulta la cuenta. El reporte de banco sin fechas sigue pidiéndolas y la memoria
+  sigue venciendo a los 30 minutos (decisiones del responsable).
 
 ## Sin publicar — Dominio modular de productos
 

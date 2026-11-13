@@ -42,6 +42,7 @@ from dbagg.limits import MAX_ROWS
 from dbagg.reporting.bank_pdf import bank_report_filename, bank_report_pdf
 from dbagg.reporting.statement_pdf import statement_filename, statement_pdf
 from dbagg.agent.entity import (
+    BANK,
     conversation_entity,
     dictated_code,
     explicit_entity,
@@ -56,6 +57,7 @@ from dbagg.agent.intent import (
     PERIOD_HINT,
     RANKING_HINT,
     list_position,
+    list_row_details,
     listed_codes,
     names_month_and_year,
     range_to_today,
@@ -379,6 +381,27 @@ def _reason(call):
     except (TypeError, ValueError):
         return None
     return arguments.get("reason") if isinstance(arguments, dict) else None
+
+
+BANK_CHOICE = re.compile(
+    r"(?:(?:la|el|en la|en el|de la|del)\s+)?(?:cuenta(?: de banco)?|banco|efectivo)"
+)
+
+
+def _latest_answer(history):
+    for message in reversed(history or []):
+        if message.get("role") == "assistant" and isinstance(message.get("content"), str):
+            return message["content"]
+    return ""
+
+
+def latest_bank_account(history):
+    """(code, name) when the latest answer is a bank account («Cuenta X (NOMBRE)»)."""
+    content = _latest_answer(history)
+    found = re.match(
+        r"Cuenta (\S.*?)(?: \(([^()]*)\))?$", content.splitlines()[0] if content else ""
+    )
+    return (found[1], found[2]) if found else None
 
 
 def _abandons_result(call):
@@ -1118,6 +1141,19 @@ class Assistant:
             "saldos_coincidencias",
             "contar_coincidencias",
         )
+        bank_code = self._chosen_bank_row(question, history) if single_customer else None
+        if bank_code:
+            # The person chose the bank account the service offered next to the people.
+            logger.info("dbagg stage=bank_row_chosen")
+            operation = arguments.get("operation")
+            bank_arguments = {"operation": "saldo_banco", "banco": bank_code}
+            if operation not in ("saldo", None):
+                bank_arguments = {
+                    "operation": "movimientos_banco",
+                    "banco": bank_code,
+                    **{k: arguments[k] for k in ("period", "start", "end") if arguments.get(k)},
+                }
+            return self._bank(bank_arguments, context, today)
         chosen = (
             chosen_customer(arguments.get("customer"), question, history)
             if single_customer
@@ -1208,7 +1244,9 @@ class Assistant:
                     directory, customer_arguments, model_entity, question, history
                 )
             if isinstance(entity, BusinessAnswer):
-                return self._business_answer(entity)
+                return self._business_answer(
+                    self._offer_bank_account(entity, customer_arguments.get("customer"), history)
+                )
         if arguments.get("operation") == STATEMENT_OPERATION:
             return self._statement(entity, customer_arguments, context, today)
         answer = self._party_query(entity, customer_arguments, context, today, routed)
@@ -1223,7 +1261,58 @@ class Assistant:
             self._customer_missed = True
             logger.info("dbagg stage=customer_not_found_retry")
             raise ToolHint(NOT_A_CUSTOMER_HINT)
+        answer = self._offer_bank_account(answer, customer_arguments.get("customer"), history)
         return self._business_answer(answer)
+
+    def _offer_bank_account(self, answer, term, history):
+        """After «Cuenta X», a list of people named like X also offers that bank account.
+
+        Owner decision (2026-11-13): «saldo de Enrique» right after his bank balance must not
+        hide the account. Only the latest answer counts and only an exact word of its code or
+        name; the account is offered, never chosen.
+        """
+        account = latest_bank_account(history) if BANKS in self.tables else None
+        if (
+            account is None
+            or answer.status != "needs_clarification"
+            or not isinstance(term, str)
+            or not term.strip()
+        ):
+            return answer
+        code, name = account
+        words = set(_normalize(f"{code} {name or ''}").split())
+        if not set(_normalize(term).split()) <= words:
+            return answer
+        lines = answer.text.split("\n")
+        rows = [i for i, line in enumerate(lines) if line.startswith("• ")]
+        if not rows:
+            return answer
+        lines.insert(rows[-1] + 1, f"• {name or code} (cuenta de banco, código {code})")
+        logger.info("dbagg stage=bank_account_offered")
+        return replace(answer, text="\n".join(lines))
+
+    def _chosen_bank_row(self, question, history):
+        """Code of the bank row of the open list the question points at, if any."""
+        if BANKS not in self.tables:
+            return None
+        codes = _open_list(history)
+        if not codes:
+            return None
+        named = named_row(question, history)
+        if named and named[0] == BANK:
+            return named[1]
+        position = list_position(question, codes)
+        if position:
+            row = listed_row(history, position)
+            return row[1] if row and row[0] == BANK else None
+        if BANK_CHOICE.fullmatch(_normalize(question).strip(" ¿?¡!.,")):
+            banks = [
+                code
+                for mark, _, code in list_row_details(_latest_answer(history))
+                if mark == "cuenta de banco"
+            ]
+            return banks[0] if len(banks) == 1 else None
+        return None
 
     def _party_query(self, entity, arguments, context, today, routed):
         if entity == SUPPLIER:

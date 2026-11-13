@@ -93,6 +93,12 @@ Tras una respuesta «Cuenta X», «dame un reporte de este mes», «¿y sus movi
 pedidas siguen con esa cuenta: el servicio lo indica al modelo si pide aclaración y convierte un
 `estado_cuenta` sin persona nombrada en el reporte de la cuenta.
 
+Justo después de «Cuenta X», si la pregunta siguiente lista personas que se llaman como esa cuenta
+(«¿y el saldo de Enrique?»), la lista añade la fila «X (cuenta de banco, código X)». Elegirla por
+posición, por código o con «la cuenta» / «el banco» consulta la cuenta (`saldo_banco`, o
+`movimientos_banco` si se pedía otro reporte); la cuenta se ofrece, nunca se elige sola, y no cuenta
+como cliente ni proveedor de la conversación. Decisión del responsable, 2026-11-13.
+
 Reglas confirmadas por el responsable (2026-11-09): importes en pesos, incluida DOLARES; un saldo
 negativo se muestra tal cual, sin interpretarlo; los saldos de varias cuentas nunca se suman.
 

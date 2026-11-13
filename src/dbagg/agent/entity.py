@@ -42,7 +42,8 @@ BARE_ENTITY = re.compile(
     r"(?:(?:y|si|el|la|al|del|de|como|es|son|a|un|una|quiero|consulta|ver)\s+)*"
     r"(?:proveedor|cliente)"
 )
-ROW_ENTITIES = {"cliente": CUSTOMER, "proveedor": SUPPLIER}
+BANK = "banco"
+ROW_ENTITIES = {"cliente": CUSTOMER, "proveedor": SUPPLIER, "cuenta de banco": BANK}
 
 
 def _without_party(question, party):
@@ -93,7 +94,8 @@ def _answer_parties(text):
     other = OTHER_ENTITY.match(text)
     if other:
         parties.append((ROW_ENTITIES[other[2]], None, other[1]))
-    return [party for party in parties if party[0]]
+    # A bank account offered in a list is never a customer or supplier of the conversation.
+    return [party for party in parties if party[0] in (CUSTOMER, SUPPLIER)]
 
 
 def _assistant_messages(history):
