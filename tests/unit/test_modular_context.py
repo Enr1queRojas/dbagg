@@ -141,7 +141,7 @@ class ModularContextTests(unittest.TestCase):
                 self.assertIn(rule, system, (route, rule))
 
     def test_split_core_moves_text_without_losing_rules(self):
-        before = (Path(__file__).parent / "data" / "core_before_split.md").read_text(
+        before = (Path(__file__).parent / "fixtures" / "core_before_split.md").read_text(
             encoding="utf-8"
         )
         party = self.select("clientes.saldo")
