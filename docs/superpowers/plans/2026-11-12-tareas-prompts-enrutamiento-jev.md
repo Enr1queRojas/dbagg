@@ -115,7 +115,7 @@ para enrutar.
   - **Hecho cuando:** `python -m dbagg.evaluation.calibration --input <report.json>`
     genera el informe sin llamar a ninguna API.
 
-- [ ] **T3. Línea base [API]**
+- [x] **T3. Línea base [API]**
   - Ejecutar T1 con variantes `legacy`, `reference` y `jev`, sobre
     `whatsapp-pilot.json`, `intent-routing.json` y `bank-routing.json`, con
     `--repeat 3`. Guardar en `docs/evaluations/pilot-baseline/` (sin contenido
@@ -123,8 +123,11 @@ para enrutar.
     resultado.
   - **Hecho cuando:** existe `docs/evaluations/pilot-baseline/summary.md` con la
     tabla de métricas y la lista de casos fallidos por variante.
-  - **Pendiente (2026-11-12):** sin claves de OpenAI/Jev ni salida de red en la
-    sesión. Comandos listos en `docs/evaluations/pilot-baseline/PENDIENTE.md`.
+  - **Resultado (2026-11-12, con API):** `docs/evaluations/pilot-baseline/summary.md`.
+    294 turnos por variante, las tres `measured`. Acierto total / costo por consulta
+    correcta: `legacy_mini` 85.7 % / $0.00180; `reference_mini` 69.0 % / $0.00196
+    (ruta 76.7 %); `jev_mini` 72.8 % / $0.00154 (ruta 82.1 %, 1.21 llamadas de
+    enrutamiento por turno). Costo estimado de la corrida: $1.18.
 
 ---
 

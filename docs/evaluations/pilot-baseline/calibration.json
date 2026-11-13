@@ -1,0 +1,180 @@
+{
+  "decisions": 219,
+  "route_accuracy": 0.8127853881278538,
+  "confusion": {
+    "clientes.contar_coincidencias": {
+      "clientes.contar_coincidencias": 3
+    },
+    "clientes.estado_cuenta": {
+      "clientes.estado_cuenta": 20,
+      "legacy": 4
+    },
+    "clientes.notas_pendientes": {
+      "clientes.notas_pendientes": 6
+    },
+    "clientes.pagos": {
+      "clientes.pagos": 6
+    },
+    "clientes.ranking_deuda": {
+      "clientes.ranking_deuda": 9
+    },
+    "clientes.saldo": {
+      "clientes.saldo": 30,
+      "clientes.saldos_coincidencias": 6,
+      "clientes.total_pagos": 3,
+      "legacy": 12
+    },
+    "clientes.saldos_coincidencias": {
+      "clientes.saldos_coincidencias": 3
+    },
+    "clientes.total_pagos": {
+      "clientes.total_pagos": 13,
+      "legacy": 2
+    },
+    "clientes.ultima_nota": {
+      "clientes.ultima_nota": 18,
+      "legacy": 3
+    },
+    "clientes.ultimo_pago": {
+      "clientes.ultimo_pago": 9,
+      "legacy": 3
+    },
+    "gastos.exploracion": {
+      "gastos.exploracion": 6
+    },
+    "legacy": {
+      "clientes.estado_cuenta": 3,
+      "clientes.saldo": 4,
+      "gastos.exploracion": 1,
+      "legacy": 55
+    }
+  },
+  "confidence_curve": [
+    {
+      "threshold": 0.5,
+      "covered": 198,
+      "coverage": 0.9041095890410958,
+      "accuracy": 0.8787878787878788
+    },
+    {
+      "threshold": 0.55,
+      "covered": 190,
+      "coverage": 0.867579908675799,
+      "accuracy": 0.8894736842105263
+    },
+    {
+      "threshold": 0.6,
+      "covered": 186,
+      "coverage": 0.8493150684931506,
+      "accuracy": 0.8978494623655914
+    },
+    {
+      "threshold": 0.65,
+      "covered": 180,
+      "coverage": 0.821917808219178,
+      "accuracy": 0.9111111111111111
+    },
+    {
+      "threshold": 0.7,
+      "covered": 168,
+      "coverage": 0.7671232876712328,
+      "accuracy": 0.9285714285714286
+    },
+    {
+      "threshold": 0.75,
+      "covered": 161,
+      "coverage": 0.7351598173515982,
+      "accuracy": 0.937888198757764
+    },
+    {
+      "threshold": 0.8,
+      "covered": 151,
+      "coverage": 0.6894977168949772,
+      "accuracy": 0.9403973509933775
+    },
+    {
+      "threshold": 0.85,
+      "covered": 135,
+      "coverage": 0.6164383561643836,
+      "accuracy": 0.9481481481481482
+    },
+    {
+      "threshold": 0.9,
+      "covered": 109,
+      "coverage": 0.4977168949771689,
+      "accuracy": 0.9724770642201835
+    },
+    {
+      "threshold": 0.95,
+      "covered": 83,
+      "coverage": 0.3789954337899543,
+      "accuracy": 0.963855421686747
+    }
+  ],
+  "margin_curve": [
+    {
+      "threshold": 0.5,
+      "covered": 171,
+      "coverage": 0.7808219178082192,
+      "accuracy": 0.9239766081871345
+    },
+    {
+      "threshold": 0.55,
+      "covered": 167,
+      "coverage": 0.7625570776255708,
+      "accuracy": 0.9281437125748503
+    },
+    {
+      "threshold": 0.6,
+      "covered": 160,
+      "coverage": 0.730593607305936,
+      "accuracy": 0.9375
+    },
+    {
+      "threshold": 0.65,
+      "covered": 152,
+      "coverage": 0.6940639269406392,
+      "accuracy": 0.9407894736842105
+    },
+    {
+      "threshold": 0.7,
+      "covered": 143,
+      "coverage": 0.6529680365296804,
+      "accuracy": 0.9440559440559441
+    },
+    {
+      "threshold": 0.75,
+      "covered": 129,
+      "coverage": 0.589041095890411,
+      "accuracy": 0.9612403100775194
+    },
+    {
+      "threshold": 0.8,
+      "covered": 118,
+      "coverage": 0.5388127853881278,
+      "accuracy": 0.9745762711864406
+    },
+    {
+      "threshold": 0.85,
+      "covered": 107,
+      "coverage": 0.4885844748858447,
+      "accuracy": 0.9719626168224299
+    },
+    {
+      "threshold": 0.9,
+      "covered": 88,
+      "coverage": 0.4018264840182648,
+      "accuracy": 0.9659090909090909
+    },
+    {
+      "threshold": 0.95,
+      "covered": 63,
+      "coverage": 0.2876712328767123,
+      "accuracy": 0.9523809523809523
+    }
+  ],
+  "domain": {
+    "scored": 219,
+    "accuracy": 0.863013698630137
+  }
+}
