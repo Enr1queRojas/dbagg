@@ -409,7 +409,7 @@ para enrutar.
   - **Implementado, medición pendiente (2026-11-12):** un ejemplo ficticio por
     operación (no había matriz de T3 para priorizar). Solo entran al prompt
     modular; `system.md` no cambia. Medir con los comandos de
-    `docs/evaluations/thresholds/PENDIENTE.md` (variantes `reference_mini` y
+    `docs/evaluations/thresholds/PENDIENTE.md` (ya retirado; ver `thresholds/summary.md`) (variantes `reference_mini` y
     `jev_mini`, antes y después de este commit) y retirar el ejemplo que empeore
     un caso. Casilla sin marcar hasta medir.
   - **Medición parcial (2026-11-12, con API), sigue sin marcar:** con la config de
@@ -515,7 +515,7 @@ para enrutar.
 
 ## Cierre
 
-- [ ] **T25. Evaluación final y documentación [API]**
+- [x] **T25. Evaluación final y documentación [API]**
   - Repetir T3 con todo activado. Tabla comparativa contra la línea base:
     acierto de ruta, acierto de parámetros, llamadas por turno, tokens, costo
     por consulta correcta, porcentaje de turnos en legacy (meta < 25%).
@@ -525,8 +525,15 @@ para enrutar.
     pendiente por falta de claves o de datos.
   - **Parcial (2026-11-12):** documentación actualizada e informe en
     `docs/evaluations/final/informe.md`. La evaluación con API queda pendiente
-    (`docs/evaluations/final/PENDIENTE.md`; el evaluador acepta `--config` para la
+    (`docs/evaluations/final/PENDIENTE.md`, ya retirado; el evaluador acepta `--config` para la
     variante «todo activado»).
+  - **Resultado (2026-11-12, con API):** `docs/evaluations/final/summary.md` e
+    `informe.md` actualizados. «Todo activado» (umbrales de T13, 5 dominios,
+    `compact_history`, sin T18 ni T19): acierto total 82.3 % (línea base: legacy
+    85.7 %, `jev_mini` 72.8 %), costo por consulta correcta **$0.00110** (−29 %
+    frente a `jev_mini`, −39 % frente a legacy), 0.97 llamadas de enrutamiento por
+    turno. **Meta de turnos en legacy < 25 %: no cumplida** (26.5 %; 21.1 % solo en
+    el piloto). La casilla marca la evaluación y la documentación hechas, no la meta.
 
 ## Orden y dependencias
 
